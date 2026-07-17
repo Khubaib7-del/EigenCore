@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import time
 import traceback
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Optional
