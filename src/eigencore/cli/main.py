@@ -21,9 +21,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from eigencore.engine.inference import GenerationConfig, InferenceEngine
 from eigencore.hal.profiler import profile_hardware
 from eigencore.models.registry import ModelRegistry
-from eigencore.engine.inference import InferenceEngine, GenerationConfig
 
 console = Console()
 

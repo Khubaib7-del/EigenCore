@@ -2,10 +2,11 @@
 
 import numpy as np
 import pytest
+
 from eigencore.engine.sparse_inference import (
+    SparseExecutionPlan,
     SparsityCache,
     SparsityPredictor,
-    SparseExecutionPlan,
 )
 
 

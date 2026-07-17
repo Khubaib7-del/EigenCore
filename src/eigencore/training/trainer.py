@@ -222,14 +222,14 @@ class CPUTrainer:
 
         import psutil
         import torch
+        from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
         from transformers import (
             AutoModelForCausalLM,
             AutoTokenizer,
-            TrainingArguments,
-            Trainer,
             DataCollatorForLanguageModeling,
+            Trainer,
+            TrainingArguments,
         )
-        from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
         output_dir = Path(self.config.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)

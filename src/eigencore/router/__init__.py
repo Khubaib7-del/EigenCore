@@ -1,3 +1,3 @@
-from eigencore.router.classifier import TaskRouter, TaskDomain
+from eigencore.router.classifier import TaskDomain, TaskRouter
 
 __all__ = ["TaskRouter", "TaskDomain"]

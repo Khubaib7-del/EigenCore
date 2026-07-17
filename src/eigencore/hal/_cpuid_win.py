@@ -6,6 +6,7 @@ Falls back to registry-based detection if direct CPUID is unavailable.
 from __future__ import annotations
 
 import winreg
+
 from eigencore.hal.profiler import InstructionSet
 
 

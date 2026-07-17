@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from eigencore.hal.profiler import profile_hardware
-from eigencore.router.classifier import TaskRouter, TaskDomain
+from eigencore.router.classifier import TaskDomain, TaskRouter
 
 
 def test_code_detection():

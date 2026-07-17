@@ -1,6 +1,7 @@
 """Tests for dynamic layer skipping scheduler."""
 
 import pytest
+
 from eigencore.engine.layer_skip import (
     LayerSkipScheduler,
     SkipStrategy,

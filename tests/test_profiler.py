@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from eigencore.hal.profiler import profile_hardware, InstructionSet
+from eigencore.hal.profiler import InstructionSet, profile_hardware
 
 
 def test_profile_returns_valid_data():
