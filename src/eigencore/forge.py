@@ -28,6 +28,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterator, Optional
 
+from eigencore.agent.executor import ToolExecutor
+from eigencore.agent.react import AgentResult, ReActAgent
+from eigencore.agent.tool import ToolRegistry
 from eigencore.context.manager import ContextManager
 from eigencore.engine.inference import GenerationConfig, GenerationResult, InferenceEngine
 from eigencore.hal.profiler import HardwareProfile, profile_hardware
@@ -160,6 +163,39 @@ class Forge:
         if self._engine:
             self._engine.unload()
         self._current_model = None
+
+    def agent(
+        self,
+        tools: ToolRegistry,
+        max_steps: int = 10,
+        max_tokens_per_step: int = 256,
+        system_prompt: Optional[str] = None,
+    ) -> ReActAgent:
+        """Create a ReAct agent backed by this Forge's inference engine."""
+        return ReActAgent(
+            registry=tools,
+            executor=ToolExecutor(tools),
+            max_steps=max_steps,
+            max_tokens_per_step=max_tokens_per_step,
+            system_prompt=system_prompt,
+        )
+
+    def run_agent(
+        self,
+        task: str,
+        tools: ToolRegistry,
+        max_steps: int = 10,
+    ) -> AgentResult:
+        """Run an agent task end-to-end using this Forge's model."""
+        self._ensure_loaded(task)
+        react = self.agent(tools, max_steps=max_steps)
+
+        def generate_fn(messages, max_tokens):
+            config = GenerationConfig(max_tokens=max_tokens, temperature=0.3, stream=False)
+            result = self._engine.chat(messages, config)
+            return result.text
+
+        return react.run(task, generate_fn=generate_fn)
 
     @property
     def loaded_model(self) -> Optional[str]:
