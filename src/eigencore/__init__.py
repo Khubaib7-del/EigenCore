@@ -1,7 +1,11 @@
 """EigenCore — CPU-first LLM intelligence runtime."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
+from eigencore.agent.executor import ToolExecutor, ToolResult
+from eigencore.agent.grammar import GBNFBuilder
+from eigencore.agent.react import AgentResult, AgentStep, ReActAgent, StepKind
+from eigencore.agent.tool import Tool, ToolParam, ToolRegistry
 from eigencore.context.manager import ContextManager
 from eigencore.engine.inference import GenerationConfig, GenerationResult, InferenceEngine
 from eigencore.engine.layer_skip import LayerSkipScheduler, SkipPlan, SkipStrategy
@@ -33,4 +37,14 @@ __all__ = [
     "TaskDomain",
     "RoutingDecision",
     "ContextManager",
+    "Tool",
+    "ToolParam",
+    "ToolRegistry",
+    "ToolExecutor",
+    "ToolResult",
+    "GBNFBuilder",
+    "ReActAgent",
+    "AgentResult",
+    "AgentStep",
+    "StepKind",
 ]
