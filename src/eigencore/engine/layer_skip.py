@@ -10,7 +10,7 @@ quality loss (typically < 2% perplexity increase at 20-30% skip rate).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
 
 import numpy as np
@@ -117,8 +117,7 @@ class LayerSkipScheduler:
         """
         if len(layer_importances) != self.num_layers:
             raise ValueError(
-                f"Expected {self.num_layers} importance scores, "
-                f"got {len(layer_importances)}"
+                f"Expected {self.num_layers} importance scores, got {len(layer_importances)}"
             )
 
         self._layer_profiles = [
@@ -208,8 +207,7 @@ class LayerSkipScheduler:
         max_total_skip = int(self.num_layers * self.max_skip_rate * (1.0 - complexity))
 
         candidates = [
-            p for p in self._layer_profiles
-            if p.skip_safe and head <= p.index < tail_start
+            p for p in self._layer_profiles if p.skip_safe and head <= p.index < tail_start
         ]
         candidates.sort(key=lambda p: p.avg_sparsity, reverse=True)
 
@@ -238,10 +236,7 @@ class LayerSkipScheduler:
         tail = max(1, int(self.num_layers * self.CRITICAL_TAIL_RATIO))
         tail_start = self.num_layers - tail
 
-        middle_profiles = [
-            p for p in self._layer_profiles
-            if head <= p.index < tail_start
-        ]
+        middle_profiles = [p for p in self._layer_profiles if head <= p.index < tail_start]
         middle_profiles.sort(key=lambda p: p.importance)
 
         max_total_skip = int(self.num_layers * self.max_skip_rate * (1.0 - complexity))

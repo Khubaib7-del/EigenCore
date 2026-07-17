@@ -5,12 +5,11 @@ Handles model discovery, download, and local caching.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from huggingface_hub import hf_hub_download, snapshot_download
+from huggingface_hub import hf_hub_download
 
 from eigencore.hal.profiler import HardwareProfile
 
@@ -170,7 +169,6 @@ class ModelRegistry:
                         )
                     return model
             raise ValueError(
-                f"Unknown model: {name}. "
-                f"Available: {', '.join(m.name for m in REGISTRY)}"
+                f"Unknown model: {name}. Available: {', '.join(m.name for m in REGISTRY)}"
             )
         return self.recommend(profile, task)

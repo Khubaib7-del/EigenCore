@@ -32,7 +32,7 @@ from eigencore.hal.profiler import HardwareProfile, profile_hardware
 from eigencore.models.registry import ModelRegistry, ModelSpec
 from eigencore.engine.inference import InferenceEngine, GenerationConfig, GenerationResult
 from eigencore.router.classifier import TaskRouter, RoutingDecision
-from eigencore.context.manager import ContextManager, ContextWindow
+from eigencore.context.manager import ContextManager
 
 
 class Forge:
@@ -90,9 +90,7 @@ class Forge:
         if self._engine and self._engine.is_loaded:
             if prompt:
                 decision = self.router.route(prompt)
-                if self._current_model and self.router.should_swap(
-                    self._current_model, decision
-                ):
+                if self._current_model and self.router.should_swap(self._current_model, decision):
                     self._load_model(decision.model.name)
             return
         self._load_model()

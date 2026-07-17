@@ -1,8 +1,7 @@
 """Tests for CPU-optimized speculative decoding."""
 
 import numpy as np
-import pytest
-from eigencore.engine.speculative import SpeculativeDecoder, SpeculativeResult
+from eigencore.engine.speculative import SpeculativeDecoder
 
 
 class TestSpeculativeDecoder:

@@ -175,7 +175,11 @@ class SpeculativeDecoder:
                 accepted.append(token_id)
             else:
                 rejection_pos = i
-                correction = int(np.argmax(verifier_logprobs[i:][:1])) if i < len(verifier_logprobs) else None
+                correction = (
+                    int(np.argmax(verifier_logprobs[i:][:1]))
+                    if i < len(verifier_logprobs)
+                    else None
+                )
                 break
 
         elapsed = (time.perf_counter() - start) * 1000

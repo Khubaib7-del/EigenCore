@@ -97,8 +97,12 @@ class TestSparsityCache:
     def test_cache_hit_after_put(self):
         cache = SparsityCache(max_entries=10)
         plan = SparseExecutionPlan(
-            masks=[], total_neurons=100, total_active=50,
-            overall_sparsity=0.5, estimated_flop_savings=0.5, estimated_speedup=2.0,
+            masks=[],
+            total_neurons=100,
+            total_active=50,
+            overall_sparsity=0.5,
+            estimated_flop_savings=0.5,
+            estimated_speedup=2.0,
         )
         cache.put([1, 2, 3], plan)
         result = cache.get([1, 2, 3])
@@ -109,8 +113,12 @@ class TestSparsityCache:
     def test_lru_eviction(self):
         cache = SparsityCache(max_entries=3)
         dummy = SparseExecutionPlan(
-            masks=[], total_neurons=0, total_active=0,
-            overall_sparsity=0.0, estimated_flop_savings=0.0, estimated_speedup=1.0,
+            masks=[],
+            total_neurons=0,
+            total_active=0,
+            overall_sparsity=0.0,
+            estimated_flop_savings=0.0,
+            estimated_speedup=1.0,
         )
         cache.put([1], dummy)
         cache.put([2], dummy)
@@ -122,8 +130,12 @@ class TestSparsityCache:
     def test_hit_rate(self):
         cache = SparsityCache()
         dummy = SparseExecutionPlan(
-            masks=[], total_neurons=0, total_active=0,
-            overall_sparsity=0.0, estimated_flop_savings=0.0, estimated_speedup=1.0,
+            masks=[],
+            total_neurons=0,
+            total_active=0,
+            overall_sparsity=0.0,
+            estimated_flop_savings=0.0,
+            estimated_speedup=1.0,
         )
         cache.put([1], dummy)
         cache.get([1])  # hit
@@ -133,8 +145,12 @@ class TestSparsityCache:
     def test_clear_resets(self):
         cache = SparsityCache()
         dummy = SparseExecutionPlan(
-            masks=[], total_neurons=0, total_active=0,
-            overall_sparsity=0.0, estimated_flop_savings=0.0, estimated_speedup=1.0,
+            masks=[],
+            total_neurons=0,
+            total_active=0,
+            overall_sparsity=0.0,
+            estimated_flop_savings=0.0,
+            estimated_speedup=1.0,
         )
         cache.put([1], dummy)
         cache.get([1])

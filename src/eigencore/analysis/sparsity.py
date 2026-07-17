@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
@@ -67,15 +66,15 @@ class SparsityReport:
             "potential_speedup": self.potential_speedup,
             "layers": [
                 {
-                    "layer_index": l.layer_index,
-                    "layer_name": l.layer_name,
-                    "total_activations": l.total_activations,
-                    "near_zero_count": l.near_zero_count,
-                    "sparsity_ratio": l.sparsity_ratio,
-                    "mean_magnitude": l.mean_magnitude,
-                    "median_magnitude": l.median_magnitude,
+                    "layer_index": layer.layer_index,
+                    "layer_name": layer.layer_name,
+                    "total_activations": layer.total_activations,
+                    "near_zero_count": layer.near_zero_count,
+                    "sparsity_ratio": layer.sparsity_ratio,
+                    "mean_magnitude": layer.mean_magnitude,
+                    "median_magnitude": layer.median_magnitude,
                 }
-                for l in self.layers
+                for layer in self.layers
             ],
         }
 
@@ -153,11 +152,6 @@ class SparsityAnalyzer:
         # softmax
         exp_arr = np.exp(arr - np.max(arr))
         probs = exp_arr / np.sum(exp_arr)
-
-        # entropy as a measure of concentration
-        entropy = -np.sum(probs * np.log(probs + 1e-10))
-        max_entropy = np.log(len(probs))
-        normalized_entropy = entropy / max_entropy if max_entropy > 0 else 1.0
 
         # concentration: what fraction of tokens carry 95% of the probability mass
         sorted_probs = np.sort(probs)[::-1]

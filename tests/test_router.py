@@ -65,6 +65,7 @@ def test_swap_logic():
     router = TaskRouter(hw)
 
     from eigencore.models.registry import ModelRegistry
+
     registry = ModelRegistry()
     general_model = registry.recommend(hw, "general")
 

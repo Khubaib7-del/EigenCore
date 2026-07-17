@@ -15,7 +15,6 @@ RAM machine maintain conversations that would normally need 32GB of context.
 from __future__ import annotations
 
 import hashlib
-import json
 import sqlite3
 import time
 from dataclasses import dataclass, field
@@ -48,6 +47,7 @@ class Message:
 @dataclass
 class ContextWindow:
     """Represents the current context state with compression metadata."""
+
     messages: list[Message]
     total_tokens: int
     max_tokens: int
@@ -70,8 +70,8 @@ class ContextManager:
     Also provides persistent session storage via SQLite.
     """
 
-    SINK_MESSAGES = 2       # first system + first user message to always preserve
-    RECENT_MESSAGES = 6     # recent messages to always keep uncompressed
+    SINK_MESSAGES = 2  # first system + first user message to always preserve
+    RECENT_MESSAGES = 6  # recent messages to always keep uncompressed
     COMPRESSION_TARGET = 0.4  # compress middle messages to 40% of original size
 
     def __init__(
@@ -117,8 +117,12 @@ class ContextManager:
         """
         if not self.messages:
             return ContextWindow(
-                messages=[], total_tokens=0, max_tokens=self.max_context_tokens,
-                compression_ratio=1.0, sink_tokens_preserved=0, messages_compressed=0,
+                messages=[],
+                total_tokens=0,
+                max_tokens=self.max_context_tokens,
+                compression_ratio=1.0,
+                sink_tokens_preserved=0,
+                messages_compressed=0,
             )
 
         total = sum(m.token_estimate for m in self.messages)
@@ -135,11 +139,11 @@ class ContextManager:
             )
 
         # split into three zones
-        sink = self.messages[:self.SINK_MESSAGES]
+        sink = self.messages[: self.SINK_MESSAGES]
         n_recent = min(self.RECENT_MESSAGES, len(self.messages) - self.SINK_MESSAGES)
         recent = self.messages[-n_recent:] if n_recent > 0 else []
         middle_end = len(self.messages) - n_recent if n_recent > 0 else len(self.messages)
-        middle = self.messages[self.SINK_MESSAGES:middle_end]
+        middle = self.messages[self.SINK_MESSAGES : middle_end]
 
         sink_tokens = sum(m.token_estimate for m in sink)
         recent_tokens = sum(m.token_estimate for m in recent)
@@ -186,9 +190,7 @@ class ContextManager:
 
         if token_budget <= 0:
             # no room for middle context — create a single summary placeholder
-            combined = " | ".join(
-                f"[{m.role}]: {m.content[:30]}..." for m in messages[:5]
-            )
+            combined = " | ".join(f"[{m.role}]: {m.content[:30]}..." for m in messages[:5])
             summary = Message(
                 role="system",
                 content=f"[Earlier context compressed: {len(messages)} messages] {combined}",
@@ -213,12 +215,14 @@ class ContextManager:
                 continue
 
             truncated = self._smart_truncate(msg.content, target_chars)
-            compressed.append(Message(
-                role=msg.role,
-                content=truncated,
-                timestamp=msg.timestamp,
-                compressed=True,
-            ))
+            compressed.append(
+                Message(
+                    role=msg.role,
+                    content=truncated,
+                    timestamp=msg.timestamp,
+                    compressed=True,
+                )
+            )
             count += 1
 
         # if we still exceed budget after proportional compression, drop oldest
@@ -248,12 +252,12 @@ class ContextManager:
         # find clean sentence boundary in first part
         last_period = first_part.rfind(". ")
         if last_period > half // 2:
-            first_part = first_part[:last_period + 1]
+            first_part = first_part[: last_period + 1]
 
         # find clean sentence boundary in last part
         first_period = last_part.find(". ")
         if first_period > 0 and first_period < len(last_part) // 2:
-            last_part = last_part[first_period + 2:]
+            last_part = last_part[first_period + 2 :]
 
         return f"{first_part} [...] {last_part}"
 
@@ -265,8 +269,15 @@ class ContextManager:
         for msg in self.messages:
             self._db.execute(
                 "INSERT OR REPLACE INTO messages VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (msg.message_id, session_id, msg.role, msg.content,
-                 msg.timestamp, msg.token_estimate, int(msg.compressed)),
+                (
+                    msg.message_id,
+                    session_id,
+                    msg.role,
+                    msg.content,
+                    msg.timestamp,
+                    msg.token_estimate,
+                    int(msg.compressed),
+                ),
             )
         self._db.commit()
 
@@ -284,8 +295,11 @@ class ContextManager:
         count = 0
         for row in cursor:
             msg = Message(
-                role=row[0], content=row[1], timestamp=row[2],
-                token_estimate=row[3], compressed=bool(row[4]),
+                role=row[0],
+                content=row[1],
+                timestamp=row[2],
+                token_estimate=row[3],
+                compressed=bool(row[4]),
                 message_id=row[5],
             )
             self.messages.append(msg)

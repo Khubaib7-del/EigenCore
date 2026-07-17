@@ -20,10 +20,9 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from eigencore.hal.profiler import profile_hardware
-from eigencore.models.registry import ModelRegistry, ModelSpec
+from eigencore.models.registry import ModelRegistry
 from eigencore.engine.inference import InferenceEngine, GenerationConfig
 
 console = Console()
@@ -50,12 +49,14 @@ def profile():
 
     console.print()
     console.print(f"[bold green]Recommended model:[/] {rec.name} ({rec.description})")
-    console.print(f"  Size: {rec.size_gb:.1f} GB | Params: {rec.params_b:.1f}B | Quant: {rec.quant}")
+    console.print(
+        f"  Size: {rec.size_gb:.1f} GB | Params: {rec.params_b:.1f}B | Quant: {rec.quant}"
+    )
 
     if not registry.is_downloaded(rec):
         console.print(f"\n  [dim]Download with:[/] eigencore download {rec.name}")
     else:
-        console.print(f"\n  [dim]Already downloaded. Run with:[/] eigencore run --prompt \"hello\"")
+        console.print('\n  [dim]Already downloaded. Run with:[/] eigencore run --prompt "hello"')
 
 
 @cli.command()
@@ -149,7 +150,9 @@ def run(
         sys.exit(1)
 
     if not registry.is_downloaded(spec):
-        console.print(f"Model [cyan]{spec.name}[/] not downloaded. Downloading ({spec.size_gb:.1f} GB)...")
+        console.print(
+            f"Model [cyan]{spec.name}[/] not downloaded. Downloading ({spec.size_gb:.1f} GB)..."
+        )
         try:
             registry.download(spec)
         except Exception as e:
@@ -158,7 +161,9 @@ def run(
 
     model_path = spec.local_path(registry.cache_dir)
 
-    console.print(f"[dim]Model: {spec.name} | Threads: {hw.recommended_threads} | Ctx: {hw.recommended_context_length}[/]")
+    console.print(
+        f"[dim]Model: {spec.name} | Threads: {hw.recommended_threads} | Ctx: {hw.recommended_context_length}[/]"
+    )
 
     engine = InferenceEngine(model_path, hw, spec)
 
@@ -175,7 +180,9 @@ def run(
         result = engine.generate(prompt, config)
         console.print()
         console.print(result.text)
-        console.print(f"\n[dim]{result.tokens_generated} tokens in {result.time_seconds:.1f}s ({result.tokens_per_second:.1f} tok/s)[/]")
+        console.print(
+            f"\n[dim]{result.tokens_generated} tokens in {result.time_seconds:.1f}s ({result.tokens_per_second:.1f} tok/s)[/]"
+        )
     else:
         console.print()
         token_count = 0
@@ -212,7 +219,9 @@ def chat(
         sys.exit(1)
 
     if not registry.is_downloaded(spec):
-        console.print(f"Model [cyan]{spec.name}[/] not downloaded. Downloading ({spec.size_gb:.1f} GB)...")
+        console.print(
+            f"Model [cyan]{spec.name}[/] not downloaded. Downloading ({spec.size_gb:.1f} GB)..."
+        )
         try:
             registry.download(spec)
         except Exception as e:
@@ -225,13 +234,15 @@ def chat(
     with console.status("[bold cyan]Loading model..."):
         engine.load()
 
-    console.print(Panel(
-        f"Model: [cyan]{spec.name}[/] ({spec.params_b:.1f}B)\n"
-        f"Context: {hw.recommended_context_length} tokens\n"
-        f"Type [bold]exit[/] or [bold]quit[/] to end.",
-        title="[bold]EigenCore Chat",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"Model: [cyan]{spec.name}[/] ({spec.params_b:.1f}B)\n"
+            f"Context: {hw.recommended_context_length} tokens\n"
+            f"Type [bold]exit[/] or [bold]quit[/] to end.",
+            title="[bold]EigenCore Chat",
+            border_style="cyan",
+        )
+    )
 
     messages: list[dict[str, str]] = []
     config = GenerationConfig(max_tokens=max_tokens, temperature=temperature, stream=False)
@@ -255,7 +266,9 @@ def chat(
         messages.append({"role": "assistant", "content": result.text})
 
         console.print(f"\n[bold cyan]EigenCore:[/] {result.text}")
-        console.print(f"[dim]{result.tokens_generated} tokens | {result.tokens_per_second:.1f} tok/s[/]")
+        console.print(
+            f"[dim]{result.tokens_generated} tokens | {result.tokens_per_second:.1f} tok/s[/]"
+        )
 
     engine.unload()
     console.print("\n[dim]Session ended.[/]")
@@ -285,7 +298,9 @@ def analyze(
         sys.exit(1)
 
     if not registry.is_downloaded(spec):
-        console.print(f"Model [cyan]{spec.name}[/] not downloaded. Downloading ({spec.size_gb:.1f} GB)...")
+        console.print(
+            f"Model [cyan]{spec.name}[/] not downloaded. Downloading ({spec.size_gb:.1f} GB)..."
+        )
         try:
             registry.download(spec)
         except Exception as e:
@@ -301,14 +316,12 @@ def analyze(
     console.print(f"[dim]Analyzing sparsity for: {prompt[:80]}[/]")
 
     try:
-        from llama_cpp import Llama
         llm = engine._llm
 
         llm.reset()
         tokens = llm.tokenize(prompt.encode("utf-8"))
         llm.eval(tokens)
 
-        import ctypes
         n_vocab = llm.n_vocab()
         logits_ptr = llm._ctx.get_logits()
         logits = [logits_ptr[i] for i in range(n_vocab)]
@@ -319,22 +332,32 @@ def analyze(
         report_probs = analyzer.analyze_token_probabilities(logits, spec.name, prompt)
 
         console.print()
-        console.print(Panel(
-            report_logits.summary(),
-            title="[bold]Logit Sparsity Analysis",
-            border_style="yellow",
-        ))
+        console.print(
+            Panel(
+                report_logits.summary(),
+                title="[bold]Logit Sparsity Analysis",
+                border_style="yellow",
+            )
+        )
         console.print()
-        console.print(Panel(
-            report_probs.summary(),
-            title="[bold]Probability Concentration Analysis",
-            border_style="green",
-        ))
+        console.print(
+            Panel(
+                report_probs.summary(),
+                title="[bold]Probability Concentration Analysis",
+                border_style="green",
+            )
+        )
 
-        console.print(f"\n[bold]Key findings:[/]")
-        console.print(f"  Logit sparsity: [cyan]{report_logits.overall_sparsity:.1%}[/] of logits near zero")
-        console.print(f"  Probability concentration: [cyan]{report_probs.overall_sparsity:.1%}[/] of mass in top tokens")
-        console.print(f"  Theoretical CPU speedup from sparsity: [green]{report_logits.potential_speedup:.1f}x[/]")
+        console.print("\n[bold]Key findings:[/]")
+        console.print(
+            f"  Logit sparsity: [cyan]{report_logits.overall_sparsity:.1%}[/] of logits near zero"
+        )
+        console.print(
+            f"  Probability concentration: [cyan]{report_probs.overall_sparsity:.1%}[/] of mass in top tokens"
+        )
+        console.print(
+            f"  Theoretical CPU speedup from sparsity: [green]{report_logits.potential_speedup:.1f}x[/]"
+        )
 
         if output:
             combined = {
@@ -347,13 +370,16 @@ def analyze(
     except Exception as e:
         console.print(f"[red]Analysis error:[/] {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         engine.unload()
 
 
 @cli.command()
-@click.option("--base-model", "-b", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0", help="HuggingFace model ID")
+@click.option(
+    "--base-model", "-b", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0", help="HuggingFace model ID"
+)
 @click.option("--data", "-d", required=True, help="Path to training data (jsonl/json/txt/csv)")
 @click.option("--output", "-o", default="./eigencore-adapters", help="Output directory for adapter")
 @click.option("--lora-rank", default=8, help="LoRA rank (4-64)")
@@ -389,21 +415,25 @@ def train(
             f"Time: {metrics.elapsed_seconds:.0f}s"
         )
 
-    console.print(Panel(
-        f"Base model: [cyan]{base_model}[/]\n"
-        f"Data: {data}\n"
-        f"LoRA rank: {lora_rank}\n"
-        f"Initial epochs: {epochs}\n"
-        f"Adaptive scaling: 1/4 consistency rule",
-        title="[bold]EigenCore Training",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"Base model: [cyan]{base_model}[/]\n"
+            f"Data: {data}\n"
+            f"LoRA rank: {lora_rank}\n"
+            f"Initial epochs: {epochs}\n"
+            f"Adaptive scaling: 1/4 consistency rule",
+            title="[bold]EigenCore Training",
+            border_style="cyan",
+        )
+    )
 
     try:
         trainer = CPUTrainer(config, hw, on_epoch_end=on_epoch)
         result = trainer.train()
         console.print()
-        console.print(Panel(result.summary(), title="[bold green]Training Complete", border_style="green"))
+        console.print(
+            Panel(result.summary(), title="[bold green]Training Complete", border_style="green")
+        )
     except ImportError as e:
         console.print(f"\n[red]Missing dependencies:[/] {e}")
         console.print("[dim]Install with: pip install eigencore[train][/]")

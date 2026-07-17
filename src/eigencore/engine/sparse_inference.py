@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -162,12 +162,14 @@ class SparsityPredictor:
         stats = []
         for i in range(self.num_layers):
             history = self._layer_sparsity_history[i]
-            stats.append({
-                "layer": i,
-                "avg_sparsity": float(np.mean(history)) if history else 0.0,
-                "std_sparsity": float(np.std(history)) if history else 0.0,
-                "samples": len(history),
-            })
+            stats.append(
+                {
+                    "layer": i,
+                    "avg_sparsity": float(np.mean(history)) if history else 0.0,
+                    "std_sparsity": float(np.std(history)) if history else 0.0,
+                    "samples": len(history),
+                }
+            )
         return stats
 
 

@@ -3,7 +3,6 @@
 import pytest
 from eigencore.engine.layer_skip import (
     LayerSkipScheduler,
-    SkipPlan,
     SkipStrategy,
 )
 

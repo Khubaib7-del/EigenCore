@@ -5,13 +5,10 @@ to determine optimal model configuration without manual user input.
 
 from __future__ import annotations
 
-import ctypes
 import platform
-import struct
 import time
 from dataclasses import dataclass, field
 from enum import Flag, auto
-from pathlib import Path
 
 import psutil
 
@@ -53,7 +50,9 @@ class HardwareProfile:
     notes: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
-        isa_names = [f.name for f in InstructionSet if f in self.instruction_sets and f.name != "NONE"]
+        isa_names = [
+            f.name for f in InstructionSet if f in self.instruction_sets and f.name != "NONE"
+        ]
         lines = [
             f"CPU: {self.cpu_name} ({self.arch})",
             f"Cores: {self.physical_cores}P / {self.logical_cores}L",
@@ -80,6 +79,7 @@ def _detect_instruction_sets_x86() -> InstructionSet:
     if platform.system() == "Windows":
         try:
             from eigencore.hal._cpuid_win import detect_isa_windows
+
             return detect_isa_windows()
         except ImportError:
             pass
@@ -160,6 +160,7 @@ def _get_cpu_name() -> str:
     if platform.system() == "Windows":
         try:
             import winreg
+
             key = winreg.OpenKey(
                 winreg.HKEY_LOCAL_MACHINE,
                 r"HARDWARE\DESCRIPTION\System\CentralProcessor\0",
@@ -199,10 +200,10 @@ def _compute_model_limits(
     usable_ram_gb = max(available_ram_gb - 2.0, 1.0)
 
     quant_options = [
-        ("Q4_K_M", 0.55),   # ~0.55 bytes per param (4-bit with some FP16 layers)
-        ("Q5_K_M", 0.68),   # ~0.68 bytes per param
-        ("Q8_0", 1.05),     # ~1.05 bytes per param
-        ("F16", 2.0),       # 2 bytes per param
+        ("Q4_K_M", 0.55),  # ~0.55 bytes per param (4-bit with some FP16 layers)
+        ("Q5_K_M", 0.68),  # ~0.68 bytes per param
+        ("Q8_0", 1.05),  # ~1.05 bytes per param
+        ("F16", 2.0),  # 2 bytes per param
     ]
 
     best_params_b = 0.0
@@ -263,9 +264,7 @@ def profile_hardware() -> HardwareProfile:
 
     bandwidth = _measure_bandwidth()
 
-    max_params, quant, est_tps, threads, ctx = _compute_model_limits(
-        available_ram_gb, bandwidth
-    )
+    max_params, quant, est_tps, threads, ctx = _compute_model_limits(available_ram_gb, bandwidth)
 
     notes = []
     if not is_x86 and not is_arm:

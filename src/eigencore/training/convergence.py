@@ -6,7 +6,6 @@ independently of the training loop so it can be tested and visualized.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -74,7 +73,7 @@ class ConvergenceMonitor:
 
         mean_loss = sum(recent) / len(recent)
         variance = sum((x - mean_loss) ** 2 for x in recent) / len(recent)
-        std_dev = variance ** 0.5
+        std_dev = variance**0.5
         cv = std_dev / abs(mean_loss) if mean_loss != 0 else 0.0
 
         return ConvergenceCheck(

@@ -172,18 +172,14 @@ class CPUTrainer:
 
     def _check_dependencies(self) -> None:
         """Verify training dependencies are installed."""
+        import importlib.util
+
         missing = []
-        try:
-            import torch
-        except ImportError:
+        if importlib.util.find_spec("torch") is None:
             missing.append("torch")
-        try:
-            import transformers
-        except ImportError:
+        if importlib.util.find_spec("transformers") is None:
             missing.append("transformers")
-        try:
-            import peft
-        except ImportError:
+        if importlib.util.find_spec("peft") is None:
             missing.append("peft")
 
         if missing:
@@ -208,7 +204,7 @@ class CPUTrainer:
             return True
 
         variance = sum((x - mean_loss) ** 2 for x in recent) / len(recent)
-        std_dev = variance ** 0.5
+        std_dev = variance**0.5
         cv = std_dev / abs(mean_loss)
 
         return cv < self.config.consistency_threshold
@@ -247,6 +243,7 @@ class CPUTrainer:
         quantization_config = None
         if self.config.use_4bit:
             from transformers import BitsAndBytesConfig
+
             quantization_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
@@ -277,9 +274,6 @@ class CPUTrainer:
             task_type="CAUSAL_LM",
         )
         model = get_peft_model(model, lora_config)
-
-        trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        total = sum(p.numel() for p in model.parameters())
 
         # load dataset
         dataset = self._load_dataset(tokenizer)
