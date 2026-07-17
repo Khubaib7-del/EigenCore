@@ -8,6 +8,7 @@ Usage:
     eigencore chat                 # interactive chat session
     eigencore download <model>     # pre-download a model
     eigencore analyze --prompt "." # measure activation sparsity on a prompt
+    eigencore benchmark            # benchmark with/without Phase 2 optimizations
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ console = Console()
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="eigencore")
+@click.version_option(version="0.2.0", prog_name="eigencore")
 def cli():
     """EigenCore — CPU-first LLM intelligence runtime."""
     pass
@@ -374,6 +375,204 @@ def analyze(
         traceback.print_exc()
     finally:
         engine.unload()
+
+
+@cli.command()
+@click.option("--model", "-m", default=None, help="Model name (auto-selects if omitted)")
+@click.option("--prompt", "-p", default=None, help="Custom prompt to benchmark with")
+@click.option("--max-tokens", default=128, help="Tokens to generate per run")
+@click.option("--runs", default=3, help="Number of runs per configuration")
+@click.option("--output", "-o", default=None, help="Save results to JSON file")
+def benchmark(
+    model: Optional[str],
+    prompt: Optional[str],
+    max_tokens: int,
+    runs: int,
+    output: Optional[str],
+):
+    """Benchmark inference with and without Phase 2 optimizations."""
+    import json
+    import time
+
+    import numpy as np
+
+    hw = profile_hardware()
+    registry = ModelRegistry()
+
+    try:
+        spec = registry.resolve(model, hw)
+    except ValueError as e:
+        console.print(f"[red]Error:[/] {e}")
+        sys.exit(1)
+
+    if not registry.is_downloaded(spec):
+        console.print(f"[red]Model not downloaded.[/] Run: eigencore download {spec.name}")
+        sys.exit(1)
+
+    model_path = spec.local_path(registry.cache_dir)
+
+    test_prompts = [
+        prompt or "Explain how a CPU executes instructions step by step.",
+        "Write a Python function that implements quicksort with comments.",
+        "Summarize the key differences between TCP and UDP protocols.",
+    ]
+
+    if prompt:
+        test_prompts = [prompt]
+
+    console.print(
+        Panel(
+            f"Model: [cyan]{spec.name}[/] ({spec.params_b:.1f}B {spec.quant})\n"
+            f"Tokens per run: {max_tokens}\n"
+            f"Runs per config: {runs}\n"
+            f"Test prompts: {len(test_prompts)}",
+            title="[bold]EigenCore Benchmark",
+            border_style="cyan",
+        )
+    )
+
+    engine = InferenceEngine(model_path, hw, spec)
+    with console.status("[bold cyan]Loading model..."):
+        engine.load()
+
+    configs = [
+        (
+            "baseline",
+            GenerationConfig(
+                max_tokens=max_tokens,
+                temperature=0.0,
+                stream=False,
+                enable_layer_skip=False,
+                enable_sparse_inference=False,
+                complexity=0.5,
+            ),
+        ),
+        (
+            "layer_skip",
+            GenerationConfig(
+                max_tokens=max_tokens,
+                temperature=0.0,
+                stream=False,
+                enable_layer_skip=True,
+                enable_sparse_inference=False,
+                complexity=0.5,
+            ),
+        ),
+        (
+            "sparse",
+            GenerationConfig(
+                max_tokens=max_tokens,
+                temperature=0.0,
+                stream=False,
+                enable_layer_skip=False,
+                enable_sparse_inference=True,
+                complexity=0.5,
+            ),
+        ),
+        (
+            "all_optimizations",
+            GenerationConfig(
+                max_tokens=max_tokens,
+                temperature=0.0,
+                stream=False,
+                enable_layer_skip=True,
+                enable_sparse_inference=True,
+                complexity=0.3,
+            ),
+        ),
+    ]
+
+    results_data: dict = {"model": spec.name, "max_tokens": max_tokens, "runs": runs, "configs": {}}
+
+    table = Table(title="Benchmark Results")
+    table.add_column("Config", style="cyan")
+    table.add_column("Avg tok/s", justify="right")
+    table.add_column("Min tok/s", justify="right")
+    table.add_column("Max tok/s", justify="right")
+    table.add_column("Avg latency", justify="right")
+    table.add_column("Speedup", justify="right", style="green")
+
+    baseline_tps = 0.0
+
+    for config_name, config in configs:
+        all_tps: list[float] = []
+        all_latency: list[float] = []
+
+        console.print(f"\n  Running [cyan]{config_name}[/]...")
+
+        for prompt_text in test_prompts:
+            for run_idx in range(runs):
+                start = time.perf_counter()
+                result = engine.generate(prompt_text, config)
+                elapsed = time.perf_counter() - start
+
+                tps = result.tokens_generated / elapsed if elapsed > 0 else 0.0
+                all_tps.append(tps)
+                all_latency.append(elapsed)
+
+                console.print(
+                    f"    Run {run_idx + 1}/{runs}: "
+                    f"{result.tokens_generated} tok in {elapsed:.1f}s "
+                    f"({tps:.1f} tok/s)"
+                )
+
+        avg_tps = float(np.mean(all_tps))
+        min_tps = float(np.min(all_tps))
+        max_tps = float(np.max(all_tps))
+        avg_latency = float(np.mean(all_latency))
+
+        if config_name == "baseline":
+            baseline_tps = avg_tps
+
+        speedup = avg_tps / baseline_tps if baseline_tps > 0 else 1.0
+
+        table.add_row(
+            config_name,
+            f"{avg_tps:.1f}",
+            f"{min_tps:.1f}",
+            f"{max_tps:.1f}",
+            f"{avg_latency:.1f}s",
+            f"{speedup:.2f}x",
+        )
+
+        results_data["configs"][config_name] = {
+            "avg_tps": avg_tps,
+            "min_tps": min_tps,
+            "max_tps": max_tps,
+            "avg_latency_s": avg_latency,
+            "speedup": speedup,
+            "samples": len(all_tps),
+        }
+
+    console.print()
+    console.print(table)
+
+    opt_stats = engine.optimization_stats
+    if opt_stats:
+        console.print("\n[bold]Optimization Module Status:[/]")
+        if "layer_skip" in opt_stats:
+            ls = opt_stats["layer_skip"]
+            console.print(
+                f"  Layer skip: {ls['layers_skipped']}/{ls['total_layers']} layers "
+                f"({ls['skip_rate']:.0%}) | ~{ls['expected_speedup']:.1f}x potential"
+            )
+        if "sparse_inference" in opt_stats:
+            si = opt_stats["sparse_inference"]
+            console.print(
+                f"  Sparse inference: {si['overall_sparsity']:.0%} sparsity | "
+                f"~{si['estimated_speedup']:.1f}x potential"
+            )
+        console.print(f"  Sparsity cache: {opt_stats['sparsity_cache']['hit_rate']:.0%} hit rate")
+        console.print(
+            f"  Speculative decoder: draft_length={opt_stats['speculative']['draft_length']}"
+        )
+
+    if output:
+        results_data["optimization_stats"] = opt_stats
+        Path(output).write_text(json.dumps(results_data, indent=2))
+        console.print(f"\n[dim]Results saved to {output}[/]")
+
+    engine.unload()
 
 
 @cli.command()
