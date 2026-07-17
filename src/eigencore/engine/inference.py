@@ -1,6 +1,10 @@
 """
 Inference engine — wraps llama.cpp with hardware-aware configuration.
 Handles model loading, generation, and resource management.
+
+Phase 2 integration: layer skipping, sparsity analysis, and speculative
+decoding hooks are initialized on model load and report stats via
+the `optimization_stats` property.
 """
 
 from __future__ import annotations
@@ -10,6 +14,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator, Optional
 
+from eigencore.engine.layer_skip import LayerSkipScheduler, SkipStrategy
+from eigencore.engine.sparse_inference import SparsityCache, SparsityPredictor
+from eigencore.engine.speculative import SpeculativeDecoder
 from eigencore.hal.profiler import HardwareProfile, InstructionSet
 from eigencore.models.registry import ModelSpec
 
@@ -23,6 +30,9 @@ class GenerationConfig:
     repeat_penalty: float = 1.1
     stop: list[str] = field(default_factory=list)
     stream: bool = True
+    enable_layer_skip: bool = True
+    enable_sparse_inference: bool = True
+    complexity: float = 0.5
 
 
 @dataclass
@@ -32,6 +42,7 @@ class GenerationResult:
     time_seconds: float
     tokens_per_second: float
     prompt_tokens: int
+    optimization_stats: Optional[dict] = None
 
 
 class InferenceEngine:
@@ -45,6 +56,11 @@ class InferenceEngine:
         self.profile = profile
         self.model_spec = model_spec
         self._llm = None
+
+        self._layer_skipper: Optional[LayerSkipScheduler] = None
+        self._sparsity_predictor: Optional[SparsityPredictor] = None
+        self._sparsity_cache = SparsityCache()
+        self._speculative_decoder = SpeculativeDecoder(adaptive=True)
 
     def load(self) -> None:
         """Load the model with hardware-optimized settings."""
@@ -72,6 +88,28 @@ class InferenceEngine:
             n_gpu_layers=0,  # CPU-only
             verbose=False,
         )
+
+        self._init_optimizers()
+
+    def _init_optimizers(self) -> None:
+        """Initialize Phase 2 optimization modules based on loaded model."""
+        metadata = self._llm.metadata if self._llm else {}
+        num_layers = int(metadata.get("llama.block_count", 0))
+        hidden_size = int(metadata.get("llama.embedding_length", 0))
+
+        if num_layers > 0:
+            self._layer_skipper = LayerSkipScheduler(
+                num_layers=num_layers,
+                strategy=SkipStrategy.STATIC,
+                max_skip_rate=0.3,
+            )
+
+        if hidden_size > 0 and num_layers > 0:
+            self._sparsity_predictor = SparsityPredictor(
+                num_layers=num_layers,
+                neurons_per_layer=hidden_size,
+                warmup_samples=16,
+            )
 
     def _compute_batch_size(self) -> int:
         """Determine optimal batch size based on available RAM and ISA."""
@@ -120,6 +158,7 @@ class InferenceEngine:
             time_seconds=elapsed,
             tokens_per_second=tps,
             prompt_tokens=prompt_tokens,
+            optimization_stats=self._collect_stats(config),
         )
 
     def stream(
@@ -186,7 +225,45 @@ class InferenceEngine:
             time_seconds=elapsed,
             tokens_per_second=tps,
             prompt_tokens=prompt_tokens,
+            optimization_stats=self._collect_stats(config),
         )
+
+    def _collect_stats(self, config: GenerationConfig) -> dict:
+        """Collect optimization statistics from Phase 2 modules."""
+        stats: dict = {}
+
+        if self._layer_skipper and config.enable_layer_skip:
+            plan = self._layer_skipper.plan(complexity=config.complexity)
+            stats["layer_skip"] = {
+                "strategy": plan.strategy.name,
+                "layers_skipped": len(plan.layers_to_skip),
+                "total_layers": plan.total_layers,
+                "skip_rate": plan.skip_rate,
+                "expected_speedup": plan.expected_speedup,
+            }
+
+        if self._sparsity_predictor and config.enable_sparse_inference:
+            if self._sparsity_predictor.is_warmed_up:
+                exec_plan = self._sparsity_predictor.create_execution_plan()
+                stats["sparse_inference"] = {
+                    "overall_sparsity": exec_plan.overall_sparsity,
+                    "estimated_speedup": exec_plan.estimated_speedup,
+                    "flop_savings": exec_plan.estimated_flop_savings,
+                }
+
+        stats["sparsity_cache"] = {
+            "hit_rate": self._sparsity_cache.hit_rate,
+            "hits": self._sparsity_cache.hits,
+            "misses": self._sparsity_cache.misses,
+        }
+
+        stats["speculative"] = {
+            "draft_length": self._speculative_decoder.draft_length,
+            "overall_accept_rate": self._speculative_decoder.stats.overall_accept_rate,
+            "total_rounds": self._speculative_decoder.stats.total_rounds,
+        }
+
+        return stats
 
     def unload(self) -> None:
         """Release model from memory."""
@@ -197,3 +274,21 @@ class InferenceEngine:
     @property
     def is_loaded(self) -> bool:
         return self._llm is not None
+
+    @property
+    def optimization_stats(self) -> dict:
+        """Summary of all Phase 2 optimization module states."""
+        config = GenerationConfig()
+        return self._collect_stats(config) if self._llm else {}
+
+    @property
+    def layer_skipper(self) -> Optional[LayerSkipScheduler]:
+        return self._layer_skipper
+
+    @property
+    def sparsity_predictor(self) -> Optional[SparsityPredictor]:
+        return self._sparsity_predictor
+
+    @property
+    def speculative_decoder(self) -> SpeculativeDecoder:
+        return self._speculative_decoder
