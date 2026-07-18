@@ -132,34 +132,8 @@ class InferenceEngine:
         if config is None:
             config = GenerationConfig(stream=False)
 
-        start = time.perf_counter()
-
-        response = self._llm(
-            prompt,
-            max_tokens=config.max_tokens,
-            temperature=config.temperature,
-            top_p=config.top_p,
-            top_k=config.top_k,
-            repeat_penalty=config.repeat_penalty,
-            stop=config.stop or None,
-            echo=False,
-        )
-
-        elapsed = time.perf_counter() - start
-        text = response["choices"][0]["text"]
-        usage = response.get("usage", {})
-        prompt_tokens = usage.get("prompt_tokens", 0)
-        completion_tokens = usage.get("completion_tokens", 0)
-        tps = completion_tokens / elapsed if elapsed > 0 else 0.0
-
-        return GenerationResult(
-            text=text,
-            tokens_generated=completion_tokens,
-            time_seconds=elapsed,
-            tokens_per_second=tps,
-            prompt_tokens=prompt_tokens,
-            optimization_stats=self._collect_stats(config),
-        )
+        messages = [{"role": "user", "content": prompt}]
+        return self.chat(messages, config)
 
     def stream(
         self,
@@ -173,18 +147,20 @@ class InferenceEngine:
         if config is None:
             config = GenerationConfig(stream=True)
 
-        for chunk in self._llm(
-            prompt,
+        messages = [{"role": "user", "content": prompt}]
+
+        for chunk in self._llm.create_chat_completion(
+            messages=messages,
             max_tokens=config.max_tokens,
             temperature=config.temperature,
             top_p=config.top_p,
             top_k=config.top_k,
             repeat_penalty=config.repeat_penalty,
             stop=config.stop or None,
-            echo=False,
             stream=True,
         ):
-            token = chunk["choices"][0]["text"]
+            delta = chunk["choices"][0].get("delta", {})
+            token = delta.get("content", "")
             if token:
                 yield token
 
