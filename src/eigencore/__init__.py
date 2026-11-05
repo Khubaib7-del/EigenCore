@@ -18,6 +18,13 @@ from eigencore.engine.inference import GenerationConfig, GenerationResult, Infer
 from eigencore.engine.layer_skip import LayerSkipScheduler, SkipPlan, SkipStrategy
 from eigencore.engine.sparse_inference import SparseExecutionPlan, SparsityCache, SparsityPredictor
 from eigencore.engine.speculative import SpeculativeDecoder, SpeculativeResult
+from eigencore.fit import (
+    FitEstimate,
+    FitVerdict,
+    ModelGeometry,
+    estimate_fit,
+    max_context_for_budget,
+)
 from eigencore.forge import Forge
 from eigencore.hal.profiler import HardwareProfile, profile_hardware
 from eigencore.models.registry import ModelRegistry, ModelSpec
@@ -29,11 +36,16 @@ __all__ = [
     "AgentStep",
     "BenchmarkReport",
     "ContextManager",
+    "FitEstimate",
+    "FitVerdict",
     "Forge",
     "GBNFBuilder",
     "GenerationConfig",
     "GenerationResult",
+    "ModelGeometry",
+    "estimate_fit",
     "HardwareProfile",
+    "max_context_for_budget",
     "InferenceEngine",
     "LayerSkipScheduler",
     "ModelRegistry",
