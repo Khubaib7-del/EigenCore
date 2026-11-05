@@ -23,6 +23,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from eigencore.engine.inference import GenerationConfig, InferenceEngine
+from eigencore.fit import FitVerdict, estimate_fit, max_context_for_budget
 from eigencore.hal.profiler import profile_hardware
 from eigencore.models.registry import ModelRegistry
 
@@ -53,6 +54,30 @@ def profile():
     console.print(
         f"  Size: {rec.size_gb:.1f} GB | Params: {rec.params_b:.1f}B | Quant: {rec.quant}"
     )
+    est = estimate_fit(
+        rec.params_b, rec.quant, hw.recommended_context_length, hw.available_ram_gb
+    )
+    verdict_style = {
+        FitVerdict.FITS_WITH_MARGIN: "green",
+        FitVerdict.TIGHT: "yellow",
+        FitVerdict.DOES_NOT_FIT: "red",
+        FitVerdict.UNKNOWN: "dim",
+    }[est.verdict]
+    console.print(
+        f"  Fit estimate at ctx {est.context_length}: weights {est.weights_gb:.1f} GB + "
+        f"reserve {est.runtime_reserve_gb:.1f} GB + KV {est.kv_cache_gb:.2f} GB = "
+        f"{est.total_gb:.1f} GB of {est.available_ram_gb:.1f} GB available "
+        f"[{verdict_style}]{est.verdict.value}[/] (headroom {est.headroom_gb:.1f} GB)"
+    )
+    for note in est.notes:
+        console.print(f"    [dim]* {note}[/]")
+    max_ctx = max_context_for_budget(
+        rec.params_b, rec.quant, hw.available_ram_gb, model_context_limit=rec.context_length
+    )
+    if max_ctx > 0:
+        console.print(f"  [dim]Max context that fits this budget: {max_ctx} tokens[/]")
+    else:
+        console.print("  [red]Model does not fit even at minimum context[/]")
 
     if not registry.is_downloaded(rec):
         console.print(f"\n  [dim]Download with:[/] eigencore download {rec.name}")
@@ -80,15 +105,21 @@ def models(task: Optional[str]):
     table.add_column("Description")
 
     for m in sorted(available, key=lambda x: x.params_b):
-        fits = m.size_gb <= (hw.available_ram_gb - 2.0)
+        est = estimate_fit(m.params_b, m.quant, hw.recommended_context_length, hw.available_ram_gb)
         downloaded = registry.is_downloaded(m)
+        if est.verdict == FitVerdict.FITS_WITH_MARGIN:
+            fits_label, fits_style = "fits", "green"
+        elif est.verdict == FitVerdict.TIGHT:
+            fits_label, fits_style = "tight", "yellow"
+        else:
+            fits_label, fits_style = "no", "red"
         table.add_row(
             m.name,
             f"{m.params_b:.1f}B",
             m.quant,
             f"{m.size_gb:.1f}GB",
             m.task,
-            "[green]yes[/]" if fits else "[red]no[/]",
+            f"[{fits_style}]{fits_label}[/]",
             "[green]yes[/]" if downloaded else "[dim]no[/]",
             m.description,
         )
