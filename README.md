@@ -93,7 +93,7 @@ Pre-alpha; APIs and performance characteristics may change. Feature presence is 
 | P2 | Honest model-fit UX: weights + runtime + KV-cache estimate with safety margin; context as a first-class setting | **Done** (`src/eigencore/fit/`) |
 | P3 | Gate existing optimizations (layer skip, sparsity, speculative decoding) on measured quality + speed; wire or disable each | **Audit done** — no optimization is wired into the backend yet; results now labeled as reported-only (`applied_optimizations`) |
 | P4 | Tool guardrails: deny-by-default policy, path confinement, approvals, process isolation, audit log | **Policy layer done** (`src/eigencore/agent/policy.py`); approvals UI + OS process isolation pending |
-| P5 | Adaptive terminal chat TUI per `docs/design/terminal-chat.md` | **In progress** — streaming chat UI shipped (`src/eigencore/tui/chat.py`, `eigencore chat --plain`); full-screen adaptive layout + approval cards pending |
-| P6 | Own low-level kernels behind a backend interface, promoted only on measured wins | Planned |
+| P5 | Adaptive terminal chat TUI per `docs/design/terminal-chat.md` | **Core shipped** (`src/eigencore/tui/chat.py`, `eigencore chat --plain`); full-screen adaptive layout + approval cards pending |
+| P6 | Own low-level kernels behind a backend interface, promoted only on measured wins | **In progress** — backend protocol + scalar reference kernels (RMSNorm, Q4_0/Q8_0 dequant, quantized dot) with correctness tests shipped (`src/eigencore/kernels/`); SIMD/native kernels pending |
 
 Details: [phased plan](docs/roadmap/phased-plan.md), [local inference roadmap](docs/architecture/local-inference-roadmap.md).
