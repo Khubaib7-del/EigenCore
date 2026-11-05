@@ -3,7 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from typing import Any, Callable, Optional
+
+
+class ToolCapability(Enum):
+    """What a tool is allowed to do. Deny-by-default: nothing runs unless allowed."""
+
+    READ = auto()  # read files / pure computation
+    WRITE = auto()  # modify files
+    EXECUTE = auto()  # run processes / shell
+    NETWORK = auto()  # network access
 
 
 @dataclass(frozen=True)
@@ -53,6 +63,8 @@ class Tool:
     description: str
     handler: Callable[..., Any]
     parameters: list[ToolParam] = field(default_factory=list)
+    # What this tool does; the PolicyEngine denies anything not allow-listed.
+    capability: ToolCapability = ToolCapability.EXECUTE
 
     def __post_init__(self):
         if not self.name.isidentifier():
