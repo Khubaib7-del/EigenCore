@@ -168,6 +168,31 @@ class InferenceEngine:
             if token:
                 yield token
 
+    def stream_messages(
+        self,
+        messages: list[dict[str, str]],
+        config: GenerationConfig | None = None,
+    ) -> Iterator[str]:
+        """Stream a chat completion from a full message list (multi-turn)."""
+        if self._llm is None:
+            raise RuntimeError("Model not loaded. Call .load() first.")
+        if config is None:
+            config = GenerationConfig(stream=True)
+        for chunk in self._llm.create_chat_completion(
+            messages=messages,
+            max_tokens=config.max_tokens,
+            temperature=config.temperature,
+            top_p=config.top_p,
+            top_k=config.top_k,
+            repeat_penalty=config.repeat_penalty,
+            stop=config.stop or None,
+            stream=True,
+        ):
+            delta = chunk["choices"][0].get("delta", {})
+            token = delta.get("content", "")
+            if token:
+                yield token
+
     def chat(
         self,
         messages: list[dict[str, str]],
