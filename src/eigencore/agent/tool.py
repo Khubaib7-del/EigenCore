@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from enum import Enum, auto
+from typing import Any
+
+
+class ToolCapability(Enum):
+    """What a tool is allowed to do. Deny-by-default: nothing runs unless allowed."""
+
+    READ = auto()  # read files / pure computation
+    WRITE = auto()  # modify files
+    EXECUTE = auto()  # run processes / shell
+    NETWORK = auto()  # network access
 
 
 @dataclass(frozen=True)
@@ -14,7 +25,7 @@ class ToolParam:
     type: str  # "string", "integer", "number", "boolean"
     description: str
     required: bool = True
-    enum: Optional[tuple[str, ...]] = None
+    enum: tuple[str, ...] | None = None
     default: Any = None
 
     _TYPE_MAP = {
@@ -53,6 +64,8 @@ class Tool:
     description: str
     handler: Callable[..., Any]
     parameters: list[ToolParam] = field(default_factory=list)
+    # What this tool does; the PolicyEngine denies anything not allow-listed.
+    capability: ToolCapability = ToolCapability.EXECUTE
 
     def __post_init__(self):
         if not self.name.isidentifier():
@@ -108,7 +121,7 @@ class ToolRegistry:
             raise ValueError(f"Tool '{tool.name}' already registered")
         self._tools[tool.name] = tool
 
-    def get(self, name: str) -> Optional[Tool]:
+    def get(self, name: str) -> Tool | None:
         return self._tools.get(name)
 
     def remove(self, name: str) -> bool:

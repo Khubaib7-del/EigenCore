@@ -36,7 +36,7 @@ Separate weight, runtime, and KV-cache estimates; account for unknown metadata a
 
 **Exit evidence:** fixture-tested fit decisions, correct unavailable/unknown handling, and safe behavior near memory limits on the target matrix.
 
-### 3. Gate inference optimizations on correctness — **in progress (audit done)**
+### 3. Gate inference optimizations on correctness — **audit done, wiring pending**
 
 **Audit result (source-verified, `tests/test_optimization_audit.py`):** the `enable_layer_skip` / `enable_sparse_inference` flags and the speculative decoder never reach `create_chat_completion` — they only populate reported stats. `GenerationResult` now carries an explicit `applied_optimizations` list (currently empty), stats include `applied: False` and a `backend_wired` key, and `eigencore benchmark` prints a warning that its “Speedup” column is noise until optimizations are wired in. Regression tests prove the backend kwargs are identical with flags on vs. off.
 
@@ -46,7 +46,11 @@ Audit which optimization components actually change backend execution. First int
 
 **Exit evidence:** correctness tests, measured performance improvement on named workloads, quality within the chosen threshold, and a tested fallback path.
 
-### 4. Harden agent tools before exposing them in chat
+### 4. Harden agent tools before exposing them in chat — **in progress**
+
+Implemented: `eigencore.agent.policy` — `ToolCapability` (READ/WRITE/EXECUTE/NETWORK) on every `Tool`, a deny-by-default `PolicyEngine` (only allow-listed capabilities run; default policy allows READ only), workspace path confinement with symlink/traversal rejection (`resolve_in_workspace`), a JSONL `AuditLog` with sensitive-arg redaction, and `ToolStatus.POLICY_DENIED` enforced in `ToolExecutor` *before* any handler runs. Covered by `tests/test_policy.py` (9 tests). Error output is also credential-redacted.
+
+Explicitly NOT done yet: OS-level process isolation (handlers still run in-process — the policy layer is not a sandbox), interactive approval flow in the UI, and network deny enforcement inside handlers. The `docs/design/terminal-chat.md` approval cards depend on this layer.
 
 The current Python executor is not a process sandbox. Define capabilities, deny-by-default policy, path and network restrictions, observable approvals, process isolation, resource limits, and auditable outcomes before adding shell or write tools to an interactive assistant.
 
