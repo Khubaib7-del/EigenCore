@@ -16,15 +16,21 @@ See [system architecture](../architecture/system-overview.md) for module flow an
 
 ## Recommended next work
 
-### 1. Establish trustworthy quality and performance baselines — **in progress**
+### 1. Establish trustworthy quality and performance baselines — **done (harness shipped)**
 
 Implemented: `eigencore.benchmark` harness (`src/eigencore/benchmark/harness.py`) with deterministic quality cases, prefill/decode timing separation (TTFT vs decode tok/s), SHA-256 model identity, hardware snapshot, and JSON evidence reports via `eigencore benchmark --report <path.json>`. Covered by `tests/test_benchmark.py`.
+
+Still required before any performance claim: run it on named hardware with real models and publish the JSON artifacts.
 
 Use the current backend before replacing it. Select representative consumer CPU/GPU configurations and model/quant combinations. Capture warm/cold load, prompt prefill, decode throughput, memory use, context size, backend flags, and raw run results. Pair throughput with task-specific quality comparisons; include accuracy retention for every optimization. Avoid universal performance claims.
 
 **Exit evidence:** reproducible scripts/configurations, named hardware/model matrix, raw benchmark artifacts, and quality results with an explicit acceptance threshold.
 
-### 2. Make hardware-aware selection conservative and inspectable
+### 2. Make hardware-aware selection conservative and inspectable — **in progress**
+
+Implemented: `eigencore.fit` estimator (`src/eigencore/fit/estimator.py`) separates weights / runtime reserve / KV-cache, applies a configurable safety margin, returns a verdict (`fits_with_margin` / `tight` / `does_not_fit`), and computes the max context that fits a RAM budget. `eigencore profile` and `eigencore models` now show the fit estimate and verdict instead of a bare size comparison. Covered by `tests/test_fit.py`.
+
+Still required: real GGUF metadata (layers, hidden size, KV heads) to replace heuristic KV estimates, GPU/VRAM accounting, and fixture-tested fit decisions near memory limits.
 
 Separate weight, runtime, and KV-cache estimates; account for unknown metadata and keep a safety margin. Treat Core i7/GPU names as insufficient without memory capacity, generation, backend, and context. Present user overrides and explain the risk when an estimate is tight.
 
