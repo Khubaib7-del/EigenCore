@@ -428,7 +428,13 @@ def benchmark(
     output: Optional[str],
     report_path: Optional[str],
 ):
-    """Benchmark inference with and without Phase 2 optimizations."""
+    """Benchmark inference across configurations.
+
+    NOTE (P3 audit): the layer_skip / sparse / all_optimizations configs only
+    change reported stats today — no optimization is wired into the backend
+    call, so speedup vs baseline is expected to be ~1.0x (noise) until P3
+    wires them in and the quality gate passes.
+    """
     import json
     import time
 
@@ -603,6 +609,11 @@ def benchmark(
 
     console.print()
     console.print(table)
+    console.print(
+        "[yellow]P3 audit:[/] optimization configs change reported stats only; "
+        "no optimization is applied to the backend call yet, so 'Speedup' is "
+        "noise until they are wired in.[/]"
+    )
 
     opt_stats = engine.optimization_stats
     if opt_stats:
