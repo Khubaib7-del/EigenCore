@@ -28,6 +28,7 @@ from eigencore.fit import (
 )
 from eigencore.forge import Forge
 from eigencore.hal.profiler import HardwareProfile, profile_hardware
+from eigencore.kernels import ScalarBackend, rms_norm
 from eigencore.models.registry import ModelRegistry, ModelSpec
 from eigencore.router.classifier import RoutingDecision, TaskDomain, TaskRouter
 
@@ -54,6 +55,7 @@ __all__ = [
     "QualityCase",
     "ReActAgent",
     "RoutingDecision",
+    "ScalarBackend",
     "SkipPlan",
     "SkipStrategy",
     "SparseExecutionPlan",
@@ -75,5 +77,6 @@ __all__ = [
     "estimate_fit",
     "max_context_for_budget",
     "profile_hardware",
+    "rms_norm",
     "run_cases",
 ]

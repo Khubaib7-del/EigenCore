@@ -66,7 +66,11 @@ Use [terminal chat design](../design/terminal-chat.md) as a proposal. Integrate 
 
 **Exit evidence:** interaction checks at small and large terminal sizes, PowerShell/Windows Terminal and Unix shell checks, keyboard-only operation, plain mode, and no accidental model downloads/tool execution.
 
-### 6. Explore EigenCore-owned low-level kernels
+### 6. Explore EigenCore-owned low-level kernels — **in progress (reference kernels done)**
+
+Implemented: `eigencore.kernels` — a `BackendProtocol` boundary plus `ScalarBackend`, a NumPy scalar reference for the hot ops of CPU decode: RMSNorm, GGUF Q8_0 and Q4_0 block dequantization (nibble order pinned by test), and grouped Q8_0 quantized dot-product. `tests/test_kernels.py` (6 tests) pins the math so any future SIMD/native kernel can be differentially tested against it. **No performance is claimed**; llama.cpp remains the default backend.
+
+Still required: profile the real backend to find the actual hot kernel, implement SIMD (AVX2/AVX-512/NEON behind runtime CPU dispatch) behind `BackendProtocol`, differential-test within documented tolerances, and only then benchmark end-to-end with the P1 harness quality gate.
 
 Only start after baseline profiling identifies a bottleneck. Keep `llama-cpp-python` as reference/backend fallback while prototypes cover well-scoped numerical primitives with documented layouts, scalar implementation, platform dispatch, and differential tests.
 
