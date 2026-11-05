@@ -383,12 +383,19 @@ def analyze(
 @click.option("--max-tokens", default=128, help="Tokens to generate per run")
 @click.option("--runs", default=3, help="Number of runs per configuration")
 @click.option("--output", "-o", default=None, help="Save results to JSON file")
+@click.option(
+    "--report",
+    "report_path",
+    default=None,
+    help="Save a full Phase 1 evidence report (hardware, model sha256, timing, quality) to this JSON path",
+)
 def benchmark(
     model: Optional[str],
     prompt: Optional[str],
     max_tokens: int,
     runs: int,
     output: Optional[str],
+    report_path: Optional[str],
 ):
     """Benchmark inference with and without Phase 2 optimizations."""
     import json
@@ -434,6 +441,25 @@ def benchmark(
     engine = InferenceEngine(model_path, hw, spec)
     with console.status("[bold cyan]Loading model..."):
         engine.load()
+
+    if report_path:
+        from eigencore.benchmark import DEFAULT_CASES, build_report, run_cases
+
+        baseline_config = GenerationConfig(
+            max_tokens=max_tokens,
+            temperature=0.0,
+            stream=False,
+            enable_layer_skip=False,
+            enable_sparse_inference=False,
+        )
+        case_results = run_cases(engine, DEFAULT_CASES, baseline_config, runs=1)
+        report = build_report(engine, spec, model_path, baseline_config, case_results)
+        saved = report.save(report_path)
+        console.print(
+            f"[dim]Phase 1 evidence report saved to {saved} "
+            f"(quality pass rate {report.summary['quality_pass_rate']:.0%}, "
+            f"median decode {report.summary['decode_tok_s_median']:.1f} tok/s)[/]"
+        )
 
     configs = [
         (
