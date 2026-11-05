@@ -1,94 +1,57 @@
-# Development Roadmap
+# EigenCore roadmap and implementation status
 
-**Date:** 2026-07-17
+**Status snapshot:** 2026-11-05. Status below is based on repository source, not a claim that each feature is production-ready or benchmark-verified.
 
-## Phase 1: Hardware Profiler + Inference Manager (4-6 weeks)
+## What exists in this checkout
 
-**Goal:** CLI tool that auto-detects hardware, downloads an optimal model, and runs inference.
+| Area | Source-backed implementation | Not established by code presence |
+| --- | --- | --- |
+| Hardware and model fit | Python HAL profiling; `ModelRegistry` list/recommend/download; inference options derived from profiles | Reliable tok/s predictions across hardware, safe fit for every context/model, or near-optimal configuration |
+| Inference | `InferenceEngine` delegates GGUF inference to `llama-cpp-python`; generation, streaming, chat, and optimization components/statistics | EigenCore-owned low-level inference kernels or proven quality/speed gains from layer skipping, sparsity, or speculative decoding |
+| Routing and training | `TaskRouter`; CPU trainer and convergence utilities; optional training dependencies | Router accuracy or a memory/performance guarantee for fine-tuning |
+| Agents and context | ReAct loop, `ToolRegistry`, `ToolExecutor`, GBNF builder, context manager with SQLite persistence and budget handling | OS-level tool sandbox, approval policy, safe autonomous file/shell access, or validated context-retention quality |
+| User experience | Click CLI (`profile`, `models`, `download`, `run`, `chat`, `analyze`, `benchmark`, `train`) and `Forge` Python API | Full-screen adaptive TUI, bare-command onboarding, or direct safe tool workflow in chat |
 
-**Deliverables:**
-- Hardware profiler (C++ with Python bindings)
-  - CPUID instruction set detection (AVX2, AVX-512, AMX, NEON)
-  - RAM measurement and availability estimation
-  - Memory bandwidth benchmark (quick memcpy test)
-  - Output: JSON profile with max_model_params, optimal_quant, estimated_tok_per_sec
-- Inference manager wrapping llama.cpp
-  - Model registry (local JSON mapping task types to model recommendations)
-  - Auto-download from HuggingFace based on hardware profile
-  - Quantization selection based on available RAM
-- CLI interface: `framework run --model phi3 --prompt "hello"`
-- First emergent gap implementation: activation sparsity measurement (instrument ggml tensors, count near-zero activations, log sparsity ratios per layer)
+See [system architecture](../architecture/system-overview.md) for module flow and [local inference roadmap](../architecture/local-inference-roadmap.md) for the 30–40B target.
 
-**Success criteria:** User runs one command on a fresh machine, framework profiles hardware, downloads appropriate model, runs inference at near-optimal speed without any manual configuration.
+## Recommended next work
 
-**Languages:** C++ for HAL, Python for CLI and orchestration, llama-cpp-python for inference binding.
+### 1. Establish trustworthy quality and performance baselines
 
----
+Use the current backend before replacing it. Select representative consumer CPU/GPU configurations and model/quant combinations. Capture warm/cold load, prompt prefill, decode throughput, memory use, context size, backend flags, and raw run results. Pair throughput with task-specific quality comparisons; include accuracy retention for every optimization. Avoid universal performance claims.
 
-## Phase 2: Multi-Model Router + Fine-Tuning Pipeline (4-6 weeks)
+**Exit evidence:** reproducible scripts/configurations, named hardware/model matrix, raw benchmark artifacts, and quality results with an explicit acceptance threshold.
 
-**Goal:** Automatic task routing between specialist models and QLoRA fine-tuning from CLI.
+### 2. Make hardware-aware selection conservative and inspectable
 
-**Deliverables:**
-- Task router
-  - Tiny classifier model (~100M params) trained to categorize prompts into task domains
-  - Model swap manager (unload current, load next, handle KV cache reset)
-  - Latency-aware: only swap if task domain actually changed
-- QLoRA training pipeline
-  - 4-bit base model loading with LoRA adapter initialization
-  - Gradient checkpointing for RAM efficiency
-  - Adaptive epoch scaling with consistency gating (the 1/4 rule)
-  - CLI: `framework train --base phi-3-mini --data ./corpus/ --task code-review`
-  - Checkpoint management and adapter export
-- Second emergent gap implementation: dynamic layer skipping (cosine similarity between consecutive layer outputs, skip threshold tuning)
+Separate weight, runtime, and KV-cache estimates; account for unknown metadata and keep a safety margin. Treat Core i7/GPU names as insufficient without memory capacity, generation, backend, and context. Present user overrides and explain the risk when an estimate is tight.
 
-**Success criteria:** User can fine-tune a 3B model on their own data using ≤8GB RAM, and the router correctly identifies task domains and loads appropriate specialist models.
+**Exit evidence:** fixture-tested fit decisions, correct unavailable/unknown handling, and safe behavior near memory limits on the target matrix.
 
----
+### 3. Gate inference optimizations on correctness
 
-## Phase 3: Agent Framework (after Phase 2 stabilizes)
+Audit which optimization components actually change backend execution. First integrate or disable components whose reported stats are not connected to measured work. Differential-test quantized/SIMD kernels against a scalar reference and the trusted backend. Evaluate layer skipping, sparse execution, context compression, and speculative decoding on fixed prompts and quality checks.
 
-**Goal:** Full agent runtime with tool calling, memory, and multi-step execution.
+**Exit evidence:** correctness tests, measured performance improvement on named workloads, quality within the chosen threshold, and a tested fallback path.
 
-**Deliverables:**
-- Agent API
-  - Tool registration and execution
-  - Constrained generation via GBNF grammars for reliable tool-call JSON output
-  - Multi-step reasoning loop with automatic re-planning
-- Context management
-  - Attention-aware compression (preserve sink tokens, compress middle, keep recent)
-  - SQLite-backed persistent session memory
-  - Cross-session context retrieval
-- Latent steering API
-  - Steering vector extraction (contrastive activation pairs)
-  - Runtime injection at configurable layer depth
-  - User-facing controls for behavior modification without prompt overhead
-- Speculative decoding for CPU
-  - Tiny draft model (60M) kept in L3 cache
-  - Batch verification by main model
-  - Acceptance rate monitoring and draft model adaptation
+### 4. Harden agent tools before exposing them in chat
 
-**Success criteria:** A developer can build an agent application using local models that handles multi-turn conversations, calls tools, maintains memory across sessions, and runs at practical speeds on a 16GB RAM machine.
+The current Python executor is not a process sandbox. Define capabilities, deny-by-default policy, path and network restrictions, observable approvals, process isolation, resource limits, and auditable outcomes before adding shell or write tools to an interactive assistant.
 
----
+**Exit evidence:** threat model, policy tests, isolation tests, adversarial tool-output handling, cancellation/timeout behavior, and approval audit evidence.
 
-## Phase 4: Harness (product layer)
+### 5. Prototype the adaptive terminal chat UI
 
-**Goal:** Opinionated agent runtime built on the framework — the "Claude Code" to the framework's "Claude API."
+Use [terminal chat design](../design/terminal-chat.md) as a proposal. Integrate the existing chat/stream API, provide plain-mode fallback, explain model fit, and keep rendering separate from inference and policy. Do not change the bare `eigencore` behavior or command names without a compatibility decision.
 
-**Deliverables:**
-- CLI/TUI interface for direct interaction
-- Pre-configured model selections per hardware tier
-- Built-in tool integrations (file system, web search, code execution)
-- Session management with automatic context optimization
-- "Just works" experience — user installs, runs, and has a functioning local AI assistant
+**Exit evidence:** interaction checks at small and large terminal sizes, PowerShell/Windows Terminal and Unix shell checks, keyboard-only operation, plain mode, and no accidental model downloads/tool execution.
 
----
+### 6. Explore EigenCore-owned low-level kernels
 
-## FYP Alignment
+Only start after baseline profiling identifies a bottleneck. Keep `llama-cpp-python` as reference/backend fallback while prototypes cover well-scoped numerical primitives with documented layouts, scalar implementation, platform dispatch, and differential tests.
 
-Phases 1 + 2 constitute a strong Final Year Project at FAST Lahore:
-- **Research contribution:** Hardware-aware auto-configuration with benchmarks showing near-optimal performance vs. manual tuning
-- **Engineering contribution:** Full-lifecycle CPU-first LLM framework
-- **Measurable results:** Speedup benchmarks, accuracy retention under quantization/sparsity, fine-tuning convergence analysis
-- **Publishable:** Activation sparsity exploitation on CPU as a first-class optimization strategy
+**Exit evidence:** supported-platform correctness and reproducible speed/quality comparisons before enabling a custom kernel by default.
+
+## Former roadmap claims
+
+The earlier draft proposed goals such as near-optimal automatic speed, fine-tuning at a fixed RAM ceiling, and practical agent operation on a fixed memory tier. Those were targets, not measured acceptance results; they are intentionally not carried forward as current guarantees. The project is MIT licensed; see repository metadata for current package version and dependencies.
