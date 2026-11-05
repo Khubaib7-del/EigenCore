@@ -8,8 +8,9 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Optional
+from typing import Any
 
+from eigencore.agent.policy import PolicyEngine, redact_text
 from eigencore.agent.tool import Tool, ToolRegistry
 
 
@@ -18,6 +19,7 @@ class ToolStatus(Enum):
     ERROR = auto()
     TIMEOUT = auto()
     VALIDATION_ERROR = auto()
+    POLICY_DENIED = auto()
 
 
 @dataclass
@@ -27,7 +29,7 @@ class ToolResult:
     tool_name: str
     status: ToolStatus
     output: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     elapsed_seconds: float = 0.0
 
     @property
@@ -76,10 +78,12 @@ class ToolExecutor:
         registry: ToolRegistry,
         timeout: float = DEFAULT_TIMEOUT,
         max_output_chars: int = 4096,
+        policy: PolicyEngine | None = None,
     ):
         self.registry = registry
         self.timeout = timeout
         self.max_output_chars = max_output_chars
+        self.policy = policy
         self.log = ExecutionLog()
 
     def execute(self, tool_name: str, args: dict[str, Any]) -> ToolResult:
@@ -92,6 +96,22 @@ class ToolExecutor:
             )
             self.log.add(result)
             return result
+
+        # Policy enforcement happens BEFORE validation/running, in code —
+        # never in prompt text and never in the UI layer.
+        if self.policy is not None:
+            decision = self.policy.check(tool, args)
+            if not decision.allowed:
+                result = ToolResult(
+                    tool_name=tool_name,
+                    status=ToolStatus.POLICY_DENIED,
+                    error=f"Denied by policy: {decision.reason}",
+                )
+                self.log.add(result)
+                if self.policy.audit_log is not None:
+                    entry = self.policy.audit_log.entries[-1]
+                    entry.status = ToolStatus.POLICY_DENIED.name
+                return result
 
         try:
             validated_args = tool.validate_args(args)
@@ -106,6 +126,10 @@ class ToolExecutor:
 
         result = self._run_with_timeout(tool, validated_args)
         self.log.add(result)
+        if self.policy is not None and self.policy.audit_log is not None:
+            entry = self.policy.audit_log.entries[-1]
+            entry.status = result.status.name
+            entry.elapsed_seconds = result.elapsed_seconds
         return result
 
     def _run_with_timeout(self, tool: Tool, args: dict[str, Any]) -> ToolResult:
@@ -141,6 +165,6 @@ class ToolExecutor:
                 return ToolResult(
                     tool_name=tool.name,
                     status=ToolStatus.ERROR,
-                    error=f"{type(e).__name__}: {e}\n{traceback.format_exc()}",
+                    error=redact_text(f"{type(e).__name__}: {e}\n{traceback.format_exc()}"),
                     elapsed_seconds=elapsed,
                 )

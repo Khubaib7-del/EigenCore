@@ -31,7 +31,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
-    "ruff>=0.4.0",
+    "ruff>=0.4.0,<0.15",
 ]
 train = [
     "torch>=2.0.0",
