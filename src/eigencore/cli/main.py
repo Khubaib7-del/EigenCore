@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 import click
 from rich.console import Console
@@ -34,7 +33,6 @@ console = Console()
 @click.version_option(version="0.3.0", prog_name="eigencore")
 def cli():
     """EigenCore — CPU-first LLM intelligence runtime."""
-    pass
 
 
 @cli.command()
@@ -87,7 +85,7 @@ def profile():
 
 @cli.command()
 @click.option("--task", default=None, help="Filter by task type (general, code, math)")
-def models(task: Optional[str]):
+def models(task: str | None):
     """List all available models."""
     registry = ModelRegistry()
     available = registry.list_models(task)
@@ -164,7 +162,7 @@ def download(name: str):
 @click.option("--task", default="general", help="Task type for auto model selection")
 @click.option("--no-stream", is_flag=True, help="Disable streaming output")
 def run(
-    model: Optional[str],
+    model: str | None,
     prompt: str,
     max_tokens: int,
     temperature: float,
@@ -235,7 +233,7 @@ def run(
 @click.option("--temperature", default=0.7, help="Sampling temperature")
 @click.option("--task", default="general", help="Task type for auto model selection")
 def chat(
-    model: Optional[str],
+    model: str | None,
     max_tokens: int,
     temperature: float,
     task: str,
@@ -312,10 +310,10 @@ def chat(
 @click.option("--threshold", default=0.01, help="Near-zero threshold")
 @click.option("--output", "-o", default=None, help="Save report to JSON file")
 def analyze(
-    model: Optional[str],
+    model: str | None,
     prompt: str,
     threshold: float,
-    output: Optional[str],
+    output: str | None,
 ):
     """Measure activation sparsity for a prompt — the first gap exploitation metric."""
     from eigencore.analysis.sparsity import SparsityAnalyzer
@@ -421,14 +419,20 @@ def analyze(
     help="Save a full Phase 1 evidence report (hardware, model sha256, timing, quality) to this JSON path",
 )
 def benchmark(
-    model: Optional[str],
-    prompt: Optional[str],
+    model: str | None,
+    prompt: str | None,
     max_tokens: int,
     runs: int,
-    output: Optional[str],
-    report_path: Optional[str],
+    output: str | None,
+    report_path: str | None,
 ):
-    """Benchmark inference with and without Phase 2 optimizations."""
+    """Benchmark inference across configurations.
+
+    NOTE (P3 audit): the layer_skip / sparse / all_optimizations configs only
+    change reported stats today — no optimization is wired into the backend
+    call, so speedup vs baseline is expected to be ~1.0x (noise) until P3
+    wires them in and the quality gate passes.
+    """
     import json
     import time
 
@@ -603,6 +607,11 @@ def benchmark(
 
     console.print()
     console.print(table)
+    console.print(
+        "[yellow]P3 audit:[/] optimization configs change reported stats only; "
+        "no optimization is applied to the backend call yet, so 'Speedup' is "
+        "noise until they are wired in.[/]"
+    )
 
     opt_stats = engine.optimization_stats
     if opt_stats:

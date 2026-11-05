@@ -10,9 +10,9 @@ the `optimization_stats` property.
 from __future__ import annotations
 
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator, Optional
 
 from eigencore.engine.layer_skip import LayerSkipScheduler, SkipStrategy
 from eigencore.engine.sparse_inference import SparsityCache, SparsityPredictor
@@ -42,7 +42,11 @@ class GenerationResult:
     time_seconds: float
     tokens_per_second: float
     prompt_tokens: int
-    optimization_stats: Optional[dict] = None
+    optimization_stats: dict | None = None
+    # Optimizations actually applied to the backend call. Empty today:
+    # layer-skip/sparsity plans and the speculative decoder are computed and
+    # reported but NOT wired into create_chat_completion yet.
+    applied_optimizations: list[str] = field(default_factory=list)
 
 
 class InferenceEngine:
@@ -50,15 +54,15 @@ class InferenceEngine:
         self,
         model_path: Path,
         profile: HardwareProfile,
-        model_spec: Optional[ModelSpec] = None,
+        model_spec: ModelSpec | None = None,
     ):
         self.model_path = model_path
         self.profile = profile
         self.model_spec = model_spec
         self._llm = None
 
-        self._layer_skipper: Optional[LayerSkipScheduler] = None
-        self._sparsity_predictor: Optional[SparsityPredictor] = None
+        self._layer_skipper: LayerSkipScheduler | None = None
+        self._sparsity_predictor: SparsityPredictor | None = None
         self._sparsity_cache = SparsityCache()
         self._speculative_decoder = SpeculativeDecoder(adaptive=True)
 
@@ -123,7 +127,7 @@ class InferenceEngine:
     def generate(
         self,
         prompt: str,
-        config: Optional[GenerationConfig] = None,
+        config: GenerationConfig | None = None,
     ) -> GenerationResult:
         """Generate a complete response (non-streaming)."""
         if self._llm is None:
@@ -138,7 +142,7 @@ class InferenceEngine:
     def stream(
         self,
         prompt: str,
-        config: Optional[GenerationConfig] = None,
+        config: GenerationConfig | None = None,
     ) -> Iterator[str]:
         """Stream tokens as they're generated."""
         if self._llm is None:
@@ -167,7 +171,7 @@ class InferenceEngine:
     def chat(
         self,
         messages: list[dict[str, str]],
-        config: Optional[GenerationConfig] = None,
+        config: GenerationConfig | None = None,
     ) -> GenerationResult:
         """Chat-style completion with message list."""
         if self._llm is None:
@@ -202,15 +206,30 @@ class InferenceEngine:
             tokens_per_second=tps,
             prompt_tokens=prompt_tokens,
             optimization_stats=self._collect_stats(config),
+            applied_optimizations=self._applied_optimizations(),
         )
+
+    def _applied_optimizations(self) -> list[str]:
+        """Optimizations actually wired into the backend call.
+
+        Currently none: layer-skip/sparsity only produce reported plans and
+        the speculative decoder is never invoked during generation. Kept
+        explicit so callers can distinguish measured from planned work.
+        """
+        return []
 
     def _collect_stats(self, config: GenerationConfig) -> dict:
         """Collect optimization statistics from Phase 2 modules."""
         stats: dict = {}
+        stats["backend_wired"] = self._applied_optimizations()
+        stats["note"] = (
+            "stats are planned/reported only; no optimization is applied to the backend call yet"
+        )
 
         if self._layer_skipper and config.enable_layer_skip:
             plan = self._layer_skipper.plan(complexity=config.complexity)
             stats["layer_skip"] = {
+                "applied": False,
                 "strategy": plan.strategy.name,
                 "layers_skipped": len(plan.layers_to_skip),
                 "total_layers": plan.total_layers,
@@ -222,6 +241,7 @@ class InferenceEngine:
             if self._sparsity_predictor.is_warmed_up:
                 exec_plan = self._sparsity_predictor.create_execution_plan()
                 stats["sparse_inference"] = {
+                    "applied": False,
                     "overall_sparsity": exec_plan.overall_sparsity,
                     "estimated_speedup": exec_plan.estimated_speedup,
                     "flop_savings": exec_plan.estimated_flop_savings,
@@ -234,6 +254,7 @@ class InferenceEngine:
         }
 
         stats["speculative"] = {
+            "applied": False,
             "draft_length": self._speculative_decoder.draft_length,
             "overall_accept_rate": self._speculative_decoder.stats.overall_accept_rate,
             "total_rounds": self._speculative_decoder.stats.total_rounds,
@@ -258,11 +279,11 @@ class InferenceEngine:
         return self._collect_stats(config) if self._llm else {}
 
     @property
-    def layer_skipper(self) -> Optional[LayerSkipScheduler]:
+    def layer_skipper(self) -> LayerSkipScheduler | None:
         return self._layer_skipper
 
     @property
-    def sparsity_predictor(self) -> Optional[SparsityPredictor]:
+    def sparsity_predictor(self) -> SparsityPredictor | None:
         return self._sparsity_predictor
 
     @property
