@@ -16,7 +16,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Optional
+from typing import Any
 
 from eigencore.agent.executor import ToolExecutor, ToolResult
 from eigencore.agent.tool import ToolRegistry
@@ -35,9 +35,9 @@ class AgentStep:
 
     kind: StepKind
     content: str
-    tool_name: Optional[str] = None
-    tool_args: Optional[dict[str, Any]] = None
-    tool_result: Optional[ToolResult] = None
+    tool_name: str | None = None
+    tool_args: dict[str, Any] | None = None
+    tool_result: ToolResult | None = None
     elapsed_seconds: float = 0.0
 
 
@@ -113,10 +113,10 @@ class ReActAgent:
     def __init__(
         self,
         registry: ToolRegistry,
-        executor: Optional[ToolExecutor] = None,
+        executor: ToolExecutor | None = None,
         max_steps: int = DEFAULT_MAX_STEPS,
         max_tokens_per_step: int = DEFAULT_MAX_TOKENS_PER_STEP,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
     ):
         self.registry = registry
         self.executor = executor or ToolExecutor(registry)
@@ -191,7 +191,7 @@ class ReActAgent:
         else:
             return AgentStep(kind=StepKind.THOUGHT, content=raw)
 
-    def execute_step(self, step: AgentStep) -> Optional[AgentStep]:
+    def execute_step(self, step: AgentStep) -> AgentStep | None:
         if step.kind != StepKind.ACTION or step.tool_name is None:
             return None
 
