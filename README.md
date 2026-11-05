@@ -84,3 +84,16 @@ ruff format --check src/ tests/
 ## Project status
 
 Pre-alpha; APIs and performance characteristics may change. Feature presence is not a performance claim. Before optimizing kernels or making hardware recommendations, benchmark the existing backend against a quality baseline and record the model, quant, context, hardware, backend flags, and run protocol.
+
+## Roadmap tracking
+
+| Phase | Goal | Status |
+| --- | --- | --- |
+| P1 | Trustworthy baseline: benchmark + quality-eval harness producing JSON evidence artifacts (`eigencore benchmark --report run.json`) | **In progress** |
+| P2 | Honest model-fit UX: weights + runtime + KV-cache estimate with safety margin; context as a first-class setting | Planned |
+| P3 | Gate existing optimizations (layer skip, sparsity, speculative decoding) on measured quality + speed; wire or disable each | Planned |
+| P4 | Tool guardrails: deny-by-default policy, path confinement, approvals, process isolation, audit log | Planned |
+| P5 | Adaptive terminal chat TUI per `docs/design/terminal-chat.md` | Planned |
+| P6 | Own low-level kernels behind a backend interface, promoted only on measured wins | Planned |
+
+Details: [phased plan](docs/roadmap/phased-plan.md), [local inference roadmap](docs/architecture/local-inference-roadmap.md).
