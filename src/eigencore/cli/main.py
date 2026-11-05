@@ -52,9 +52,7 @@ def profile():
     console.print(
         f"  Size: {rec.size_gb:.1f} GB | Params: {rec.params_b:.1f}B | Quant: {rec.quant}"
     )
-    est = estimate_fit(
-        rec.params_b, rec.quant, hw.recommended_context_length, hw.available_ram_gb
-    )
+    est = estimate_fit(rec.params_b, rec.quant, hw.recommended_context_length, hw.available_ram_gb)
     verdict_style = {
         FitVerdict.FITS_WITH_MARGIN: "green",
         FitVerdict.TIGHT: "yellow",
@@ -232,7 +230,9 @@ def run(
 @click.option("--max-tokens", default=512, help="Maximum tokens per response")
 @click.option("--temperature", default=0.7, help="Sampling temperature")
 @click.option("--task", default="general", help="Task type for auto model selection")
-@click.option("--plain", is_flag=True, help="Plain-text mode: no panels/colors (pipes, SSH, screen readers)")
+@click.option(
+    "--plain", is_flag=True, help="Plain-text mode: no panels/colors (pipes, SSH, screen readers)"
+)
 def chat(
     model: str | None,
     max_tokens: int,
@@ -273,7 +273,9 @@ def chat(
         spec,
         hw,
         policy_label="read-only (policy engine attached in P4)",
-        cfg=ChatUiConfig(plain=plain or not sys.stdin.isatty(), max_tokens=max_tokens, temperature=temperature),
+        cfg=ChatUiConfig(
+            plain=plain or not sys.stdin.isatty(), max_tokens=max_tokens, temperature=temperature
+        ),
     )
     ui.run()
 
