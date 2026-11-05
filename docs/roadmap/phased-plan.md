@@ -16,7 +16,9 @@ See [system architecture](../architecture/system-overview.md) for module flow an
 
 ## Recommended next work
 
-### 1. Establish trustworthy quality and performance baselines
+### 1. Establish trustworthy quality and performance baselines — **in progress**
+
+Implemented: `eigencore.benchmark` harness (`src/eigencore/benchmark/harness.py`) with deterministic quality cases, prefill/decode timing separation (TTFT vs decode tok/s), SHA-256 model identity, hardware snapshot, and JSON evidence reports via `eigencore benchmark --report <path.json>`. Covered by `tests/test_benchmark.py`.
 
 Use the current backend before replacing it. Select representative consumer CPU/GPU configurations and model/quant combinations. Capture warm/cold load, prompt prefill, decode throughput, memory use, context size, backend flags, and raw run results. Pair throughput with task-specific quality comparisons; include accuracy retention for every optimization. Avoid universal performance claims.
 
