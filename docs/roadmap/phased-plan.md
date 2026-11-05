@@ -46,7 +46,7 @@ Audit which optimization components actually change backend execution. First int
 
 **Exit evidence:** correctness tests, measured performance improvement on named workloads, quality within the chosen threshold, and a tested fallback path.
 
-### 4. Harden agent tools before exposing them in chat — **in progress**
+### 4. Harden agent tools before exposing them in chat — **policy layer done, isolation pending**
 
 Implemented: `eigencore.agent.policy` — `ToolCapability` (READ/WRITE/EXECUTE/NETWORK) on every `Tool`, a deny-by-default `PolicyEngine` (only allow-listed capabilities run; default policy allows READ only), workspace path confinement with symlink/traversal rejection (`resolve_in_workspace`), a JSONL `AuditLog` with sensitive-arg redaction, and `ToolStatus.POLICY_DENIED` enforced in `ToolExecutor` *before* any handler runs. Covered by `tests/test_policy.py` (9 tests). Error output is also credential-redacted.
 
@@ -56,7 +56,11 @@ The current Python executor is not a process sandbox. Define capabilities, deny-
 
 **Exit evidence:** threat model, policy tests, isolation tests, adversarial tool-output handling, cancellation/timeout behavior, and approval audit evidence.
 
-### 5. Prototype the adaptive terminal chat UI
+### 5. Prototype the adaptive terminal chat UI — **in progress**
+
+Implemented: `eigencore.tui.chat.ChatUI` — streaming multi-turn chat over the new `InferenceEngine.stream_messages`, plain mode (`--plain` or non-TTY stdin) with no panels, slash commands (`/help`, `/model`, `/context`, `/clear`, `/exit`) with close-match suggestions, header showing model/quant/context/fit-verdict/tool-policy status, and per-turn measured tok/s labeled as such. `eigencore chat` now uses it and gained `--plain`. Covered by `tests/test_tui_chat.py` (5 tests with a scripted-input fake engine).
+
+Still pending per `docs/design/terminal-chat.md`: full-screen adaptive layout with terminal-capability probe, onboarding wizard, approval cards wired to the P4 policy engine, and tool invocation from chat.
 
 Use [terminal chat design](../design/terminal-chat.md) as a proposal. Integrate the existing chat/stream API, provide plain-mode fallback, explain model fit, and keep rendering separate from inference and policy. Do not change the bare `eigencore` behavior or command names without a compatibility decision.
 

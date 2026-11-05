@@ -92,8 +92,8 @@ Pre-alpha; APIs and performance characteristics may change. Feature presence is 
 | P1 | Trustworthy baseline: benchmark + quality-eval harness producing JSON evidence artifacts (`eigencore benchmark --report run.json`) | **Done** (`src/eigencore/benchmark/`) |
 | P2 | Honest model-fit UX: weights + runtime + KV-cache estimate with safety margin; context as a first-class setting | **Done** (`src/eigencore/fit/`) |
 | P3 | Gate existing optimizations (layer skip, sparsity, speculative decoding) on measured quality + speed; wire or disable each | **Audit done** — no optimization is wired into the backend yet; results now labeled as reported-only (`applied_optimizations`) |
-| P4 | Tool guardrails: deny-by-default policy, path confinement, approvals, process isolation, audit log | **In progress** — policy engine + path confinement + JSONL audit shipped (`src/eigencore/agent/policy.py`); OS process isolation still pending |
-| P5 | Adaptive terminal chat TUI per `docs/design/terminal-chat.md` | Planned |
+| P4 | Tool guardrails: deny-by-default policy, path confinement, approvals, process isolation, audit log | **Policy layer done** (`src/eigencore/agent/policy.py`); approvals UI + OS process isolation pending |
+| P5 | Adaptive terminal chat TUI per `docs/design/terminal-chat.md` | **In progress** — streaming chat UI shipped (`src/eigencore/tui/chat.py`, `eigencore chat --plain`); full-screen adaptive layout + approval cards pending |
 | P6 | Own low-level kernels behind a backend interface, promoted only on measured wins | Planned |
 
 Details: [phased plan](docs/roadmap/phased-plan.md), [local inference roadmap](docs/architecture/local-inference-roadmap.md).
