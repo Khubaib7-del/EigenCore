@@ -43,6 +43,10 @@ class GenerationResult:
     tokens_per_second: float
     prompt_tokens: int
     optimization_stats: Optional[dict] = None
+    # Optimizations actually applied to the backend call. Empty today:
+    # layer-skip/sparsity plans and the speculative decoder are computed and
+    # reported but NOT wired into create_chat_completion yet.
+    applied_optimizations: list[str] = field(default_factory=list)
 
 
 class InferenceEngine:
