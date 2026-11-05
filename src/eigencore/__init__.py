@@ -3,6 +3,13 @@
 __version__ = "0.3.0"
 
 from eigencore.agent.executor import ToolExecutor, ToolResult
+from eigencore.benchmark import (
+    DEFAULT_CASES,
+    BenchmarkReport,
+    QualityCase,
+    build_report,
+    run_cases,
+)
 from eigencore.agent.grammar import GBNFBuilder
 from eigencore.agent.react import AgentResult, AgentStep, ReActAgent, StepKind
 from eigencore.agent.tool import Tool, ToolParam, ToolRegistry
@@ -17,6 +24,11 @@ from eigencore.models.registry import ModelRegistry, ModelSpec
 from eigencore.router.classifier import RoutingDecision, TaskDomain, TaskRouter
 
 __all__ = [
+    "DEFAULT_CASES",
+    "BenchmarkReport",
+    "QualityCase",
+    "build_report",
+    "run_cases",
     "Forge",
     "HardwareProfile",
     "profile_hardware",
