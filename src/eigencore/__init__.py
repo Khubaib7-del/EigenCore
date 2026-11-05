@@ -4,6 +4,7 @@ __version__ = "0.3.0"
 
 from eigencore.agent.executor import ToolExecutor, ToolResult
 from eigencore.agent.grammar import GBNFBuilder
+from eigencore.agent.policy import AuditLog, PolicyEngine, ToolCapability, default_policy
 from eigencore.agent.react import AgentResult, AgentStep, ReActAgent, StepKind
 from eigencore.agent.tool import Tool, ToolParam, ToolRegistry
 from eigencore.benchmark import (
@@ -31,9 +32,11 @@ from eigencore.models.registry import ModelRegistry, ModelSpec
 from eigencore.router.classifier import RoutingDecision, TaskDomain, TaskRouter
 
 __all__ = [
+    "AuditLog",
     "DEFAULT_CASES",
     "AgentResult",
     "AgentStep",
+    "PolicyEngine",
     "BenchmarkReport",
     "ContextManager",
     "FitEstimate",
@@ -62,11 +65,13 @@ __all__ = [
     "TaskDomain",
     "TaskRouter",
     "Tool",
+    "ToolCapability",
     "ToolExecutor",
     "ToolParam",
     "ToolRegistry",
     "ToolResult",
     "build_report",
+    "default_policy",
     "estimate_fit",
     "max_context_for_budget",
     "profile_hardware",
