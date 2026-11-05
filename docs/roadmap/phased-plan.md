@@ -26,7 +26,7 @@ Use the current backend before replacing it. Select representative consumer CPU/
 
 **Exit evidence:** reproducible scripts/configurations, named hardware/model matrix, raw benchmark artifacts, and quality results with an explicit acceptance threshold.
 
-### 2. Make hardware-aware selection conservative and inspectable — **in progress**
+### 2. Make hardware-aware selection conservative and inspectable — **done (estimator shipped)**
 
 Implemented: `eigencore.fit` estimator (`src/eigencore/fit/estimator.py`) separates weights / runtime reserve / KV-cache, applies a configurable safety margin, returns a verdict (`fits_with_margin` / `tight` / `does_not_fit`), and computes the max context that fits a RAM budget. `eigencore profile` and `eigencore models` now show the fit estimate and verdict instead of a bare size comparison. Covered by `tests/test_fit.py`.
 
@@ -36,7 +36,11 @@ Separate weight, runtime, and KV-cache estimates; account for unknown metadata a
 
 **Exit evidence:** fixture-tested fit decisions, correct unavailable/unknown handling, and safe behavior near memory limits on the target matrix.
 
-### 3. Gate inference optimizations on correctness
+### 3. Gate inference optimizations on correctness — **in progress (audit done)**
+
+**Audit result (source-verified, `tests/test_optimization_audit.py`):** the `enable_layer_skip` / `enable_sparse_inference` flags and the speculative decoder never reach `create_chat_completion` — they only populate reported stats. `GenerationResult` now carries an explicit `applied_optimizations` list (currently empty), stats include `applied: False` and a `backend_wired` key, and `eigencore benchmark` prints a warning that its “Speedup” column is noise until optimizations are wired in. Regression tests prove the backend kwargs are identical with flags on vs. off.
+
+Still required: wire one optimization at a time behind the benchmark harness, differential-test quality against baseline, and only then enable it by default.
 
 Audit which optimization components actually change backend execution. First integrate or disable components whose reported stats are not connected to measured work. Differential-test quantized/SIMD kernels against a scalar reference and the trusted backend. Evaluate layer skipping, sparse execution, context compression, and speculative decoding on fixed prompts and quality checks.
 
