@@ -232,13 +232,15 @@ def run(
 @click.option("--max-tokens", default=512, help="Maximum tokens per response")
 @click.option("--temperature", default=0.7, help="Sampling temperature")
 @click.option("--task", default="general", help="Task type for auto model selection")
+@click.option("--plain", is_flag=True, help="Plain-text mode: no panels/colors (pipes, SSH, screen readers)")
 def chat(
     model: str | None,
     max_tokens: int,
     temperature: float,
     task: str,
+    plain: bool,
 ):
-    """Start an interactive chat session."""
+    """Start an interactive chat session (streaming, slash commands, plain mode available)."""
     hw = profile_hardware()
     registry = ModelRegistry()
 
@@ -264,44 +266,18 @@ def chat(
     with console.status("[bold cyan]Loading model..."):
         engine.load()
 
-    console.print(
-        Panel(
-            f"Model: [cyan]{spec.name}[/] ({spec.params_b:.1f}B)\n"
-            f"Context: {hw.recommended_context_length} tokens\n"
-            f"Type [bold]exit[/] or [bold]quit[/] to end.",
-            title="[bold]EigenCore Chat",
-            border_style="cyan",
-        )
+    from eigencore.tui.chat import ChatUI, ChatUiConfig
+
+    ui = ChatUI(
+        engine,
+        spec,
+        hw,
+        policy_label="read-only (policy engine attached in P4)",
+        cfg=ChatUiConfig(plain=plain or not sys.stdin.isatty(), max_tokens=max_tokens, temperature=temperature),
     )
-
-    messages: list[dict[str, str]] = []
-    config = GenerationConfig(max_tokens=max_tokens, temperature=temperature, stream=False)
-
-    while True:
-        try:
-            user_input = console.input("\n[bold green]You:[/] ").strip()
-        except (EOFError, KeyboardInterrupt):
-            break
-
-        if not user_input:
-            continue
-        if user_input.lower() in ("exit", "quit", "/exit", "/quit"):
-            break
-
-        messages.append({"role": "user", "content": user_input})
-
-        with console.status("[dim]Thinking..."):
-            result = engine.chat(messages, config)
-
-        messages.append({"role": "assistant", "content": result.text})
-
-        console.print(f"\n[bold cyan]EigenCore:[/] {result.text}")
-        console.print(
-            f"[dim]{result.tokens_generated} tokens | {result.tokens_per_second:.1f} tok/s[/]"
-        )
+    ui.run()
 
     engine.unload()
-    console.print("\n[dim]Session ended.[/]")
 
 
 @cli.command()
