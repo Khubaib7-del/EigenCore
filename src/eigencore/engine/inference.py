@@ -43,6 +43,10 @@ class GenerationResult:
     tokens_per_second: float
     prompt_tokens: int
     optimization_stats: Optional[dict] = None
+    # Optimizations actually applied to the backend call. Empty today:
+    # layer-skip/sparsity plans and the speculative decoder are computed and
+    # reported but NOT wired into create_chat_completion yet.
+    applied_optimizations: list[str] = field(default_factory=list)
 
 
 class InferenceEngine:
@@ -202,15 +206,31 @@ class InferenceEngine:
             tokens_per_second=tps,
             prompt_tokens=prompt_tokens,
             optimization_stats=self._collect_stats(config),
+            applied_optimizations=self._applied_optimizations(),
         )
+
+    def _applied_optimizations(self) -> list[str]:
+        """Optimizations actually wired into the backend call.
+
+        Currently none: layer-skip/sparsity only produce reported plans and
+        the speculative decoder is never invoked during generation. Kept
+        explicit so callers can distinguish measured from planned work.
+        """
+        return []
 
     def _collect_stats(self, config: GenerationConfig) -> dict:
         """Collect optimization statistics from Phase 2 modules."""
         stats: dict = {}
+        stats["backend_wired"] = self._applied_optimizations()
+        stats["note"] = (
+            "stats are planned/reported only; no optimization is applied "
+            "to the backend call yet"
+        )
 
         if self._layer_skipper and config.enable_layer_skip:
             plan = self._layer_skipper.plan(complexity=config.complexity)
             stats["layer_skip"] = {
+                "applied": False,
                 "strategy": plan.strategy.name,
                 "layers_skipped": len(plan.layers_to_skip),
                 "total_layers": plan.total_layers,
