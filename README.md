@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/banner/eigencore-banner.svg" alt="EigenCore — local models, hardware-aware inference" width="100%">
+  <picture>
+    <source srcset="assets/brand/eigencore-banner-animated.svg" type="image/svg+xml">
+    <img src="assets/brand/eigencore-banner.png" alt="EigenCore — local models, on your own silicon" width="100%">
+  </picture>
 </p>
 
 <h1 align="center">EigenCore</h1>
@@ -72,7 +75,7 @@ ruff format --check src/ tests/
 
 ## Documentation
 
-- Standalone [EigenCore logo mark](assets/logo/eigencore-mark.svg) and [README banner](assets/banner/eigencore-banner.svg).
+- Brand assets: [logo](assets/brand/eigencore-logo.svg), [animated README banner](assets/brand/eigencore-banner-animated.svg), [static banner](assets/brand/eigencore-banner.png), and [favicons](assets/brand/README.md).
 - [System architecture](docs/architecture/system-overview.md) — actual module flow, trust boundaries, and staged improvements.
 - [Local inference roadmap](docs/architecture/local-inference-roadmap.md) — 30–40B constraints, accuracy/speed tradeoffs, and benchmark gates.
 - [Terminal chat design](docs/design/terminal-chat.md) — proposed onboarding, chat layout, tools, approvals, and accessibility.
