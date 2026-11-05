@@ -89,8 +89,8 @@ Pre-alpha; APIs and performance characteristics may change. Feature presence is 
 
 | Phase | Goal | Status |
 | --- | --- | --- |
-| P1 | Trustworthy baseline: benchmark + quality-eval harness producing JSON evidence artifacts (`eigencore benchmark --report run.json`) | **In progress** |
-| P2 | Honest model-fit UX: weights + runtime + KV-cache estimate with safety margin; context as a first-class setting | Planned |
+| P1 | Trustworthy baseline: benchmark + quality-eval harness producing JSON evidence artifacts (`eigencore benchmark --report run.json`) | **Done** (`src/eigencore/benchmark/`) |
+| P2 | Honest model-fit UX: weights + runtime + KV-cache estimate with safety margin; context as a first-class setting | **In progress** (`src/eigencore/fit/`) |
 | P3 | Gate existing optimizations (layer skip, sparsity, speculative decoding) on measured quality + speed; wire or disable each | Planned |
 | P4 | Tool guardrails: deny-by-default policy, path confinement, approvals, process isolation, audit log | Planned |
 | P5 | Adaptive terminal chat TUI per `docs/design/terminal-chat.md` | Planned |
