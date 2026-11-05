@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
+from eigencore.agent.policy import ToolCapability
+
 
 @dataclass(frozen=True)
 class ToolParam:
@@ -53,6 +55,8 @@ class Tool:
     description: str
     handler: Callable[..., Any]
     parameters: list[ToolParam] = field(default_factory=list)
+    # What this tool does; the PolicyEngine denies anything not allow-listed.
+    capability: ToolCapability = ToolCapability.EXECUTE
 
     def __post_init__(self):
         if not self.name.isidentifier():
