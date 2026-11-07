@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 import click
 from rich.console import Console
@@ -23,6 +22,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from eigencore.engine.inference import GenerationConfig, InferenceEngine
+from eigencore.fit import FitVerdict, estimate_fit, max_context_for_budget
 from eigencore.hal.profiler import profile_hardware
 from eigencore.models.registry import ModelRegistry
 
@@ -33,7 +33,6 @@ console = Console()
 @click.version_option(version="0.3.0", prog_name="eigencore")
 def cli():
     """EigenCore — CPU-first LLM intelligence runtime."""
-    pass
 
 
 @cli.command()
@@ -53,6 +52,28 @@ def profile():
     console.print(
         f"  Size: {rec.size_gb:.1f} GB | Params: {rec.params_b:.1f}B | Quant: {rec.quant}"
     )
+    est = estimate_fit(rec.params_b, rec.quant, hw.recommended_context_length, hw.available_ram_gb)
+    verdict_style = {
+        FitVerdict.FITS_WITH_MARGIN: "green",
+        FitVerdict.TIGHT: "yellow",
+        FitVerdict.DOES_NOT_FIT: "red",
+        FitVerdict.UNKNOWN: "dim",
+    }[est.verdict]
+    console.print(
+        f"  Fit estimate at ctx {est.context_length}: weights {est.weights_gb:.1f} GB + "
+        f"reserve {est.runtime_reserve_gb:.1f} GB + KV {est.kv_cache_gb:.2f} GB = "
+        f"{est.total_gb:.1f} GB of {est.available_ram_gb:.1f} GB available "
+        f"[{verdict_style}]{est.verdict.value}[/] (headroom {est.headroom_gb:.1f} GB)"
+    )
+    for note in est.notes:
+        console.print(f"    [dim]* {note}[/]")
+    max_ctx = max_context_for_budget(
+        rec.params_b, rec.quant, hw.available_ram_gb, model_context_limit=rec.context_length
+    )
+    if max_ctx > 0:
+        console.print(f"  [dim]Max context that fits this budget: {max_ctx} tokens[/]")
+    else:
+        console.print("  [red]Model does not fit even at minimum context[/]")
 
     if not registry.is_downloaded(rec):
         console.print(f"\n  [dim]Download with:[/] eigencore download {rec.name}")
@@ -62,7 +83,7 @@ def profile():
 
 @cli.command()
 @click.option("--task", default=None, help="Filter by task type (general, code, math)")
-def models(task: Optional[str]):
+def models(task: str | None):
     """List all available models."""
     registry = ModelRegistry()
     available = registry.list_models(task)
@@ -80,15 +101,21 @@ def models(task: Optional[str]):
     table.add_column("Description")
 
     for m in sorted(available, key=lambda x: x.params_b):
-        fits = m.size_gb <= (hw.available_ram_gb - 2.0)
+        est = estimate_fit(m.params_b, m.quant, hw.recommended_context_length, hw.available_ram_gb)
         downloaded = registry.is_downloaded(m)
+        if est.verdict == FitVerdict.FITS_WITH_MARGIN:
+            fits_label, fits_style = "fits", "green"
+        elif est.verdict == FitVerdict.TIGHT:
+            fits_label, fits_style = "tight", "yellow"
+        else:
+            fits_label, fits_style = "no", "red"
         table.add_row(
             m.name,
             f"{m.params_b:.1f}B",
             m.quant,
             f"{m.size_gb:.1f}GB",
             m.task,
-            "[green]yes[/]" if fits else "[red]no[/]",
+            f"[{fits_style}]{fits_label}[/]",
             "[green]yes[/]" if downloaded else "[dim]no[/]",
             m.description,
         )
@@ -133,7 +160,7 @@ def download(name: str):
 @click.option("--task", default="general", help="Task type for auto model selection")
 @click.option("--no-stream", is_flag=True, help="Disable streaming output")
 def run(
-    model: Optional[str],
+    model: str | None,
     prompt: str,
     max_tokens: int,
     temperature: float,
@@ -203,13 +230,17 @@ def run(
 @click.option("--max-tokens", default=512, help="Maximum tokens per response")
 @click.option("--temperature", default=0.7, help="Sampling temperature")
 @click.option("--task", default="general", help="Task type for auto model selection")
+@click.option(
+    "--plain", is_flag=True, help="Plain-text mode: no panels/colors (pipes, SSH, screen readers)"
+)
 def chat(
-    model: Optional[str],
+    model: str | None,
     max_tokens: int,
     temperature: float,
     task: str,
+    plain: bool,
 ):
-    """Start an interactive chat session."""
+    """Start an interactive chat session (streaming, slash commands, plain mode available)."""
     hw = profile_hardware()
     registry = ModelRegistry()
 
@@ -235,44 +266,20 @@ def chat(
     with console.status("[bold cyan]Loading model..."):
         engine.load()
 
-    console.print(
-        Panel(
-            f"Model: [cyan]{spec.name}[/] ({spec.params_b:.1f}B)\n"
-            f"Context: {hw.recommended_context_length} tokens\n"
-            f"Type [bold]exit[/] or [bold]quit[/] to end.",
-            title="[bold]EigenCore Chat",
-            border_style="cyan",
-        )
+    from eigencore.tui.chat import ChatUI, ChatUiConfig
+
+    ui = ChatUI(
+        engine,
+        spec,
+        hw,
+        policy_label="read-only (policy engine attached in P4)",
+        cfg=ChatUiConfig(
+            plain=plain or not sys.stdin.isatty(), max_tokens=max_tokens, temperature=temperature
+        ),
     )
-
-    messages: list[dict[str, str]] = []
-    config = GenerationConfig(max_tokens=max_tokens, temperature=temperature, stream=False)
-
-    while True:
-        try:
-            user_input = console.input("\n[bold green]You:[/] ").strip()
-        except (EOFError, KeyboardInterrupt):
-            break
-
-        if not user_input:
-            continue
-        if user_input.lower() in ("exit", "quit", "/exit", "/quit"):
-            break
-
-        messages.append({"role": "user", "content": user_input})
-
-        with console.status("[dim]Thinking..."):
-            result = engine.chat(messages, config)
-
-        messages.append({"role": "assistant", "content": result.text})
-
-        console.print(f"\n[bold cyan]EigenCore:[/] {result.text}")
-        console.print(
-            f"[dim]{result.tokens_generated} tokens | {result.tokens_per_second:.1f} tok/s[/]"
-        )
+    ui.run()
 
     engine.unload()
-    console.print("\n[dim]Session ended.[/]")
 
 
 @cli.command()
@@ -281,10 +288,10 @@ def chat(
 @click.option("--threshold", default=0.01, help="Near-zero threshold")
 @click.option("--output", "-o", default=None, help="Save report to JSON file")
 def analyze(
-    model: Optional[str],
+    model: str | None,
     prompt: str,
     threshold: float,
-    output: Optional[str],
+    output: str | None,
 ):
     """Measure activation sparsity for a prompt — the first gap exploitation metric."""
     from eigencore.analysis.sparsity import SparsityAnalyzer
@@ -383,14 +390,27 @@ def analyze(
 @click.option("--max-tokens", default=128, help="Tokens to generate per run")
 @click.option("--runs", default=3, help="Number of runs per configuration")
 @click.option("--output", "-o", default=None, help="Save results to JSON file")
+@click.option(
+    "--report",
+    "report_path",
+    default=None,
+    help="Save a full Phase 1 evidence report (hardware, model sha256, timing, quality) to this JSON path",
+)
 def benchmark(
-    model: Optional[str],
-    prompt: Optional[str],
+    model: str | None,
+    prompt: str | None,
     max_tokens: int,
     runs: int,
-    output: Optional[str],
+    output: str | None,
+    report_path: str | None,
 ):
-    """Benchmark inference with and without Phase 2 optimizations."""
+    """Benchmark inference across configurations.
+
+    NOTE (P3 audit): the layer_skip / sparse / all_optimizations configs only
+    change reported stats today — no optimization is wired into the backend
+    call, so speedup vs baseline is expected to be ~1.0x (noise) until P3
+    wires them in and the quality gate passes.
+    """
     import json
     import time
 
@@ -434,6 +454,25 @@ def benchmark(
     engine = InferenceEngine(model_path, hw, spec)
     with console.status("[bold cyan]Loading model..."):
         engine.load()
+
+    if report_path:
+        from eigencore.benchmark import DEFAULT_CASES, build_report, run_cases
+
+        baseline_config = GenerationConfig(
+            max_tokens=max_tokens,
+            temperature=0.0,
+            stream=False,
+            enable_layer_skip=False,
+            enable_sparse_inference=False,
+        )
+        case_results = run_cases(engine, DEFAULT_CASES, baseline_config, runs=1)
+        report = build_report(engine, spec, model_path, baseline_config, case_results)
+        saved = report.save(report_path)
+        console.print(
+            f"[dim]Phase 1 evidence report saved to {saved} "
+            f"(quality pass rate {report.summary['quality_pass_rate']:.0%}, "
+            f"median decode {report.summary['decode_tok_s_median']:.1f} tok/s)[/]"
+        )
 
     configs = [
         (
@@ -546,6 +585,11 @@ def benchmark(
 
     console.print()
     console.print(table)
+    console.print(
+        "[yellow]P3 audit:[/] optimization configs change reported stats only; "
+        "no optimization is applied to the backend call yet, so 'Speedup' is "
+        "noise until they are wired in.[/]"
+    )
 
     opt_stats = engine.optimization_stats
     if opt_stats:
