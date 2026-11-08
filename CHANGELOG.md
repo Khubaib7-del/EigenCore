@@ -7,6 +7,7 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 ### Documentation
 - Added a full review: truth audit, 30–40B memory and bandwidth arithmetic, ranked issues, prioritized plan and owner benchmark list (`docs/review/`).
 - Brand v2: flat logo, small mark, favicon, lockups, wordmarks and banners as SVG in `assets/brand/` (PNG/ICO exports to follow); v2 design handbook.
+- Brand v2 fix: eigen-axis realigned to a clean 45° dotted line inside the die, evenly spaced dots, no trace crossings; middle trace now ends on the axis.
 - Added MIT `LICENSE` (© 2026 Khubaib Nazeer).
 - Added terminal UI status, technology decision and v2 screen mock-ups (`docs/design/TUI.md`, `docs/design/tui/`).
 - Added presentation materials: slides v2 text with change list, and a study guide (`docs/presentation/`).
