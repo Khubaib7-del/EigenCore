@@ -20,6 +20,7 @@
 
 ## Product design
 
+- [Terminal UI status and v2 screens](design/TUI.md)
 - [Design handbook](design/DESIGN_HANDBOOK.md) — v2 identity, palette, typography, terminal UI states, onboarding and approvals.
 - [Terminal chat design](design/terminal-chat.md) — proposed onboarding, chat layout, tool approvals, guardrails, accessibility, and implementation slices.
 

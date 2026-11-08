@@ -4,7 +4,7 @@
 
 **Status:** specification, v2 identity. Nothing here is implemented yet. The name stays **EigenCore**.
 **Audience:** hoplite (implementer) and anyone touching the README, docs, terminal UI or slides.
-**Sources:** the brand kit in `assets/brand/` (identical to the `eigencore-brand-kit.zip` the owner supplied), `docs/design/terminal-chat.md`, and the review in `docs/review/`. The kit contains logo, lockup, banner and favicon files only; it has **no terminal or UI reference screens**, so the TUI sections below are derived from `terminal-chat.md` and the review, not from kit references.
+**Sources:** the v1 brand kit (the `eigencore-brand-kit.zip` the owner supplied, formerly in `assets/brand/`), `docs/design/terminal-chat.md`, and the review in `docs/review/`. The kit contains logo, lockup, banner and favicon files only; it has **no terminal or UI reference screens**, so the TUI sections below are derived from `terminal-chat.md` and the review, not from kit references.
 
 ---
 
@@ -30,7 +30,7 @@
 
 ## 2. The v2 mark
 
-File: [`eigencore-mark-v2.svg`](eigencore-mark-v2.svg) (proposal, text SVG, ~2 KB). The v1 files stay in `assets/brand/` until the owner approves v2.
+Files: [`assets/brand/`](../../assets/brand/) (v2 SVG sources: logo, small mark, favicon, lockups, wordmarks, static and animated banner, ~2-66 KB each). Raster exports (PNG, ICO) are regenerated from the SVGs; the command is in `assets/brand/README.md`.
 
 **Construction**
 
@@ -225,7 +225,9 @@ Header fields, in order: model + quant, context used / context set, fit verdict 
 
 ## 7. Hand-off checklist for hoplite
 
-- [ ] Owner approves `eigencore-mark-v2.svg`; then regenerate PNG, favicon and lockups from it (binary assets are generated, not hand-drawn).
+- [x] v2 SVG set committed to `assets/brand/` (2026-11-09).
+- [ ] Commit the PNG/ICO exports (from the v2 kit zip the owner holds, or regenerate with the command in `assets/brand/README.md`); until then the raster files in `assets/brand/` are still v1.
+- [ ] Follow [TUI.md](TUI.md) for the terminal work order and screens.
 - [ ] Introduce a single `eigencore/tui/theme.py` holding the tokens in 5.2; no hex literals elsewhere.
 - [ ] Sanitiser for model/tool text with tests (`[/]`, OSC title, `ESC[2J`).
 - [ ] Plain mode parity test for every state in 5.4.
