@@ -1,5 +1,7 @@
 # Original Technical Ideas — Gemini Research Session
 
+> **Review note (2026-11-09):** ideation record, kept for history. Ideas 1 and 5 map to llama.cpp/ggml, which EigenCore uses as its backend; an EigenCore SIMD layer is PLANNED and decode-speed gains from it are not expected (decode is memory-bandwidth-bound; see [research/kernels.md](../review/research/kernels.md)).
+
 **Date:** 2026-07-17
 **Context:** Initial ideation session exploring CPU-based LLM optimization. These are the raw technical ideas that seeded the framework architecture.
 

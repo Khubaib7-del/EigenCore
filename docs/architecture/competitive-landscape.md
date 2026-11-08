@@ -1,5 +1,7 @@
 # Competitive Landscape & Distinctions
 
+> **Review note (2026-11-09): historical positioning, largely PLANNED.** Most "This Framework" cells describe goals, not shipped behaviour. Layer skipping, activation sparsity and speculative decoding are REPORTED-ONLY (not wired into llama.cpp); latent steering and tiered drafting are PLANNED; the "5-10x" figure is not supported by any measurement. Factual corrections: llama.cpp supports speculative decoding (CPU included) and has its own memory-fit tooling; Ollama sizes GPU offload from a memory estimate. See [the review](../review/FINAL_REPORT.md).
+
 **Date:** 2026-07-17
 
 ## Positioning Matrix

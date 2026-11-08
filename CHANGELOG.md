@@ -1,0 +1,59 @@
+# Changelog
+
+All notable changes to EigenCore. Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow the git tags. Dates are commit dates.
+
+## [Unreleased]
+
+### Documentation
+- Added a full review: truth audit, 30–40B memory and bandwidth arithmetic, ranked issues, prioritized plan and owner benchmark list (`docs/review/`).
+- Added the v2 design handbook and a proposed flat logo mark (`docs/design/`).
+- Added presentation materials: slides v2 text with change list, and a study guide (`docs/presentation/`).
+- README rewritten to install from source (not on PyPI), with a SHIPPED / REPORTED-ONLY / PLANNED status table and known bugs.
+- Review notes added to research and positioning docs whose claims overstate the code.
+- Added CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, issue and PR templates, and this changelog.
+
+### Known issues (found by the review, not yet fixed)
+- Fit estimator KV fallback underestimates by ~15–30×, and the CLI always uses it.
+- Profiler GiB/GB mix pins recommended context at 2048 below ~38 GB RAM.
+- Q4_0 reference dequantizer and its test use the wrong nibble order.
+- Tool policy is opt-in in the agent API; executor timeout does not stop handlers; path checks depend on parameter names.
+- Chat crashes on Rich markup in model output and passes terminal escape sequences.
+- Speculative verifier is not a correct rejection sampler.
+
+## [Post-0.3.0 on main] - 2026-07-18 to 2026-11-08
+Not tagged; package version is still 0.3.0.
+
+### Added
+- Phase 1 benchmark harness with quality cases and JSON reports.
+- Conservative model-fit estimator with KV-cache and context budgeting.
+- Deny-unless-allow-listed tool policy engine with path confinement and audit log.
+- Streaming chat UI with plain mode, slash commands and fit-aware header.
+- Backend protocol and scalar reference kernels with tests.
+- Brand kit and animated banner.
+
+### Changed
+- Optimization statistics labelled as reported-only; none is wired into the backend.
+- CI pins ruff below 0.15.
+
+### Fixed
+- `generate`/`stream` routed through chat completion.
+
+## [0.3.0] - 2026-07-18
+### Added
+- Agent framework: tool system, GBNF grammar builder, ReAct loop, wired into the Forge API, with tests.
+- `benchmark` command; Phase 2 optimizers attached to the inference engine (reporting only).
+### Changed
+- README rewritten.
+
+## [0.2.0] - 2026-07-17
+### Added
+- Hardware profiler with CPUID detection and model registry.
+- Inference engine over llama.cpp with hardware-aware configuration.
+- Task router, attention-aware context manager, QLoRA training components, sparsity analysis tools.
+- CLI and Forge API; architecture, research and roadmap docs.
+- Layer-skipping scheduler, speculative decoding module and sparsity predictor (not wired into inference).
+- GitHub Actions CI and release workflow.
+
+## [0.1.0] - 2026-07-17
+### Added
+- Project skeleton with `pyproject.toml` and README.

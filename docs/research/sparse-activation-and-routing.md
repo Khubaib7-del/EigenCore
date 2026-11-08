@@ -1,5 +1,7 @@
 # Sparse Activation & Multi-Model Routing
 
+> **Review note (2026-11-09):** the dense-model sparsity section overstates what SwiGLU models offer and the CPU branch-prediction argument does not hold; see [research/sparse.md](../review/research/sparse.md). PowerInfer is Song et al. (arXiv 2023, SOSP 2024). The practical form of "activate only part of the model" today is a Mixture-of-Experts model run by llama.cpp (PLANNED in EigenCore). Application-level routing (`router/classifier.py`) exists; its accuracy is unevaluated.
+
 **Date:** 2026-07-17
 
 ## Concept Origin
