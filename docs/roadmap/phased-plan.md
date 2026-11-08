@@ -1,5 +1,7 @@
 # EigenCore roadmap and implementation status
 
+> **Review update (2026-11-09):** status below is as hoplite reported it on 2026-11-05. The review found defects inside "done" items: the fit estimator's KV fallback underestimates by ~15-30x and the CLI always uses it (P2); the Q4_0 reference kernel and its test use the wrong nibble order (P6); the policy engine is opt-in and the executor timeout does not stop a handler (P4); the chat crashes on Rich markup in model text (P5). The current ordered plan is section 8 of [the review](../review/FINAL_REPORT.md), and it puts these fixes before new features.
+
 **Status snapshot:** 2026-11-05. Status below is based on repository source, not a claim that each feature is production-ready or benchmark-verified.
 
 ## What exists in this checkout

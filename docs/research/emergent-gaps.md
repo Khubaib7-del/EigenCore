@@ -1,5 +1,7 @@
 # Emergent Gaps in Transformer Architectures
 
+> **Review note (2026-11-09): research ideas, not features.** Status of each gap in EigenCore: layer skipping, activation sparsity and speculative decoding are REPORTED-ONLY; latent steering is PLANNED; attention-sink-aware context trimming exists in `context/manager.py` but is unevaluated. Corrections: the 70-90% sparsity figure applies to ReLU models (e.g. OPT), not to SwiGLU models such as Llama or Qwen; skipping work on CPU pays off by not reading weight rows, not through branch prediction; the "3-4x" and "5-10x" figures are unmeasured; "no existing CPU runtime does this" is not accurate for speculative decoding (llama.cpp). Several "nobody built on it" statements are out of date (Deja Vu, PowerInfer, LayerSkip, TEAL). See [review/research](../review/research/).
+
 **Date:** 2026-07-17
 **Core premise:** Current LLM architectures produce behaviors and properties that were not designed — they emerged from scale, training dynamics, and mathematical structure. These are treated as curiosities in research papers but nobody has built a runtime that systematically exploits them.
 

@@ -8,7 +8,7 @@
 
 ## The 30–40B constraint
 
-Parameter count alone is not a fit estimate. A 35B dense model stored at four bits has a raw lower bound of about 17.5 GB (about 16.3 GiB) for weights; quantization metadata, tensors kept at higher precision, allocator/backend overhead, the OS, and KV cache all add to that. KV-cache memory varies with layer count, KV-head count, head dimension, context length, and cache type. The model card and actual GGUF metadata must drive the estimate.
+Parameter count alone is not a fit estimate. A 35B dense model stored at four bits has a raw lower bound of about 17.5 GB (about 16.3 GiB) for weights, and a typical Q4_K_M file (~4.85 bits per weight) is about 21 GB; quantization metadata, tensors kept at higher precision, allocator/backend overhead, the OS, and KV cache all add to that. KV-cache memory varies with layer count, KV-head count, head dimension, context length, and cache type. The model card and actual GGUF metadata must drive the estimate.
 
 Decode for a dense model is often memory-bandwidth-bound: each generated token needs substantial weight traffic. Dividing available bandwidth by weight bytes gives only an optimistic ceiling; real rates are lower due to cache misses, dequantization, synchronization, sampling, thermal limits, and other overhead. GPU offload helps only to the extent the model layers and working set fit available VRAM; hybrid CPU/GPU execution also transfers or coordinates data.
 
@@ -16,6 +16,7 @@ Consequences:
 
 - A Core i7 label is insufficient to predict performance. Generation, memory channels, RAM configuration, cooling, power mode, GPU and VRAM, backend build, model, quant, and context matter.
 - 30–40B quantized models may be loadable on some consumer systems with sufficient RAM, but “runs” does not promise interactive speed. Smaller dense models or sparse/MoE models may be a better speed/quality fit, but must be evaluated per model.
+- Mixture-of-Experts models read only their active experts per token (for example ~3.3B of 30.5B parameters), so they are the realistic 30B-class option for 16 GB machines; all experts still need RAM or SSD paging. PLANNED, unmeasured.
 - Do not publish a tok/s guarantee from a bandwidth formula. Label all estimates as estimates and compare with warm/cold measured prefill and decode results.
 
 ## Work sequence

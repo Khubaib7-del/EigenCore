@@ -1,5 +1,16 @@
 # EigenCore documentation
 
+## Review (2026-11)
+
+- [Final report](review/FINAL_REPORT.md) — truth audit, 30–40B arithmetic, ranked issues, plan, owner benchmarks.
+- [Briefing for hoplite](review/HOPLITE_PROMPT.md)
+- [Component research](review/research/) — engine and fit, sparse activation, layer skip and SSD, speculative decoding, kernels, TUI and sandboxing.
+
+## Presentation
+
+- [Slides v2 text and change list](presentation/SLIDES_V2.md)
+- [Study guide](presentation/STUDY_GUIDE.md)
+
 ## Architecture
 
 - [System architecture](architecture/system-overview.md) — current Python module map, implemented boundaries, and proposed hardening.
@@ -9,6 +20,7 @@
 
 ## Product design
 
+- [Design handbook](design/DESIGN_HANDBOOK.md) — v2 identity, palette, typography, terminal UI states, onboarding and approvals.
 - [Terminal chat design](design/terminal-chat.md) — proposed onboarding, chat layout, tool approvals, guardrails, accessibility, and implementation slices.
 
 ## Research

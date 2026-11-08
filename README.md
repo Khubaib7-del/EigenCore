@@ -14,33 +14,47 @@
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-72B7A8">
 </p>
 
-EigenCore profiles a machine, recommends local models, and runs inference through `llama-cpp-python`. Its current CLI and Python API are the foundation; a full-screen terminal chat experience and hardened agent-tool sandbox are design goals, not shipped features.
+EigenCore profiles a machine, estimates whether a local model fits, and runs inference through `llama-cpp-python` (llama.cpp). It also ships a benchmark harness, a terminal chat, and agent building blocks with a tool policy layer. The transformer math is llama.cpp's; EigenCore owns the judgement around it.
 
-> **Reality check:** “30–40B” is not a universal hardware guarantee. Feasibility and speed depend on model architecture, quantization, usable RAM/VRAM, memory bandwidth, context/KV-cache size, and backend build. EigenCore’s speed figures are estimates until measured on named hardware with reproducible benchmark settings.
+> **Reality check:** a dense 30–40B model at 4-bit is roughly 18–24 GB of weights, more than 8–16 GB of RAM before any KV cache. It can only run by paging from SSD, and decode is then expected to be well under 1 token/s (estimate). Even when a model fits, CPU decode is memory-bandwidth-bound: tok/s ≤ bandwidth ÷ weight bytes. The realistic route to 30B-class models on a 16 GB laptop is a Mixture-of-Experts model, which is planned and not yet measured. See the [review](docs/review/FINAL_REPORT.md) for the arithmetic. No speed figure in this repository is a measurement until a named-hardware run is published.
 
 ## Quick start
 
+EigenCore is not published on PyPI yet. Install from source:
+
 ```bash
-python -m pip install eigencore
+git clone https://github.com/Khubaib7-del/EigenCore.git
+cd EigenCore
+python -m pip install -e .
 
 eigencore profile
 eigencore models
 eigencore download tinyllama-1.1b
 eigencore run --prompt "Explain binary search in one paragraph"
-eigencore chat
+eigencore chat            # add --plain for scripts or minimal terminals
 ```
 
-Use `eigencore --help` for the complete command list and options. `llama-cpp-python` may need a backend-appropriate installation for the target CPU/GPU; consult its installation guidance before assuming GPU acceleration is enabled.
+Use `eigencore --help` for every command. `llama-cpp-python` may need a backend-specific install; see its documentation before assuming GPU acceleration (EigenCore currently loads models CPU-only).
 
-## What exists today
+## Status
 
-- **Hardware profile:** CPU features, memory, and model-fit recommendations.
-- **Local inference:** model registry/download and generation through `llama-cpp-python`.
-- **Python APIs:** `Forge` for generation, streaming, chat, and routing; inference optimization components for layer-skip/sparsity planning and speculative decoding.
-- **Agent building blocks:** ReAct loop, typed tool registry, argument validation, execution timeout, and output truncation.
-- **Training code:** CPU-oriented LoRA/QLoRA training components with optional training dependencies.
+Labels: **SHIPPED** runs on `main` and is tested · **REPORTED-ONLY** computes plans or numbers that never reach llama.cpp · **PLANNED** design docs only.
 
-These components do not imply that each optimization reduces backend work or improves every model: for example, the speculative decoder is initialized but is not currently wired into generation. Tool handlers are not sandboxed. See the [architecture overview](docs/architecture/system-overview.md) for implemented versus proposed boundaries.
+| Area | Status | Notes |
+| --- | --- | --- |
+| Inference through llama-cpp-python | SHIPPED | `engine/inference.py`; CPU-only (`n_gpu_layers=0`) |
+| Hardware profile | SHIPPED | ISA, RAM, rough single-thread bandwidth probe (reads low). Known bug: recommended context is 2048 on machines under ~38 GB |
+| Model-fit estimator | SHIPPED | Weights + reserve + KV + margin, three verdicts. Known bug: the CLI uses a KV fallback that underestimates by ~15–30×; GGUF geometry fix planned |
+| Benchmark harness | SHIPPED | `eigencore benchmark --report run.json`; no published runs yet |
+| Terminal chat | SHIPPED (core) | Streaming, `--plain`, slash commands, fit header. Full-screen layout and onboarding PLANNED |
+| Tool policy | SHIPPED, opt-in | Capabilities, path checks, audit log. Not attached by default in `Forge.agent()`; handlers run in-process (not an OS sandbox); timeout does not stop a running handler |
+| Reference kernels | SHIPPED (scalar, NumPy) | RMSNorm, Q8_0 (matches ggml), Q4_0 (**known layout bug**), Q8_0 dot. Not used by inference |
+| Layer skipping | REPORTED-ONLY | Planner and estimates only |
+| Activation sparsity | REPORTED-ONLY | Predictor never receives activations; `eigencore analyze` measures output-logit sparsity, not neurons |
+| Speculative decoding | REPORTED-ONLY | Module not wired; its verifier is not a correct rejection sampler |
+| MoE-aware fit, SSD paging warning, KV-type options, GPU offload | PLANNED | See the plan in the review |
+| SIMD / native kernels | PLANNED | Research track; decode is bandwidth-bound |
+| Training (LoRA/QLoRA) | Code present, not evaluated | Optional `[train]` extra |
 
 ## Architecture
 
@@ -73,27 +87,21 @@ ruff check src/ tests/
 ruff format --check src/ tests/
 ```
 
+See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately as described in [SECURITY.md](SECURITY.md). This project follows a [code of conduct](CODE_OF_CONDUCT.md).
+
 ## Documentation
 
-- Brand assets: [logo](assets/brand/eigencore-logo.svg), [animated README banner](assets/brand/eigencore-banner-animated.svg), [static banner](assets/brand/eigencore-banner.png), and [favicons](assets/brand/README.md).
-- [System architecture](docs/architecture/system-overview.md) — actual module flow, trust boundaries, and staged improvements.
-- [Local inference roadmap](docs/architecture/local-inference-roadmap.md) — 30–40B constraints, accuracy/speed tradeoffs, and benchmark gates.
-- [Terminal chat design](docs/design/terminal-chat.md) — proposed onboarding, chat layout, tools, approvals, and accessibility.
-- [Documentation index](docs/INDEX.md) — architecture, research, and roadmap materials.
+- [Review and plan (2026-11)](docs/review/FINAL_REPORT.md): truth audit, 30–40B arithmetic, prioritized plan, benchmarks to run.
+- [Design handbook](docs/design/DESIGN_HANDBOOK.md): v2 identity, palette, terminal UI, approval flow.
+- [System architecture](docs/architecture/system-overview.md) and [local inference roadmap](docs/architecture/local-inference-roadmap.md).
+- [Terminal chat design](docs/design/terminal-chat.md).
+- [Documentation index](docs/INDEX.md).
+- [Changelog](CHANGELOG.md).
 
 ## Project status
 
-Pre-alpha; APIs and performance characteristics may change. Feature presence is not a performance claim. Before optimizing kernels or making hardware recommendations, benchmark the existing backend against a quality baseline and record the model, quant, context, hardware, backend flags, and run protocol.
+Pre-alpha. APIs and behaviour may change. Feature presence is not a performance claim.
 
-## Roadmap tracking
+## License
 
-| Phase | Goal | Status |
-| --- | --- | --- |
-| P1 | Trustworthy baseline: benchmark + quality-eval harness producing JSON evidence artifacts (`eigencore benchmark --report run.json`) | **Done** (`src/eigencore/benchmark/`) |
-| P2 | Honest model-fit UX: weights + runtime + KV-cache estimate with safety margin; context as a first-class setting | **Done** (`src/eigencore/fit/`) |
-| P3 | Gate existing optimizations (layer skip, sparsity, speculative decoding) on measured quality + speed; wire or disable each | **Audit done** — no optimization is wired into the backend yet; results now labeled as reported-only (`applied_optimizations`) |
-| P4 | Tool guardrails: deny-by-default policy, path confinement, approvals, process isolation, audit log | **Policy layer done** (`src/eigencore/agent/policy.py`); approvals UI + OS process isolation pending |
-| P5 | Adaptive terminal chat TUI per `docs/design/terminal-chat.md` | **Core shipped** (`src/eigencore/tui/chat.py`, `eigencore chat --plain`); full-screen adaptive layout + approval cards pending |
-| P6 | Own low-level kernels behind a backend interface, promoted only on measured wins | **In progress** — backend protocol + scalar reference kernels (RMSNorm, Q4_0/Q8_0 dequant, quantized dot) with correctness tests shipped (`src/eigencore/kernels/`); SIMD/native kernels pending |
-
-Details: [phased plan](docs/roadmap/phased-plan.md), [local inference roadmap](docs/architecture/local-inference-roadmap.md).
+MIT, as declared in `pyproject.toml`. A `LICENSE` file is still to be added by the maintainer.

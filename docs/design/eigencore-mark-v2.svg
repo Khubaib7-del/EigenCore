@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="t">
+  <title id="t">EigenCore mark, v2 proposal</title>
+  <!-- One flat offset replaces the 33 stacked extrusion paths of v1. -->
+  <path d="M157.5,48.5 L202.5,48.5 A37.5 37.5 0 0 1 240.0,86.0 L240.0,183.5 A52.5 52.5 0 0 0 292.5,236.0 L390.0,236.0 A37.5 37.5 0 0 1 427.5,273.5 L427.5,318.5 A105.0 105.0 0 0 1 322.5,423.5 L157.5,423.5 A105.0 105.0 0 0 1 52.5,318.5 L52.5,153.5 A105.0 105.0 0 0 1 157.5,48.5 Z" transform="translate(14 16)" fill="#15181E"/>
+  <path d="M157.5,48.5 L202.5,48.5 A37.5 37.5 0 0 1 240.0,86.0 L240.0,183.5 A52.5 52.5 0 0 0 292.5,236.0 L390.0,236.0 A37.5 37.5 0 0 1 427.5,273.5 L427.5,318.5 A105.0 105.0 0 0 1 322.5,423.5 L157.5,423.5 A105.0 105.0 0 0 1 52.5,318.5 L52.5,153.5 A105.0 105.0 0 0 1 157.5,48.5 Z" fill="#424B5E" stroke="#6A7489" stroke-width="3"/>
+  <!-- Eigen-axis: the one direction a transform leaves unchanged; it runs through the core. -->
+  <line x1="96" y1="410" x2="347.5" y2="158" stroke="#5B6CF0" stroke-width="7" stroke-linecap="round" stroke-dasharray="2 18" opacity="0.9"/>
+  <g fill="none" stroke="#20252F" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="92.5,121 142.5,121 170,148.5 205,148.5"/>
+    <polyline points="92.5,236 135,236 177.5,278.5 257.5,278.5"/>
+    <polyline points="215,383.5 215,356 252.5,318.5 345,318.5 370,293.5"/>
+  </g>
+  <g fill="#8C98FF">
+    <circle cx="205" cy="148.5" r="10"/><circle cx="257.5" cy="278.5" r="10"/><circle cx="370" cy="293.5" r="10"/>
+  </g>
+  <!-- Core: two flat tones, no gradient, no glow. -->
+  <rect x="300" y="112" width="122.5" height="122.5" rx="35" fill="#2E3A9E"/>
+  <rect x="286.2" y="96.6" width="122.5" height="122.5" rx="35" fill="#5B6CF0"/>
+  <rect x="318" y="128.4" width="58.9" height="58.9" rx="17" fill="#C9CFFF"/>
+</svg>

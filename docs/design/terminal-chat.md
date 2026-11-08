@@ -1,5 +1,7 @@
 # EigenCore terminal chat design
 
+> **Status update (2026-11-09):** a chat core now exists (`tui/chat.py`, `eigencore chat --plain`): SHIPPED. Everything else in this document (full-screen layout, onboarding, tools in chat, approval cards) remains PLANNED. Visual tokens and states are specified in the [design handbook](DESIGN_HANDBOOK.md), which supersedes the colour notes below.
+
 **Status:** proposed UX specification, not implemented. The repository currently exposes a Click CLI (`eigencore chat`) and a Python API; this document describes a future adaptive terminal interface over those capabilities.
 
 ## Design goals

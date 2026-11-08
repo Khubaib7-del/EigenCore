@@ -31,7 +31,7 @@ The diagram reflects modules and documented CLI commands. The inference engine c
 
 | Layer | Current responsibilities | Important boundary |
 | --- | --- | --- |
-| User interface | Click commands and `Forge` API | `eigencore` is the installed command; a full-screen adaptive TUI is proposed, not implemented. |
+| User interface | Click commands, `Forge` API, streaming chat (`tui/chat.py`) | `eigencore` is the installed command; the chat core is shipped, a full-screen adaptive TUI is proposed, not implemented. |
 | Hardware abstraction | CPU/OS feature detection, memory/bandwidth profiling, recommendation inputs | A recommendation is an estimate; measure real decode and prefill on the target machine. |
 | Model and routing | Model registry/download, task routing | Model support and routing quality depend on registry metadata and measured compatibility. |
 | Inference | `InferenceEngine`, generation configuration/results, llama.cpp Python backend | The native numerical kernel/backend is delegated to llama.cpp; EigenCore does not yet own a low-level inference kernel. |
@@ -41,7 +41,8 @@ The diagram reflects modules and documented CLI commands. The inference engine c
 ## Trust and failure boundaries
 
 - Model files and user prompts must be treated as untrusted inputs. The backend handles tensor decoding; future custom loaders must validate formats and lengths before allocation.
-- The current executor’s timeout/output cap are availability controls, not containment. A Python handler can access the process’s authority unless separately constrained.
+- The current executor’s timeout/output cap are availability controls, not containment. A Python handler can access the process’s authority unless separately constrained. The timeout does not stop a running handler: the call returns only when the handler finishes.
+- The policy engine (`agent/policy.py`) is opt-in: `ToolExecutor` enforces it only when a policy is passed, and `Forge.agent()` does not pass one yet. Path confinement applies only to parameters with recognised path names.
 - Do not expose automatic shell/file/network tools as “safe” until authorization, path policy, process isolation, and audit behavior are implemented and tested.
 - Future UI approval is a user-intent checkpoint, not a sandbox. Display the exact operation and affected paths, and keep enforcement below the renderer.
 
