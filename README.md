@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source srcset="assets/brand/eigencore-banner-animated.svg" type="image/svg+xml">
-    <img src="assets/brand/eigencore-banner.png" alt="EigenCore — local models, on your own silicon" width="100%">
-  </picture>
+  <img src="assets/brand/eigencore-banner-animated.svg" alt="EigenCore — local models, on your own silicon" width="100%">
 </p>
 
 <h1 align="center">EigenCore</h1>
@@ -93,6 +90,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately as desc
 
 - [Review and plan (2026-11)](docs/review/FINAL_REPORT.md): truth audit, 30–40B arithmetic, prioritized plan, benchmarks to run.
 - [Design handbook](docs/design/DESIGN_HANDBOOK.md): v2 identity, palette, terminal UI, approval flow.
+- [Terminal UI status and v2 screens](docs/design/TUI.md).
+- [Brand assets](assets/brand/README.md).
 - [System architecture](docs/architecture/system-overview.md) and [local inference roadmap](docs/architecture/local-inference-roadmap.md).
 - [Terminal chat design](docs/design/terminal-chat.md).
 - [Documentation index](docs/INDEX.md).
@@ -104,4 +103,4 @@ Pre-alpha. APIs and behaviour may change. Feature presence is not a performance 
 
 ## License
 
-MIT, as declared in `pyproject.toml`. A `LICENSE` file is still to be added by the maintainer.
+[MIT](LICENSE) © 2026 Khubaib Nazeer.

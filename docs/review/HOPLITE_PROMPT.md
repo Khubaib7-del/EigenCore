@@ -1,11 +1,13 @@
 # Briefing for hoplite
 
+**Where everything is:** branch `review/truth-audit-rebrand` (PR #2) on `Khubaib7-del/EigenCore`. Check it out and read the files from there; the owner may also attach `FINAL_REPORT.md` directly.
+
 hoplite, this is a hand-over from the review of `main` at `c92e3af`. You've done good groundwork: the P3 audit test, the fit estimator's shape, the benchmark report and the policy engine are the right building blocks. The review found that several of them give wrong answers today, and that the 30-40B goal needs a different route than the roadmap implies. Here's what I need from you.
 
 ## Read first, in this order
 
 1. [`FINAL_REPORT.md`](FINAL_REPORT.md): sections 1-5 and 8. Section 3 is the bug list; section 8 is your task order.
-2. [`../design/DESIGN_HANDBOOK.md`](../design/DESIGN_HANDBOOK.md): sections 3, 5 and 7 before you touch the TUI.
+2. [`../design/DESIGN_HANDBOOK.md`](../design/DESIGN_HANDBOOK.md): sections 3, 5 and 7, then [`../design/TUI.md`](../design/TUI.md), before you touch the TUI.
 3. The component report for whatever you're working on, in [`research/`](research/). Each has file:line references and acceptance tests.
 
 Don't start coding until you've read 1 and 2. If something there contradicts what you see in the code, trust the code, tell the owner, and note it in your PR.
@@ -15,7 +17,7 @@ Don't start coding until you've read 1 and 2. If something there contradicts wha
 - **Labels.** Every user-facing claim (README, docs, CLI output, TUI) is SHIPPED, REPORTED-ONLY or PLANNED. Your last status said this was already done; it wasn't on `main`. This PR adds the labels to the docs; keep them true as you ship.
 - **No numbers without evidence.** No "speedup", "x faster" or tok/s in output unless it was measured in this session, or it's labelled "ceiling estimate". Real benchmarks run only on the owner's machine (list below). You don't run them and you don't invent them.
 - **One concern per PR**, each with tests and a CHANGELOG line under "Unreleased".
-- **Don't touch:** the project name (stays EigenCore; no rename to "eigen"), `assets/brand/` until the owner approves the v2 mark, the ruff `<0.15` pin, and the sandbox-only `llama_cpp` test failures you already scoped out. Don't add binary files (PNG, PPTX, PDF) to PRs without the owner asking.
+- **Don't touch:** the project name (stays EigenCore; no rename to "eigen"), the v2 brand SVGs in `assets/brand/` (change them only with the owner), the ruff `<0.15` pin, and the sandbox-only `llama_cpp` test failures you already scoped out. Don't add binary files (PNG, PPTX, PDF) to PRs without the owner asking.
 - **Disagree in writing.** If you think an item below is wrong, say why in the PR description with an alternative and the risk. Don't silently reorder.
 
 ## Tasks, in order
@@ -35,6 +37,12 @@ Don't start coding until you've read 1 and 2. If something there contradicts wha
 6. **Architecture-aware metadata** in `engine/inference.py` (`<arch>.` prefix instead of `llama.`), sharing the helper from task 1.
 7. **Harness:** count tokens via the tokenizer or usage fields, not stream chunks; report cold and warm separately.
 
+### Already done in PR #2 (don't redo)
+
+- MIT `LICENSE`; README install-from-source and status table; community files and CHANGELOG.
+- Brand v2 SVG set in `assets/brand/`. Your only brand task: commit the PNG/ICO exports in a separate PR when the owner hands them over (or regenerate with the command in `assets/brand/README.md`), then switch any remaining PNG references to them.
+- TUI spec and SVG screens in `docs/design/TUI.md` and `docs/design/tui/`.
+
 ### Stage C: the realistic 30B-class path (after Stage A)
 
 8. **MoE support in fit and registry.** Add one MoE GGUF (Qwen3-30B-A3B class) to the registry. Fit reports `resident_gb` and `active_gb_per_token` (from `<arch>.expert_count`, `.expert_used_count` and tensor sizes). Profile and chat warn when resident > free RAM ("will read from SSD"). Expose `use_mmap` / `use_mlock`.
@@ -47,7 +55,7 @@ Don't start coding until you've read 1 and 2. If something there contradicts wha
 
 12. Process isolation hardening beyond task 3 (rlimits, optional Landlock on Linux, Job Object limits on Windows).
 13. Approval cards per handbook 5.6, wired to the policy engine's audit log; default focus on deny.
-14. Full-screen adaptive TUI and onboarding per handbook 5.3-5.5 and `docs/design/terminal-chat.md`. Put colour tokens in `tui/theme.py`.
+14. Adaptive TUI and onboarding in the order of `docs/design/TUI.md` section 4, matching the SVG screens in `docs/design/tui/`. Rich line mode, prompt_toolkit only for input, tokens in `tui/theme.py`, sanitiser in `tui/sanitize.py`.
 
 ### Stage E: research (behind flags, each with a kill criterion in the report)
 
@@ -56,7 +64,7 @@ Don't start coding until you've read 1 and 2. If something there contradicts wha
 
 ## Design identity, in practice
 
-- Name stays **EigenCore**. Mark v2 is a proposal: don't replace `assets/brand/` until the owner approves; then generate PNG and favicons from the SVG.
+- Name stays **EigenCore**. The v2 SVGs are in `assets/brand/`. The PNG/ICO there are still v1: when the owner hands you the v2 exports (or asks you to regenerate them with the command in `assets/brand/README.md`), commit them in their own PR. Use `eigencore-lockup-dark` on dark grounds and `-light` on light ones; never put gradients or glow back.
 - In the terminal use the token table in handbook 5.2 only, through one theme module. Teal = ok/measured/fits, amber = tight/approval/estimate, clay = denied/error/does_not_fit, indigo = brand and focus. Every colour has a text equivalent; `NO_COLOR` and `--plain` must lose no information.
 - No splash animation, one spinner at most, reduced-motion respected. Never clear scrollback.
 
