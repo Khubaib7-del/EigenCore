@@ -9,7 +9,8 @@ Tags: **[SHIPPED]** code on `main` that runs · **[REPORTED-ONLY]** code that re
 
 ## Visual changes for the whole deck
 
-- Mark: replace the v1 gradient logo with the v2 flat mark (`docs/design/eigencore-mark-v2.svg`) on slides 1, 7 and 13. The opening video keeps its timing; its last frame cross-fades to the v2 mark. Re-render the intro once the owner approves the mark.
+- Mark: the v2 flat mark and Space Grotesk wordmark (`assets/brand/`) on slides 1, 7, 13 and in every footer. The opening video was re-rendered for v2 (7 s: die, traces, eigen-axis, core drop, wordmark, tagline, then the lockup settles top-left); its final frame matches the native logo and wordmark, which fade in over it at 6.95 s as before.
+- Built: the v2 deck exists as a separate file (`EigenCore v2.pptx`, kept outside the repo); v1/v3 is untouched.
 - Grounds: unchanged from v1 (stone `#ECE9E2` content, graphite `#1F2226` anchors), already matching the handbook.
 - Accent: teal `#1F6B66` stays the single content accent; core indigo appears only inside the mark. Clay `#B04E2C` only for "does not fit", REPORTED-ONLY outlines and "not an OS sandbox". No amber or gold anywhere.
 - Status chips (new): small rounded chips in the top-right of each claim block. SHIPPED = solid teal, REPORTED-ONLY = clay outline, PLANNED = grey hatched, ESTIMATE = muted italic text. Chips fade in with their block; they add no time.
@@ -118,8 +119,8 @@ Tags: **[SHIPPED]** code on `main` that runs · **[REPORTED-ONLY]** code that re
 ## Slide 11 · Interface (≈ 25 s)
 
 - Title: Fit-aware chat in the terminal
-- Mock-up header (v2 layout from the handbook): `◩ EigenCore · chat` / `model ‹name› ‹quant›   ctx ‹used› / ‹set›   fit ‹verdict› +‹h› GB   tools off`  [SHIPPED: core chat; full-screen layout PLANNED]
-- Caption: mock-up, not a screenshot · ‹ › = runtime values · `--plain` for scripts
+- Mock-up: the header and `/help` output of the **shipped** `tui/chat.py` (unchanged from v1, so the slide shows what exists). The v2 layout is in `docs/design/TUI.md` and is not shown as current.  [SHIPPED: core chat; full-screen layout PLANNED]
+- Caption: mockup of shipped tui/chat.py · ‹ › = runtime values · full-screen layout planned
 - CLI list: profile · models · download · run · chat · analyze (logit sparsity, not neurons) · benchmark · train (optional LoRA/QLoRA)
 
 **Notes:** `eigencore chat` streams a multi-turn chat with a plain fallback. The header keeps the memory story on screen: model, quant, context, fit verdict and headroom, and whether tools are on. One correction from an earlier version of this talk: `analyze` measures sparsity of the output logits, not of neurons inside the model.
@@ -165,7 +166,7 @@ Tags: **[SHIPPED]** code on `main` that runs · **[REPORTED-ONLY]** code that re
 | 8 | "Bandwidth ~ GB/s · timed memcpy benchmark"; "Context 512-8,192 tokens, sized to RAM left" | "rough single-thread probe (multithreaded test PLANNED)"; "2,048 by default on 8-16 GB today (fix PLANNED)" | Probe reads low; unit bug pins context at 2048 below ~38 GB RAM |
 | 9 | "Policy engine: deny-by-default" | "deny unless allow-listed", "SHIPPED when a policy is attached"; caveat: agent API attaches none by default | `Forge.agent()` builds an executor without a policy |
 | 10 | (unchanged slide) | notes add "no runs published yet" | Honesty |
-| 11 | "analyze: measure activation sparsity" | "analyze (logit sparsity, not neurons)"; v2 header layout | `analysis/sparsity.py` measures output logits |
+| 11 | "analyze: measure activation sparsity"; caption "--plain for no-Rich output" | "analyze: output-logit sparsity"; caption "full-screen layout planned" | `analysis/sparsity.py` measures output logits |
 | 12 | P6 "Protocol + scalar kernels + tests · no optimized kernels yet"; "RESEARCHED, NOT SHIPPED … accepted tokens can keep the target's output distribution" | P6 "Q4_0 reference being fixed; no SIMD"; box relabelled REPORTED-ONLY; distribution sentence removed; new NEXT box: MoE path | Q4_0 reference and its test are wrong; repo's verifier does not preserve the distribution; MoE is the realistic 30B route |
 | 13 | "We started with a 19 GB model" | "21 GB model"; adds "The lever is bytes per token" | Corrected number; the review's main conclusion |
 

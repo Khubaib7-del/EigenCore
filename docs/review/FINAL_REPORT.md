@@ -68,7 +68,7 @@ Impact = how likely it misleads a user or audience, times how bad the result is.
 8. **"70-90% of neurons are near-zero in dense models"** (`emergent-gaps.md`, `sparse-activation-and-routing.md`, `sparse_inference.py` docstring). True for ReLU models (OPT); modern SwiGLU models (Llama, Qwen, Mistral) have little natural sparsity (ProSparse, TurboSparse). The "branch prediction makes skipping free on CPU" argument is wrong: branchy code defeats SIMD; the CPU win would come from not reading weight rows, which needs a predictor and a neuron-bundled weight layout. PowerInfer is cited as "Du et al., 2024"; it is Song et al. (arXiv 2023, SOSP 2024). [verified, `research/sparse.md`]
 9. **Invented constants presented as estimates**: layer skip "<2% perplexity at 20-30% skip" (no source), `expected_speedup = 1/(1-skip_rate)`, `estimated_loss = (1-importance)*0.01`; competitive matrix "5-10x compounding". [verified]
 10. **Competitive landscape is factually wrong in places**: llama.cpp has speculative decoding (CPU included) and fine-tuning work; Ollama does pick GPU layers from a memory estimate. [verified for llama.cpp speculative; Ollama per `research/engine-fit.md`]
-11. **README quick start says `pip install eigencore`**; the name is not on PyPI (404 on 2026-11-09). **No LICENSE file** although README and `pyproject.toml` say MIT. [verified]
+11. **README quick start says `pip install eigencore`**; the name is not on PyPI (404 on 2026-11-09). **No LICENSE file** although README and `pyproject.toml` say MIT [verified]; **fixed in this PR** (MIT, © 2026 Khubaib Nazeer).
 12. **Chat TUI robustness**: model text is parsed as Rich markup (a `[/]` crashes the session), raw escape sequences reach the terminal, Ctrl-C exits with a traceback, a mid-stream `AttributeError` regenerates and double-prints. Header says `tools: read-only (policy engine attached in P4)` although chat exposes no tools. [verified by probe]
 13. **Metadata hard-coded to `llama.*` keys** (`inference.py:101-102`): Qwen, Phi-3, Gemma GGUFs get 0 layers, so even the reported-only optimizers are never built for 5 of the 6 registry models. [verified]
 
@@ -181,7 +181,7 @@ tok/s ≤ sustained bandwidth / weight bytes = 45.8 GB/s (i7-10610U published pe
 - Real geometry from GGUF metadata; weight size from the file.
 - A multithreaded bandwidth test.
 - A published benchmark run on named hardware (none exists).
-- LICENSE file; correct install instructions; community files (added in this PR except LICENSE, which is the owner's call).
+- Correct install instructions, LICENSE and community files: all added in this PR.
 
 ---
 
@@ -197,7 +197,7 @@ Each item names its acceptance test. "Owner" means it needs your machine.
 4. **Chat robustness.** Escape Rich markup in model text, strip C0/C1 control and OSC sequences, catch Ctrl-C to stop generation, no regenerate on mid-stream errors, honest tools label. *Accept:* tests with `[/]`, `\x1b]0;x\x07`, `\x1b[2J`, KeyboardInterrupt mid-stream, in both Rich and plain modes.
 5. **Quarantine the speculative verifier and the speedup printers.** Delete or rewrite `verify_draft` as Leviathan rejection sampling over full distributions; remove `expected_speedup`, `potential_speedup` and "theoretical CPU speedup" from user output; rename `analyze` output to "logit sparsity". *Accept:* chi-square test that accepted-token frequencies match the target distribution; no CLI output contains "speedup" without a measured baseline.
 6. **Metadata by architecture.** Replace `llama.*` keys with `general.architecture` prefix lookup. *Accept:* Qwen and Phi GGUF fixtures produce non-zero layers.
-7. **Docs and packaging truth** (this PR covers the docs). Owner adds LICENSE; README install from git until a PyPI release exists.
+7. **Docs and packaging truth.** This PR covers docs, LICENSE and the v2 brand SVGs. Remaining: commit the v2 PNG/ICO exports; README installs from git until a PyPI release exists.
 
 ### Stage B: measure (owner, one evening)
 
@@ -214,7 +214,7 @@ Each item names its acceptance test. "Owner" means it needs your machine.
 
 13. Process isolation (child process per tool call; POSIX rlimits and process groups; Windows Job Object; optional Landlock on Linux). *Accept:* isolation tests in `research/tui-sandbox.md`.
 14. Approval cards wired to the policy engine, then tools in chat. *Accept:* no tool runs without an approval event in the audit log.
-15. Full-screen adaptive TUI and onboarding per `docs/design/terminal-chat.md` and the new design handbook. *Accept:* 80x24, 120x40, plain mode, SSH, Windows Terminal, `NO_COLOR`.
+15. Adaptive TUI and onboarding per [`../design/TUI.md`](../design/TUI.md) (status, technology choice, six screens, work order) and the design handbook. *Accept:* 80x24, 120x40, plain mode, SSH, Windows Terminal, `NO_COLOR`.
 
 ### Stage E: research, behind flags, each with a kill criterion
 
@@ -255,7 +255,14 @@ Until these exist, every tok/s figure in docs and slides stays labelled "ceiling
 | SSD streaming | Valuable for MoE, not for dense | Treat mmap paging as a warned fallback; invest in MoE | Building a slower mmap |
 | Speculative decoding as already implemented | Algorithm is incorrect | Prompt lookup via llama-cpp-python first | Output quality changes silently once wired |
 
-## 11. Component reports
+## 11. Rebrand and licence (done in this PR)
+
+- **Brand v2** in `assets/brand/` (SVG sources): flat mark (one shadow instead of ~30 stacked copies, no gradients or glow, three traces, new dotted *eigen-axis* into the core), small mark/favicon without traces, lockups for dark and light grounds, outlined Space Grotesk Bold wordmark, static and animated banner (plays once, honours `prefers-reduced-motion`). Spec and rules: `docs/design/DESIGN_HANDBOOK.md`. Name unchanged.
+- **Raster exports** (PNG, ICO) are not in this PR, by the no-binaries rule; they are in the v2 kit zip the owner holds, and the regeneration command is in `assets/brand/README.md`. Until committed, the PNG/ICO files in the repo are v1.
+- **LICENSE**: MIT, © 2026 Khubaib Nazeer, matching `pyproject.toml`.
+- **TUI**: current status, bugs, technology decision and v2 screens in `docs/design/TUI.md` with SVG mock-ups in `docs/design/tui/`.
+
+## 12. Component reports
 
 - [Inference engine and fit estimator](research/engine-fit.md)
 - [Sparse activation](research/sparse.md)

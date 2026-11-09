@@ -4,7 +4,7 @@
 
 **Status:** specification, v2 identity. Nothing here is implemented yet. The name stays **EigenCore**.
 **Audience:** hoplite (implementer) and anyone touching the README, docs, terminal UI or slides.
-**Sources:** the brand kit in `assets/brand/` (identical to the `eigencore-brand-kit.zip` the owner supplied), `docs/design/terminal-chat.md`, and the review in `docs/review/`. The kit contains logo, lockup, banner and favicon files only; it has **no terminal or UI reference screens**, so the TUI sections below are derived from `terminal-chat.md` and the review, not from kit references.
+**Sources:** the v1 brand kit (the `eigencore-brand-kit.zip` the owner supplied, formerly in `assets/brand/`), `docs/design/terminal-chat.md`, and the review in `docs/review/`. The kit contains logo, lockup, banner and favicon files only; it has **no terminal or UI reference screens**, so the TUI sections below are derived from `terminal-chat.md` and the review, not from kit references.
 
 ---
 
@@ -30,7 +30,7 @@
 
 ## 2. The v2 mark
 
-File: [`eigencore-mark-v2.svg`](eigencore-mark-v2.svg) (proposal, text SVG, ~2 KB). The v1 files stay in `assets/brand/` until the owner approves v2.
+Files: [`assets/brand/`](../../assets/brand/) (v2 SVG sources: logo, small mark, favicon, lockups, wordmarks, static and animated banner, ~2-66 KB each). Raster exports (PNG, ICO) are regenerated from the SVGs; the command is in `assets/brand/README.md`.
 
 **Construction**
 
@@ -38,7 +38,11 @@ File: [`eigencore-mark-v2.svg`](eigencore-mark-v2.svg) (proposal, text SVG, ~2 K
 2. **Depth:** one flat offset copy of the die, translated (+14, +16), fill `#15181E`. One shadow, not thirty.
 3. **Core:** two flat squares (front `#5B6CF0`, offset back `#2E3A9E`) and an inner square `#C9CFFF`. No gradient, no glow.
 4. **Traces:** three, not six; stroke `#20252F`, 12 px, round caps; endpoints are solid dots `#8C98FF`.
-5. **Eigen-axis (the new idea):** a dotted line in core indigo from the die's lower-left to the centre of the core. An eigenvector is the one direction a transformation leaves pointing the same way; the axis says "everything here is aligned to the core". It is the only diagonal in the mark, so it also gives the mark motion when still.
+5. **Eigen-axis (the new idea):** a dotted line in core indigo at exactly 45°, aimed at the centre of the core. An eigenvector is the one direction a transformation leaves pointing the same way; the axis says "everything here is aligned to the core".
+   - Geometry (512 grid): from (132, 373) to (258, 247), stroke 8, round caps, `stroke-dasharray="0 22.274"`, so 9 evenly spaced dots with one exactly at each end.
+   - It stays **inside the die**: it stops two dot-steps short of the inner corner, so no dot floats over the background or touches the rim, the shadow or the core.
+   - It crosses **no trace**. The middle trace now ends on the axis: its node sits on the 5th dot (226.5, 278.5), so the meeting point reads as a deliberate via, not an overlap.
+   - It runs parallel to the lower trace's 45° segment, about 47 units away.
 
 **Variants to produce (spec)**
 
@@ -214,7 +218,7 @@ Header fields, in order: model + quant, context used / context set, fit verdict 
 ### 5.7 Motion
 
 - Terminal: at most one spinner, 8-10 fps, only while nothing else updates. Honour `EIGENCORE_REDUCED_MOTION=1` and plain mode (no spinner). Never animate token counters faster than the stream.
-- README banner (SVG): keep the existing animated banner's structure, retimed: traces draw towards the core over 1.2 s, the eigen-axis dots step in 6 beats, the core fades from `core-deep` to `core` once. Total ≤ 3 s, then static. Provide a static PNG and respect `prefers-reduced-motion` with a `@media` rule inside the SVG.
+- README banner (SVG): keep the existing animated banner's structure, retimed: traces draw towards the core over 1.2 s, the eigen-axis fades in once (in the deck intro its 9 dots appear one by one), the core fades from `core-deep` to `core` once. Total ≤ 3 s, then static. Provide a static PNG and respect `prefers-reduced-motion` with a `@media` rule inside the SVG.
 - Slides: fades and morphs only; builds auto-advance after the transition (owner's rule from the v3 deck).
 
 ## 6. Docs and README
@@ -225,7 +229,9 @@ Header fields, in order: model + quant, context used / context set, fit verdict 
 
 ## 7. Hand-off checklist for hoplite
 
-- [ ] Owner approves `eigencore-mark-v2.svg`; then regenerate PNG, favicon and lockups from it (binary assets are generated, not hand-drawn).
+- [x] v2 SVG set committed to `assets/brand/` (2026-11-09).
+- [ ] Commit the PNG/ICO exports (from the v2 kit zip the owner holds, or regenerate with the command in `assets/brand/README.md`); until then the raster files in `assets/brand/` are still v1.
+- [ ] Follow [TUI.md](TUI.md) for the terminal work order and screens.
 - [ ] Introduce a single `eigencore/tui/theme.py` holding the tokens in 5.2; no hex literals elsewhere.
 - [ ] Sanitiser for model/tool text with tests (`[/]`, OSC title, `ESC[2J`).
 - [ ] Plain mode parity test for every state in 5.4.
