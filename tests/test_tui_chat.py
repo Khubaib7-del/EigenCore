@@ -135,4 +135,60 @@ def test_eof_ends_session():
     assert "session ended" in out.getvalue()
 
 
+def test_model_output_control_sequences_stripped():
+    from eigencore.tui.chat import sanitize_model_text
+
+    dirty = "ok\x1b[31mred\x1b[0m \x1b]0;evil\x07line\ttab\nnext"
+    clean = sanitize_model_text(dirty)
+    assert "\x1b" not in clean and "\x07" not in clean
+    assert "line\ttab\nnext" in clean
+
+
+def test_ctrl_c_mid_stream_keeps_history_no_regen():
+    class InterruptingEngine(FakeEngine):
+        def stream_messages(self, messages, config):
+            yield "partial"
+            raise KeyboardInterrupt
+
+    out = io.StringIO()
+    inputs = iter(["hi", "/exit"])
+    ui = ChatUI(
+        InterruptingEngine(),
+        _spec(),
+        _profile(),
+        geometry=GEO,
+        cfg=ChatUiConfig(plain=True),
+        out=out,
+        inp=lambda p: next(inputs),
+    )
+    ui.run()
+    text = out.getvalue()
+    assert "partial" in text
+    assert "interrupted" in text
+    assert ui.messages[-1]["content"] == "partial"  # history kept
+
+
+def test_stream_error_does_not_regenerate():
+    class ErrorEngine(FakeEngine):
+        def stream_messages(self, messages, config):
+            yield "abc"
+            raise RuntimeError("boom")
+
+    out = io.StringIO()
+    inputs = iter(["hi", "/exit"])
+    ui = ChatUI(
+        ErrorEngine(),
+        _spec(),
+        _profile(),
+        geometry=GEO,
+        cfg=ChatUiConfig(plain=True),
+        out=out,
+        inp=lambda p: next(inputs),
+    )
+    ui.run()
+    text = out.getvalue()
+    assert "abc" in text and "stream error" in text
+    assert text.count("abc") == 1  # no double-print
+
+
 GEO = ModelGeometry(num_layers=28, hidden_size=3584, num_attention_heads=28, num_kv_heads=4)

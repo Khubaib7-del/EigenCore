@@ -21,6 +21,7 @@ approval cards, tool invocation from chat, OS process isolation.
 from __future__ import annotations
 
 import difflib
+import re
 import time
 from dataclasses import dataclass
 
@@ -30,6 +31,15 @@ from eigencore.hal.profiler import HardwareProfile
 from eigencore.models.registry import ModelSpec
 
 SLASH_COMMANDS = ("/help", "/model", "/context", "/clear", "/exit")
+
+# Strip ANSI/OSC/CSI control sequences but keep newline/tab — model output is
+# untrusted and must never drive the terminal or Rich markup.
+_CONTROL_SEQ = re.compile(r"\x1b(?:\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])")
+
+
+def sanitize_model_text(text: str) -> str:
+    """Remove terminal control sequences, keep newline/tab."""
+    return _CONTROL_SEQ.sub("", text)
 
 
 @dataclass
@@ -79,8 +89,11 @@ class ChatUI:
             print(text)
 
     def _write(self, text: str) -> None:
+        text = sanitize_model_text(text)
         if self._console is not None:
-            self._console.print(text, end="")
+            from rich.markup import escape
+
+            self._console.print(escape(text), end="", markup=True, highlight=False)
         elif self._out is not None:
             self._out.write(text)
         else:
@@ -174,6 +187,7 @@ class ChatUI:
             self._write("\nEigenCore: ")
             start = time.perf_counter()
             chunks: list[str] = []
+            interrupted = False
             stream_config = GenerationConfig(
                 max_tokens=self.cfg.max_tokens,
                 temperature=self.cfg.temperature,
@@ -183,14 +197,22 @@ class ChatUI:
                 for token in self.engine.stream_messages(self.messages, stream_config):
                     self._write(token)
                     chunks.append(token)
+            except KeyboardInterrupt:
+                # Ctrl-C mid-stream: keep history, do not regenerate or double-print
+                interrupted = True
+                self._print("\n[interrupted — partial response kept]")
             except AttributeError:
                 # engine without stream_messages: fall back to single-prompt stream
                 text_chunks = list(self.engine.stream(user_input, stream_config))
                 for token in text_chunks:
                     self._write(token)
                 chunks = text_chunks
+            except Exception as e:
+                # stream error: keep what we have, never regenerate
+                self._print(f"\n[stream error: {type(e).__name__}: {e} — partial response kept]")
             elapsed = time.perf_counter() - start
             self.messages.append({"role": "assistant", "content": "".join(chunks)})
             n = len(chunks)
             tps = n / elapsed if elapsed > 0 else 0.0
-            self._print(f"\n[{n} tokens in {elapsed:.1f}s, {tps:.1f} tok/s (measured this turn)]")
+            label = "interrupted" if interrupted else "measured this turn"
+            self._print(f"\n[{n} tokens in {elapsed:.1f}s, {tps:.1f} tok/s ({label})]")

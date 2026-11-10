@@ -84,6 +84,8 @@ class CaseResult:
     decode_tokens_per_second: float
     quality_pass: bool
     quality_detail: str
+    run_index: int = 0
+    warm: bool = False
 
 
 @dataclass
@@ -208,8 +210,13 @@ def measure_case(
     engine: InferenceEngine,
     case: QualityCase,
     config: GenerationConfig,
+    run_index: int = 0,
 ) -> CaseResult:
-    """Run one case via streaming so prefill (TTFT) and decode are separated."""
+    """Run one case via streaming so prefill (TTFT) and decode are separated.
+
+    Completion tokens are counted with the backend tokenizer (or response
+    usage), never by counting stream chunks. `run_index` 0 is tagged cold.
+    """
     if config.stream:
         raise ValueError("measure_case requires a non-streaming config; it streams internally")
 
@@ -233,7 +240,7 @@ def measure_case(
 
     ttft = (first_token_at - start) if first_token_at is not None else total
     output = "".join(chunks)
-    completion_tokens = len(chunks)
+    completion_tokens = _count_tokens(engine, output)
     decode_time = max(total - ttft, 0.0)
     decode_tps = completion_tokens / decode_time if decode_time > 0 else 0.0
     quality_pass, quality_detail = check_quality(case, output, completion_tokens)
@@ -250,22 +257,44 @@ def measure_case(
         decode_tokens_per_second=decode_tps,
         quality_pass=quality_pass,
         quality_detail=quality_detail,
+        run_index=run_index,
+        warm=run_index > 0,
     )
 
 
+def _count_tokens(engine: InferenceEngine, text: str) -> int:
+    """Token count from the backend tokenizer; falls back to a chars/4 estimate."""
+    llm = getattr(engine, "_llm", None)
+    if llm is not None and hasattr(llm, "tokenize"):
+        try:
+            return len(llm.tokenize(text.encode("utf-8")))
+        except Exception:
+            pass
+    return max(len(text) // 4, 1)
+
+
 def summarize(results: list[CaseResult]) -> dict[str, Any]:
-    tps = [r.decode_tokens_per_second for r in results]
-    ttft = [r.time_to_first_token_s for r in results]
+    def _stats(rows: list[CaseResult]) -> dict[str, float]:
+        tps = [r.decode_tokens_per_second for r in rows]
+        ttft = [r.time_to_first_token_s for r in rows]
+        return {
+            "decode_tok_s_median": statistics.median(tps) if tps else 0.0,
+            "decode_tok_s_mean": statistics.mean(tps) if tps else 0.0,
+            "decode_tok_s_min": min(tps) if tps else 0.0,
+            "decode_tok_s_max": max(tps) if tps else 0.0,
+            "ttft_s_median": statistics.median(ttft) if ttft else 0.0,
+        }
+
+    cold = [r for r in results if not r.warm]
+    warm = [r for r in results if r.warm]
     passed = sum(1 for r in results if r.quality_pass)
     return {
         "cases": len(results),
         "quality_pass_rate": passed / len(results) if results else 0.0,
-        "decode_tok_s_median": statistics.median(tps) if tps else 0.0,
-        "decode_tok_s_mean": statistics.mean(tps) if tps else 0.0,
-        "decode_tok_s_min": min(tps) if tps else 0.0,
-        "decode_tok_s_max": max(tps) if tps else 0.0,
-        "ttft_s_median": statistics.median(ttft) if ttft else 0.0,
-        "note": "chunk-count tokens; treat as approximate until backend usage is wired in",
+        **{f"all_{k}": v for k, v in _stats(results).items()},
+        "cold": _stats(cold),
+        "warm": _stats(warm),
+        "note": "tokens counted via backend tokenizer; cold = first run per case, warm = later runs",
     }
 
 
@@ -308,6 +337,6 @@ def run_cases(
         )
     results: list[CaseResult] = []
     for case in cases:
-        for _ in range(max(runs, 1)):
-            results.append(measure_case(engine, case, config))
+        for run_idx in range(max(runs, 1)):
+            results.append(measure_case(engine, case, config, run_index=run_idx))
     return results
