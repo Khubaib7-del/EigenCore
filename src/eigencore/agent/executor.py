@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import multiprocessing as mp
+import pickle
+import subprocess
+import sys
 import time
-import traceback
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any
@@ -149,20 +150,34 @@ class ToolExecutor:
         return result
 
     def _run_with_timeout(self, tool: Tool, args: dict[str, Any]) -> ToolResult:
-        """Run the handler in a spawned process; on timeout, kill it — a
-        thread-pool timeout cannot stop a running handler."""
+        """Run the handler in a child `python` process; on timeout, kill it.
+
+        A thread-pool timeout cannot stop a running handler; a child process
+        can. Uses subprocess+pickle (not multiprocessing spawn) because spawn
+        is unreliable under pytest on Windows. Handlers must be picklable
+        (top-level functions) — lambdas/closures are rejected up front.
+        """
         start = time.perf_counter()
-        ctx = mp.get_context("spawn")
-        queue: mp.Queue = ctx.Queue()
-        proc = ctx.Process(target=_run_handler, args=(tool.handler, args, queue))
-        proc.start()
-        proc.join(timeout=self.timeout)
-        if proc.is_alive():
-            proc.terminate()
-            proc.join(timeout=2.0)
-            if proc.is_alive():
-                proc.kill()
-                proc.join()
+        try:
+            payload = pickle.dumps((tool.handler, args))
+        except Exception as e:
+            return ToolResult(
+                tool_name=tool.name,
+                status=ToolStatus.ERROR,
+                error=f"handler/args not picklable for process isolation: {e}",
+                elapsed_seconds=time.perf_counter() - start,
+            )
+        proc = subprocess.Popen(
+            [sys.executable, "-c", _WORKER_CODE],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            out, _ = proc.communicate(input=payload, timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
             return ToolResult(
                 tool_name=tool.name,
                 status=ToolStatus.TIMEOUT,
@@ -170,19 +185,26 @@ class ToolExecutor:
                 elapsed_seconds=self.timeout,
             )
         elapsed = time.perf_counter() - start
+        if proc.returncode != 0 or not out:
+            return ToolResult(
+                tool_name=tool.name,
+                status=ToolStatus.ERROR,
+                error=f"handler process exited with code {proc.returncode}",
+                elapsed_seconds=elapsed,
+            )
         try:
-            kind, payload = queue.get_nowait()
+            kind, value = pickle.loads(out)
         except Exception:
             return ToolResult(
                 tool_name=tool.name,
                 status=ToolStatus.ERROR,
-                error="handler process exited without returning a result",
+                error="handler process returned an unreadable result",
                 elapsed_seconds=elapsed,
             )
         if kind == "ok":
-            output = payload
-            if isinstance(payload, str):
-                output = redact_text(payload)
+            output = value
+            if isinstance(value, str):
+                output = redact_text(value)
                 if len(output) > self.max_output_chars:
                     output = output[: self.max_output_chars] + "... [truncated]"
             return ToolResult(
@@ -194,13 +216,20 @@ class ToolExecutor:
         return ToolResult(
             tool_name=tool.name,
             status=ToolStatus.ERROR,
-            error=redact_text(payload),
+            error=redact_text(value),
             elapsed_seconds=elapsed,
         )
 
 
-def _run_handler(handler, args, queue) -> None:
+_WORKER_CODE = """
+import pickle, sys, traceback
+try:
+    handler, args = pickle.loads(sys.stdin.buffer.read())
     try:
-        queue.put(("ok", handler(**args)))
+        result = handler(**args)
+        sys.stdout.buffer.write(pickle.dumps(("ok", result)))
     except Exception as e:
-        queue.put(("err", f"{type(e).__name__}: {e}\n{traceback.format_exc()}"))
+        sys.stdout.buffer.write(pickle.dumps(("err", f"{type(e).__name__}: {e}\\n{traceback.format_exc()}")))
+except Exception as e:
+    sys.stdout.buffer.write(pickle.dumps(("err", f"unpickle failed: {e}")))
+"""
