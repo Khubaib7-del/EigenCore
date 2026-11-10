@@ -1,5 +1,6 @@
 """Tests for the ReAct agent loop."""
 
+from eigencore.agent.policy import ToolCapability
 from eigencore.agent.react import AgentResult, AgentStep, ReActAgent, StepKind
 from eigencore.agent.tool import Tool, ToolParam, ToolRegistry
 
@@ -19,6 +20,7 @@ def _make_registry():
             name="add",
             description="Add two integers",
             handler=_add,
+            capability=ToolCapability.READ,
             parameters=[
                 ToolParam(name="a", type="integer", description="first"),
                 ToolParam(name="b", type="integer", description="second"),
@@ -30,6 +32,7 @@ def _make_registry():
             name="search",
             description="Search for information",
             handler=_search,
+            capability=ToolCapability.READ,
             parameters=[
                 ToolParam(name="query", type="string", description="search query"),
             ],

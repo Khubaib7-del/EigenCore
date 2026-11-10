@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 from eigencore.agent.executor import ToolExecutor
+from eigencore.agent.policy import PolicyEngine
 from eigencore.agent.react import AgentResult, ReActAgent
 from eigencore.agent.tool import ToolRegistry
 from eigencore.context.manager import ContextManager
@@ -170,11 +171,15 @@ class Forge:
         max_steps: int = 10,
         max_tokens_per_step: int = 256,
         system_prompt: Optional[str] = None,
+        policy: Optional[PolicyEngine] = None,
     ) -> ReActAgent:
-        """Create a ReAct agent backed by this Forge's inference engine."""
+        """Create a ReAct agent backed by this Forge's inference engine.
+
+        The executor is deny-by-default even when no policy is passed.
+        """
         return ReActAgent(
             registry=tools,
-            executor=ToolExecutor(tools),
+            executor=ToolExecutor(tools, policy=policy),
             max_steps=max_steps,
             max_tokens_per_step=max_tokens_per_step,
             system_prompt=system_prompt,
