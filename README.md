@@ -40,15 +40,15 @@ Labels: **SHIPPED** runs on `main` and is tested · **REPORTED-ONLY** computes p
 | Area | Status | Notes |
 | --- | --- | --- |
 | Inference through llama-cpp-python | SHIPPED | `engine/inference.py`; CPU-only (`n_gpu_layers=0`) |
-| Hardware profile | SHIPPED | ISA, RAM, rough single-thread bandwidth probe (reads low). Known bug: recommended context is 2048 on machines under ~38 GB |
-| Model-fit estimator | SHIPPED | Weights + reserve + KV + margin, three verdicts. Known bug: the CLI uses a KV fallback that underestimates by ~15–30×; GGUF geometry fix planned |
-| Benchmark harness | SHIPPED | `eigencore benchmark --report run.json`; no published runs yet |
-| Terminal chat | SHIPPED (core) | Streaming, `--plain`, slash commands, fit header. Full-screen layout and onboarding PLANNED |
-| Tool policy | SHIPPED, opt-in | Capabilities, path checks, audit log. Not attached by default in `Forge.agent()`; handlers run in-process (not an OS sandbox); timeout does not stop a running handler |
-| Reference kernels | SHIPPED (scalar, NumPy) | RMSNorm, Q8_0 (matches ggml), Q4_0 (**known layout bug**), Q8_0 dot. Not used by inference |
+| Hardware profile | SHIPPED | ISA, RAM, bandwidth probe (reads low). GiB/GB mix fixed; 25% of usable RAM reserved for KV so recommended context no longer pins at 2048 under ~38 GB |
+| Model-fit estimator | SHIPPED | Weights (real GGUF file size when downloaded) + reserve + KV from architecture-aware GGUF geometry + margin; GiB end to end. Without geometry the verdict is `UNKNOWN` — no heuristic. CLI passes real GGUF metadata when the model file exists |
+| Benchmark harness | SHIPPED | `eigencore benchmark --report run.json`; tokens counted via backend tokenizer, cold/warm reported separately; no published runs yet |
+| Terminal chat | SHIPPED (core) | Streaming, `--plain`, slash commands, fit header; model output sanitized (control sequences stripped, Rich-escaped), Ctrl-C/stream errors keep partial history without regenerating. Full-screen layout and onboarding PLANNED |
+| Tool policy | SHIPPED, deny-by-default | `ToolExecutor` defaults to `default_policy()` (READ-only, workspace-confined) even when no policy is passed. Path params are declared (`is_path=True`) and resolved to confined absolute paths before handlers. Timeouts run handlers in a spawned process that is killed on timeout. Handlers still run in-process otherwise — not an OS sandbox |
+| Reference kernels | SHIPPED (scalar, NumPy) | RMSNorm, Q8_0 and Q4_0 (ggml strided nibble order, bit-exact vs `gguf.quants.dequantize`, raw 18/34-byte blocks accepted), Q8_0 dot. Not used by inference |
 | Layer skipping | REPORTED-ONLY | Planner and estimates only |
 | Activation sparsity | REPORTED-ONLY | Predictor never receives activations; `eigencore analyze` measures output-logit sparsity, not neurons |
-| Speculative decoding | REPORTED-ONLY | Module not wired; its verifier is not a correct rejection sampler |
+| Speculative decoding | REPORTED-ONLY | Module not wired into generation; verifier now implements correct rejection sampling (distribution-preserving, tested) but no speedup is measured or claimed |
 | MoE-aware fit, SSD paging warning, KV-type options, GPU offload | PLANNED | See the plan in the review |
 | SIMD / native kernels | PLANNED | Research track; decode is bandwidth-bound |
 | Training (LoRA/QLoRA) | Code present, not evaluated | Optional `[train]` extra |
