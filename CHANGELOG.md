@@ -5,6 +5,7 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 ## [Unreleased]
 
 ### Fixed
+- Q4_0 reference dequantizer: corrected to the ggml strided nibble layout (byte j low nibble → element j, high nibble → element j+16) and now also accepts raw 18-byte blocks; Q8_0 accepts 34-byte blocks. Verified bit-exact against `gguf.quants.dequantize` for Q4_0 and Q8_0.
 - Fit estimator: all sizes in GiB end to end; weights use actual GGUF file size when available; KV cache computed only from architecture-aware GGUF geometry (`{arch}.block_count` / `embedding_length` / `attention.head_count*`), otherwise verdict is `UNKNOWN` instead of a 15–30×-low heuristic; `max_context_for_budget` returns 0 without geometry. CLI `profile`/`models`/`chat` pass real GGUF metadata when the model is downloaded. Profiler GiB/GB mix fixed and 25% of usable RAM reserved for KV, so recommended context no longer pins at 2048 below ~38 GiB. Added `gguf` dependency and `eigencore.fit.read_gguf_model_info`.
 
 ### Documentation

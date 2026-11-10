@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
@@ -47,51 +48,58 @@ def test_q8_0_dequant_roundtrip():
 
 
 def test_q4_0_dequant_nibble_order():
-    # one block, known values: scale=1.0, packed bytes chosen so low nibbles = 0..7, high = 8..15
-    packed = np.array(
-        [
-            [
-                0x10,
-                0x32,
-                0x54,
-                0x76,
-                0x98,
-                0xBA,
-                0xDC,
-                0xFE,
-                0x21,
-                0x43,
-                0x65,
-                0x87,
-                0xA9,
-                0xCB,
-                0xED,
-                0x0F,
-            ]
-        ],
-        dtype=np.uint8,
-    )
+    # ggml strided layout: byte j low nibble -> element j, high nibble -> element j+16
+    packed = np.arange(16, dtype=np.uint8).reshape(1, 16) * 0x11  # 0x00,0x11,...,0xFF
     scales = np.array([1.0], dtype=np.float16)
     out = dequantize_q4_0(packed, scales)
     assert out.shape == (Q4_0_BLOCK_SIZE,)
-    expected_low = (
-        np.array(
-            [0x0, 0x2, 0x4, 0x6, 0x8, 0xA, 0xC, 0xE, 0x1, 0x3, 0x5, 0x7, 0x9, 0xB, 0xD, 0xF],
-            dtype=np.float32,
-        )
-        - 8.0
+    expected = np.concatenate(
+        [np.arange(16, dtype=np.float32) - 8.0, np.arange(16, dtype=np.float32) - 8.0]
     )
-    expected_high = (
-        np.array(
-            [0x1, 0x3, 0x5, 0x7, 0x9, 0xB, 0xD, 0xF, 0x2, 0x4, 0x6, 0x8, 0xA, 0xC, 0xE, 0x0],
-            dtype=np.float32,
-        )
-        - 8.0
-    )
-    expected = np.empty(Q4_0_BLOCK_SIZE, dtype=np.float32)
-    expected[0::2] = expected_low
-    expected[1::2] = expected_high
     np.testing.assert_allclose(out, expected, atol=1e-6)
+
+
+def test_q4_0_raw_block_input():
+    # raw 18-byte block: fp16 scale 1.0 + 16 packed bytes
+    packed = (np.arange(16, dtype=np.uint8) * 0x11).reshape(1, 16)
+    raw = np.concatenate([np.array([1.0], dtype=np.float16).view(np.uint8), packed[0]]).tobytes()
+    out = dequantize_q4_0(raw)
+    assert out.shape == (Q4_0_BLOCK_SIZE,)
+    np.testing.assert_allclose(
+        out, dequantize_q4_0(packed, np.array([1.0], dtype=np.float16)), atol=1e-6
+    )
+    try:
+        dequantize_q4_0(b"\x00" * 7)  # not a multiple of 18
+        raise AssertionError("should reject bad raw length")
+    except ValueError:
+        pass
+
+
+def test_q4_0_q8_0_bitexact_vs_gguf_py():
+    gguf = pytest.importorskip("gguf")
+    from gguf.quants import dequantize as gguf_dequantize
+
+    rng_local = np.random.default_rng(7)
+    # Q4_0: random raw blocks
+    n = 8
+    raw_q4 = rng_local.integers(0, 256, n * 18, dtype=np.uint8).tobytes()
+    ours = dequantize_q4_0(raw_q4)
+    ref = gguf_dequantize(np.frombuffer(raw_q4, dtype=np.uint8), gguf.GGMLQuantizationType.Q4_0)
+    np.testing.assert_array_equal(ours, ref.astype(np.float32))
+    # Q8_0: random raw blocks
+    raw_q8 = rng_local.integers(0, 256, n * 34, dtype=np.uint8).tobytes()
+    blocks = np.frombuffer(raw_q8, dtype=np.uint8).reshape(n, 34)
+    ours8 = dequantize_q8_0(
+        np.concatenate(
+            [
+                blocks[:, :2].copy().view(np.float16).astype(np.float32).reshape(-1)[:, None],
+                blocks[:, 2:].copy().view(np.int8).astype(np.float32),
+            ],
+            axis=1,
+        )
+    )
+    ref8 = gguf_dequantize(np.frombuffer(raw_q8, dtype=np.uint8), gguf.GGMLQuantizationType.Q8_0)
+    np.testing.assert_allclose(ours8, ref8.astype(np.float32), rtol=1e-6, atol=1e-6)
 
 
 def test_q4_0_shape_validation():
