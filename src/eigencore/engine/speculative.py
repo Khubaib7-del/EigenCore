@@ -132,16 +132,23 @@ class SpeculativeDecoder:
         draft_logprobs: np.ndarray,
         verifier_logprobs: np.ndarray,
         draft_token_ids: list[int],
+        rng: np.random.Generator | None = None,
     ) -> SpeculativeResult:
         """
-        Compare draft model predictions against verifier model predictions.
-        Uses modified rejection sampling: accept token if verifier probability
-        is at least `acceptance_threshold` × draft probability.
+        Leviathan/Chen-style speculative rejection sampling.
 
-        Returns which tokens were accepted and where rejection occurred.
+        `verifier_logprobs` is (n_positions, vocab) log-probs from the target
+        model; `draft_logprobs[i]` is the draft model's log-prob of the drafted
+        token at position i. Token t is accepted with probability
+        min(1, q(t)/p(t)); on rejection the correction token is sampled from
+        the residual distribution norm(max(q - p, 0)), which preserves the
+        target distribution exactly. (The draft distribution is approximated
+        as a point mass at the drafted token, since only its log-prob is
+        passed in — documented limitation.)
         """
         start = time.perf_counter()
         n_draft = len(draft_token_ids)
+        rng = rng or np.random.default_rng()
 
         if n_draft == 0 or len(draft_logprobs) == 0 or len(verifier_logprobs) == 0:
             return SpeculativeResult(
@@ -161,25 +168,25 @@ class SpeculativeDecoder:
 
         for i in range(min(n_draft, len(verifier_logprobs))):
             token_id = draft_token_ids[i]
-
             if i < len(draft_logprobs):
                 draft_lp = draft_logprobs[i]
             else:
                 break
-
-            verifier_lp = verifier_logprobs[i]
-
-            ratio = np.exp(verifier_lp - draft_lp)
-
-            if ratio >= self.acceptance_threshold:
+            q = np.exp(verifier_logprobs[i] - verifier_logprobs[i].max())
+            q /= q.sum()
+            p_t = float(np.exp(draft_lp))
+            q_t = float(q[token_id]) if token_id < len(q) else 0.0
+            if rng.random() <= min(1.0, q_t / p_t) if p_t > 0 else True:
                 accepted.append(token_id)
             else:
                 rejection_pos = i
-                correction = (
-                    int(np.argmax(verifier_logprobs[i:][:1]))
-                    if i < len(verifier_logprobs)
-                    else None
-                )
+                # residual distribution: norm(max(q - p, 0)), p = point mass at token
+                residual = np.maximum(q - p_t * np.eye(len(q))[token_id], 0.0)
+                total = residual.sum()
+                if total > 0:
+                    correction = int(rng.choice(len(q), p=residual / total))
+                else:
+                    correction = int(np.argmax(q))
                 break
 
         elapsed = (time.perf_counter() - start) * 1000
@@ -220,16 +227,12 @@ class SpeculativeDecoder:
         self.stats.draft_times_ms.append(result.draft_time_ms)
         self.stats.verify_times_ms.append(result.verify_time_ms)
 
-    def estimate_speedup(self, accept_rate: float, draft_cost_ratio: float = 0.1) -> float:
-        """
-        Theoretical speedup from speculative decoding.
-
-        accept_rate: fraction of draft tokens accepted
-        draft_cost_ratio: cost of draft model relative to verifier (e.g. 0.1 = 10x cheaper)
-
-        Speedup = (1 + accept_rate * draft_length) / (1 + draft_cost_ratio * draft_length)
-        """
-        n = self.draft_length
-        numerator = 1.0 + accept_rate * n
-        denominator = 1.0 + draft_cost_ratio * n
-        return numerator / denominator if denominator > 0 else 1.0
+    def measured_speedup(self, draft_time_ms: float, verify_time_ms: float) -> float:
+        """Speedup computed only from measured times; no theoretical claims."""
+        if verify_time_ms <= 0:
+            return 1.0
+        return (
+            (draft_time_ms + verify_time_ms) / max(verify_time_ms, 1e-9)
+            if draft_time_ms > 0
+            else 1.0
+        )

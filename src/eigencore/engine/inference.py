@@ -96,10 +96,27 @@ class InferenceEngine:
         self._init_optimizers()
 
     def _init_optimizers(self) -> None:
-        """Initialize Phase 2 optimization modules based on loaded model."""
-        metadata = self._llm.metadata if self._llm else {}
-        num_layers = int(metadata.get("llama.block_count", 0))
-        hidden_size = int(metadata.get("llama.embedding_length", 0))
+        """Initialize Phase 2 optimization modules based on loaded model.
+
+        Metadata keys are architecture-prefixed (`{arch}.block_count`, ...),
+        not always `llama.*` — resolve via the shared GGUF helper, falling
+        back to raw metadata with an architecture prefix.
+        """
+        from eigencore.fit.gguf_meta import read_gguf_model_info
+
+        info = read_gguf_model_info(self.model_path)
+        if info is not None:
+            num_layers = info.geometry.num_layers or 0
+            hidden_size = info.geometry.hidden_size or 0
+        else:
+            metadata = dict(self._llm.metadata) if self._llm else {}
+            arch = metadata.get("general.architecture", "llama")
+            num_layers = int(
+                metadata.get(f"{arch}.block_count", metadata.get("llama.block_count", 0))
+            )
+            hidden_size = int(
+                metadata.get(f"{arch}.embedding_length", metadata.get("llama.embedding_length", 0))
+            )
 
         if num_layers > 0:
             self._layer_skipper = LayerSkipScheduler(

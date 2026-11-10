@@ -25,6 +25,7 @@ dependencies = [
     "rich>=13.0.0",
     "click>=8.0.0",
     "huggingface-hub>=0.20.0",
+    "gguf>=0.10.0",
     "llama-cpp-python>=0.3.0",
 ]
 

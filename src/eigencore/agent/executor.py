@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import pickle
+import subprocess
+import sys
 import time
-import traceback
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any
 
-from eigencore.agent.policy import PolicyEngine, redact_text
+from eigencore.agent.policy import PolicyEngine, default_policy, redact_text, resolve_in_workspace
 from eigencore.agent.tool import Tool, ToolRegistry
 
 
@@ -69,7 +69,12 @@ class ExecutionLog:
 
 
 class ToolExecutor:
-    """Executes tools with validation, timeouts, and logging."""
+    """Executes tools with policy enforcement, validation, killable timeouts, logging.
+
+    Deny-by-default: when no policy is passed, a `default_policy()` (READ-only,
+    workspace-confined) is used — an executor never runs a tool just because a
+    caller forgot to attach a policy.
+    """
 
     DEFAULT_TIMEOUT = 30.0
 
@@ -83,7 +88,7 @@ class ToolExecutor:
         self.registry = registry
         self.timeout = timeout
         self.max_output_chars = max_output_chars
-        self.policy = policy
+        self.policy = policy if policy is not None else default_policy()
         self.log = ExecutionLog()
 
     def execute(self, tool_name: str, args: dict[str, Any]) -> ToolResult:
@@ -99,19 +104,18 @@ class ToolExecutor:
 
         # Policy enforcement happens BEFORE validation/running, in code —
         # never in prompt text and never in the UI layer.
-        if self.policy is not None:
-            decision = self.policy.check(tool, args)
-            if not decision.allowed:
-                result = ToolResult(
-                    tool_name=tool_name,
-                    status=ToolStatus.POLICY_DENIED,
-                    error=f"Denied by policy: {decision.reason}",
-                )
-                self.log.add(result)
-                if self.policy.audit_log is not None:
-                    entry = self.policy.audit_log.entries[-1]
-                    entry.status = ToolStatus.POLICY_DENIED.name
-                return result
+        decision = self.policy.check(tool, args)
+        if not decision.allowed:
+            result = ToolResult(
+                tool_name=tool_name,
+                status=ToolStatus.POLICY_DENIED,
+                error=f"Denied by policy: {decision.reason}",
+            )
+            self.log.add(result)
+            if self.policy.audit_log is not None:
+                entry = self.policy.audit_log.entries[-1]
+                entry.status = ToolStatus.POLICY_DENIED.name
+            return result
 
         try:
             validated_args = tool.validate_args(args)
@@ -124,47 +128,108 @@ class ToolExecutor:
             self.log.add(result)
             return result
 
+        # Resolve declared path params to workspace-confined absolute paths
+        # BEFORE the handler sees them (no raw outside-workspace paths).
+        if self.policy.workspace_root is not None:
+            for param in tool.parameters:
+                if (
+                    param.is_path
+                    and param.name in validated_args
+                    and isinstance(validated_args[param.name], str)
+                ):
+                    validated_args[param.name] = str(
+                        resolve_in_workspace(validated_args[param.name], self.policy.workspace_root)
+                    )
+
         result = self._run_with_timeout(tool, validated_args)
         self.log.add(result)
-        if self.policy is not None and self.policy.audit_log is not None:
+        if self.policy.audit_log is not None:
             entry = self.policy.audit_log.entries[-1]
             entry.status = result.status.name
             entry.elapsed_seconds = result.elapsed_seconds
         return result
 
     def _run_with_timeout(self, tool: Tool, args: dict[str, Any]) -> ToolResult:
+        """Run the handler in a child `python` process; on timeout, kill it.
+
+        A thread-pool timeout cannot stop a running handler; a child process
+        can. Uses subprocess+pickle (not multiprocessing spawn) because spawn
+        is unreliable under pytest on Windows. Handlers must be picklable
+        (top-level functions) — lambdas/closures are rejected up front.
+        """
         start = time.perf_counter()
+        try:
+            payload = pickle.dumps((tool.handler, args))
+        except Exception as e:
+            return ToolResult(
+                tool_name=tool.name,
+                status=ToolStatus.ERROR,
+                error=f"handler/args not picklable for process isolation: {e}",
+                elapsed_seconds=time.perf_counter() - start,
+            )
+        proc = subprocess.Popen(
+            [sys.executable, "-c", _WORKER_CODE],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            out, _ = proc.communicate(input=payload, timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            return ToolResult(
+                tool_name=tool.name,
+                status=ToolStatus.TIMEOUT,
+                error=f"Tool execution timed out after {self.timeout}s (process killed)",
+                elapsed_seconds=self.timeout,
+            )
+        elapsed = time.perf_counter() - start
+        if proc.returncode != 0 or not out:
+            return ToolResult(
+                tool_name=tool.name,
+                status=ToolStatus.ERROR,
+                error=f"handler process exited with code {proc.returncode}",
+                elapsed_seconds=elapsed,
+            )
+        try:
+            kind, value = pickle.loads(out)
+        except Exception:
+            return ToolResult(
+                tool_name=tool.name,
+                status=ToolStatus.ERROR,
+                error="handler process returned an unreadable result",
+                elapsed_seconds=elapsed,
+            )
+        if kind == "ok":
+            output = value
+            if isinstance(value, str):
+                output = redact_text(value)
+                if len(output) > self.max_output_chars:
+                    output = output[: self.max_output_chars] + "... [truncated]"
+            return ToolResult(
+                tool_name=tool.name,
+                status=ToolStatus.SUCCESS,
+                output=output,
+                elapsed_seconds=elapsed,
+            )
+        return ToolResult(
+            tool_name=tool.name,
+            status=ToolStatus.ERROR,
+            error=redact_text(value),
+            elapsed_seconds=elapsed,
+        )
 
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            future = pool.submit(tool.handler, **args)
-            try:
-                output = future.result(timeout=self.timeout)
-                elapsed = time.perf_counter() - start
 
-                output_str = str(output)
-                if len(output_str) > self.max_output_chars:
-                    output_str = output_str[: self.max_output_chars] + "... [truncated]"
-                    output = output_str
-
-                return ToolResult(
-                    tool_name=tool.name,
-                    status=ToolStatus.SUCCESS,
-                    output=output,
-                    elapsed_seconds=elapsed,
-                )
-            except FuturesTimeout:
-                future.cancel()
-                return ToolResult(
-                    tool_name=tool.name,
-                    status=ToolStatus.TIMEOUT,
-                    error=f"Tool execution timed out after {self.timeout}s",
-                    elapsed_seconds=self.timeout,
-                )
-            except Exception as e:
-                elapsed = time.perf_counter() - start
-                return ToolResult(
-                    tool_name=tool.name,
-                    status=ToolStatus.ERROR,
-                    error=redact_text(f"{type(e).__name__}: {e}\n{traceback.format_exc()}"),
-                    elapsed_seconds=elapsed,
-                )
+_WORKER_CODE = """
+import pickle, sys, traceback
+try:
+    handler, args = pickle.loads(sys.stdin.buffer.read())
+    try:
+        result = handler(**args)
+        sys.stdout.buffer.write(pickle.dumps(("ok", result)))
+    except Exception as e:
+        sys.stdout.buffer.write(pickle.dumps(("err", f"{type(e).__name__}: {e}\\n{traceback.format_exc()}")))
+except Exception as e:
+    sys.stdout.buffer.write(pickle.dumps(("err", f"unpickle failed: {e}")))
+"""

@@ -3,6 +3,7 @@
 import time
 
 from eigencore.agent.executor import ExecutionLog, ToolExecutor, ToolStatus
+from eigencore.agent.policy import ToolCapability
 from eigencore.agent.tool import Tool, ToolParam, ToolRegistry
 
 
@@ -30,6 +31,7 @@ def _make_registry():
             name="add",
             description="Add two numbers",
             handler=_add,
+            capability=ToolCapability.READ,
             parameters=[
                 ToolParam(name="a", type="integer", description="first"),
                 ToolParam(name="b", type="integer", description="second"),
@@ -41,6 +43,7 @@ def _make_registry():
             name="fail",
             description="Always fails",
             handler=_fail,
+            capability=ToolCapability.READ,
         )
     )
     reg.register(
@@ -48,6 +51,7 @@ def _make_registry():
             name="slow",
             description="Takes too long",
             handler=_slow,
+            capability=ToolCapability.READ,
         )
     )
     reg.register(
@@ -55,12 +59,21 @@ def _make_registry():
             name="verbose",
             description="Big output",
             handler=_long_output,
+            capability=ToolCapability.READ,
         )
     )
     return reg
 
 
 class TestToolExecutor:
+    def test_default_executor_is_deny_by_default(self):
+        # an EXECUTE-capability tool is denied even with no explicit policy
+        reg = ToolRegistry()
+        reg.register(Tool(name="shell", description="run", handler=_fail))  # EXECUTE by default
+        executor = ToolExecutor(reg)
+        result = executor.execute("shell", {})
+        assert result.status == ToolStatus.POLICY_DENIED
+
     def test_successful_execution(self):
         executor = ToolExecutor(_make_registry())
         result = executor.execute("add", {"a": 3, "b": 4})

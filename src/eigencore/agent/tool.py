@@ -27,6 +27,7 @@ class ToolParam:
     required: bool = True
     enum: tuple[str, ...] | None = None
     default: Any = None
+    is_path: bool = False  # declare explicitly; policy confines these to the workspace
 
     _TYPE_MAP = {
         "string": str,

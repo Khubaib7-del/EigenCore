@@ -98,7 +98,8 @@ def test_measure_case_separates_ttft_and_decode():
     )
     config = GenerationConfig(stream=False)
     result = measure_case(engine, case, config)
-    assert result.completion_tokens == 5
+    # no backend tokenizer on FakeEngine → chars/4 fallback: "def quicksort(): return ok" = 26 chars → 6
+    assert result.completion_tokens == max(len("def quicksort(): return ok") // 4, 1)
     assert result.total_time_s >= result.time_to_first_token_s >= 0
     assert result.decode_time_s >= 0
     assert result.quality_pass
@@ -116,7 +117,30 @@ def test_summarize():
     s = summarize(results)
     assert s["cases"] == 4
     assert 0.0 <= s["quality_pass_rate"] <= 1.0
-    assert s["decode_tok_s_median"] >= 0
+    assert s["all_decode_tok_s_median"] >= 0
+    assert "cold" in s and "warm" in s
+    assert len(s["cold"]) == 5 and len(s["warm"]) == 5
+
+
+def test_measure_case_counts_tokens_via_tokenizer():
+    class TokEngine(FakeEngine):
+        def stream(self, prompt, config):
+            for c in ["aa", "bb"]:
+                yield c
+
+        @property
+        def _llm(self):
+            class L:
+                def tokenize(self, b):
+                    return [0] * (len(b) // 2)  # 2 chars per token
+
+            return L()
+
+    case = QualityCase(id="c", prompt="p", expected_contains=["aabb"], min_tokens=1, max_tokens=8)
+    result = measure_case(TokEngine(), case, GenerationConfig(stream=False))
+    assert result.completion_tokens == 2  # tokenizer: 4 chars / 2 = 2, not 2 chunks
+    assert result.warm is False
+    assert measure_case(TokEngine(), case, GenerationConfig(stream=False), run_index=1).warm is True
 
 
 def test_report_roundtrip_with_model_file():

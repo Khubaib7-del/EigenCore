@@ -1,4 +1,4 @@
-"""Tests for the Phase 2 model-fit estimator."""
+"""Tests for the Phase 2 model-fit estimator (GiB end to end, GGUF-aware)."""
 
 import sys
 from pathlib import Path
@@ -9,78 +9,104 @@ from eigencore.fit import (
     FitVerdict,
     ModelGeometry,
     estimate_fit,
-    estimate_kv_cache_gb,
-    estimate_weights_gb,
+    estimate_kv_cache_gib,
+    estimate_weights_gib,
     max_context_for_budget,
 )
 
+GEO = ModelGeometry(num_layers=32, hidden_size=4096, num_attention_heads=32, num_kv_heads=32)
+
 
 def test_weights_known_quants():
-    assert estimate_weights_gb(35.0, "Q4_K_M")[0] == 35.0 * 0.55
-    assert estimate_weights_gb(7.0, "F16")[0] == 14.0
+    assert estimate_weights_gib(35.0, "Q4_K_M")[0] == 35.0 * 0.55
+    assert estimate_weights_gib(7.0, "F16")[0] == 14.0
+
+
+def test_weights_prefer_file_size():
+    # actual GGUF file size is ground truth
+    gib, note = estimate_weights_gib(35.0, "Q4_K_M", file_size_bytes=21 * 1024**3)
+    assert note is None and abs(gib - 21.0) < 1e-9
 
 
 def test_weights_unknown_quant_flagged():
-    gb, note = estimate_weights_gb(10.0, "IQ2_XXS")
-    assert gb > 0 and note is not None and "unknown quant" in note
+    gib, note = estimate_weights_gib(10.0, "IQ2_XXS")
+    assert gib > 0 and note is not None and "unknown quant" in note
 
 
 def test_kv_cache_with_geometry():
     # 32 layers, 32 kv heads, head_dim 128, fp16 → per token: 32*32*128*2*2 = 524288 B
-    geo = ModelGeometry(num_layers=32, hidden_size=4096, num_attention_heads=32, num_kv_heads=32)
-    gb, note = estimate_kv_cache_gb(8192, geo, params_b=32.0)
+    gib, note = estimate_kv_cache_gib(8192, GEO, params_b=32.0)
     assert note is None
     expected = 524288 * 8192 / 1024**3
-    assert abs(gb - expected) < 1e-9
+    assert abs(gib - expected) < 1e-9
 
 
-def test_kv_cache_heuristic_without_geometry():
-    gb, note = estimate_kv_cache_gb(4096, None, params_b=35.0)
-    assert note is not None and "heuristic" in note
-    assert gb > 0
+def test_kv_cache_unknown_without_geometry():
+    # no heuristic anymore: unknown geometry → None + note
+    gib, note = estimate_kv_cache_gib(4096, None, params_b=35.0)
+    assert gib is None and note is not None and "geometry" in note
+    partial = ModelGeometry(num_layers=32)
+    gib, note = estimate_kv_cache_gib(4096, partial, params_b=35.0)
+    assert gib is None and note is not None
 
 
 def test_fit_verdicts():
-    # 7B Q4 (~3.85 GB weights) on 16 GB with ctx 4096 → fits with margin
-    est = estimate_fit(7.0, "Q4_K_M", 4096, 16.0)
+    # 7B Q4 (~3.85 GiB weights) on 16 GiB with ctx 4096 → fits with margin
+    est = estimate_fit(7.0, "Q4_K_M", 4096, 16.0, geometry=GEO)
     assert est.verdict == FitVerdict.FITS_WITH_MARGIN and est.fits
     assert est.headroom_gb == 16.0 - est.total_gb
 
-    # 35B Q4 (~19.25 GB weights) on 16 GB → does not fit
-    est = estimate_fit(35.0, "Q4_K_M", 4096, 16.0)
+    # 35B Q4 (~19.25 GiB weights) on 16 GiB → does not fit
+    est = estimate_fit(35.0, "Q4_K_M", 4096, 16.0, geometry=GEO)
     assert est.verdict == FitVerdict.DOES_NOT_FIT and not est.fits
     assert est.headroom_gb < 0
 
-    # boundary: total is ~5.86 GB, so 6.5 GB available leaves 0.64 GB headroom
-    # (positive but below the 1 GB safety margin) → TIGHT
-    est = estimate_fit(7.0, "Q4_K_M", 4096, 6.5, safety_margin_gb=1.0)
+    # boundary: total ≈ 3.85 weights + 2 reserve + 2.0 KV = 7.85 GiB,
+    # so 8.5 GiB available leaves 0.65 GiB headroom → TIGHT
+    est = estimate_fit(7.0, "Q4_K_M", 4096, 8.5, geometry=GEO, safety_margin_gb=1.0)
     assert est.verdict == FitVerdict.TIGHT
     assert 0 < est.headroom_gb < 1.0
 
 
+def test_fit_unknown_verdict_without_geometry():
+    est = estimate_fit(7.0, "Q4_K_M", 4096, 16.0)  # no geometry
+    assert est.verdict == FitVerdict.UNKNOWN
+    assert not est.fits
+    assert any("UNKNOWN" in n for n in est.notes)
+
+
 def test_fit_context_is_first_class():
-    # same model, longer context costs more KV and can flip the verdict
-    short = estimate_fit(35.0, "Q4_K_M", 2048, 24.0)
-    long = estimate_fit(35.0, "Q4_K_M", 32768, 24.0)
+    short = estimate_fit(35.0, "Q4_K_M", 2048, 24.0, geometry=GEO)
+    long = estimate_fit(35.0, "Q4_K_M", 32768, 24.0, geometry=GEO)
     assert long.kv_cache_gb > short.kv_cache_gb
     assert long.total_gb > short.total_gb
 
 
 def test_max_context_for_budget_geometry():
-    geo = ModelGeometry(num_layers=32, hidden_size=4096, num_attention_heads=32, num_kv_heads=32)
-    # weights 7B Q4 ≈ 3.85 GB; 16 GB available, 2 reserve + 1 margin → ~11.15 GB for KV
-    ctx = max_context_for_budget(7.0, "Q4_K_M", 16.0, geometry=geo)
+    # weights 7B Q4 ≈ 3.85 GiB; 16 GiB available, 2 reserve + 1 margin → ~11.15 GiB for KV
+    ctx = max_context_for_budget(7.0, "Q4_K_M", 16.0, geometry=GEO)
     assert ctx > 0 and ctx & (ctx - 1) == 0  # power of two
-    # fitting at ctx must not exceed budget
-    est = estimate_fit(7.0, "Q4_K_M", ctx, 16.0, geometry=geo)
+    est = estimate_fit(7.0, "Q4_K_M", ctx, 16.0, geometry=GEO)
     assert est.verdict in (FitVerdict.FITS_WITH_MARGIN, FitVerdict.TIGHT)
 
 
+def test_max_context_zero_without_geometry():
+    # no geometry → no context recommendation (was a heuristic before)
+    assert max_context_for_budget(7.0, "Q4_K_M", 16.0) == 0
+
+
 def test_max_context_zero_when_model_too_big():
-    assert max_context_for_budget(70.0, "Q4_K_M", 8.0) == 0
+    assert max_context_for_budget(70.0, "Q4_K_M", 8.0, geometry=GEO) == 0
 
 
 def test_max_context_respects_model_limit():
-    geo = ModelGeometry(num_layers=32, hidden_size=4096, num_attention_heads=32, num_kv_heads=32)
-    ctx = max_context_for_budget(1.0, "Q4_K_M", 64.0, geometry=geo, model_context_limit=4096)
+    ctx = max_context_for_budget(1.0, "Q4_K_M", 64.0, geometry=GEO, model_context_limit=4096)
     assert ctx <= 4096
+
+
+def test_max_context_uses_file_size():
+    # 21 GiB file on 16 GiB RAM → nothing fits
+    assert (
+        max_context_for_budget(35.0, "Q4_K_M", 16.0, geometry=GEO, file_size_bytes=21 * 1024**3)
+        == 0
+    )

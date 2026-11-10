@@ -33,6 +33,13 @@ def _run(cmd: str) -> str:
     return cmd
 
 
+def _sleepy(path: str) -> str:
+    import time as _t
+
+    _t.sleep(30)
+    return "done"
+
+
 def _registry() -> ToolRegistry:
     reg = ToolRegistry()
     reg.register(
@@ -40,7 +47,9 @@ def _registry() -> ToolRegistry:
             name="read_file",
             description="read a file",
             handler=_read_file,
-            parameters=[ToolParam(name="path", type="string", description="file path")],
+            parameters=[
+                ToolParam(name="path", type="string", description="file path", is_path=True)
+            ],
             capability=ToolCapability.READ,
         )
     )
@@ -50,7 +59,7 @@ def _registry() -> ToolRegistry:
             description="write a file",
             handler=_write_file,
             parameters=[
-                ToolParam(name="path", type="string", description="file path"),
+                ToolParam(name="path", type="string", description="file path", is_path=True),
                 ToolParam(name="content", type="string", description="content"),
             ],
             capability=ToolCapability.WRITE,
@@ -170,3 +179,45 @@ def test_executor_records_outcome_in_audit():
         entry = audit.entries[-1]
         assert entry.status == ToolStatus.ERROR.name
         assert entry.decision == "allowed"
+
+
+def test_executor_denies_etc_passwd_read():
+    import tempfile as _tf
+
+    with _tf.TemporaryDirectory() as d:
+        audit = AuditLog(Path(d) / "audit.jsonl")
+        policy = PolicyEngine(
+            allowed_capabilities={ToolCapability.READ},
+            workspace_root=Path(d),
+            audit_log=audit,
+        )
+        executor = ToolExecutor(_registry(), policy=policy)
+        result = executor.execute("read_file", {"path": "/etc/passwd"})
+        assert result.status == ToolStatus.POLICY_DENIED
+        assert "outside workspace" in result.error
+
+
+def test_timeout_kills_child_process():
+    import tempfile as _tf
+
+    with _tf.TemporaryDirectory() as d:
+        policy = PolicyEngine(allowed_capabilities={ToolCapability.READ}, workspace_root=Path(d))
+        reg = ToolRegistry()
+        reg.register(
+            Tool(
+                name="sleepy",
+                description="sleeps",
+                handler=_sleepy,
+                parameters=[ToolParam(name="path", type="string", description="p", is_path=True)],
+                capability=ToolCapability.READ,
+            )
+        )
+        executor = ToolExecutor(reg, timeout=0.5, policy=policy)
+        result = executor.execute("sleepy", {"path": "x.txt"})
+        assert result.status == ToolStatus.TIMEOUT
+        assert "killed" in result.error
+        # no child left running
+        import psutil
+
+        children = psutil.Process().children(recursive=True)
+        assert all("sleepy" not in " ".join(c.cmdline()) for c in children)

@@ -171,11 +171,7 @@ class PolicyEngine:
 
         if decision.allowed and self.workspace_root is not None:
             for param in tool.parameters:
-                if (
-                    param.name in args
-                    and _is_path_param(param.name)
-                    and isinstance(args[param.name], str)
-                ):
+                if param.name in args and param.is_path and isinstance(args[param.name], str):
                     try:
                         resolve_in_workspace(args[param.name], self.workspace_root)
                     except ValueError as e:
