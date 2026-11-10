@@ -1,6 +1,6 @@
 # Briefing for hoplite
 
-**Where everything is:** branch `review/truth-audit-rebrand` (PR #2) on `Khubaib7-del/EigenCore`. Check it out and read the files from there; the owner may also attach `FINAL_REPORT.md` directly.
+**Where everything is:** `main` on `Khubaib7-del/EigenCore`. Everything from the review (PRs #2, #3 and #4) is merged, so pull `main` (a971c16 or later) and read the files there. Branch your work from `main`. The owner may also attach `FINAL_REPORT.md` directly.
 
 hoplite, this is a hand-over from the review of `main` at `c92e3af`. You've done good groundwork: the P3 audit test, the fit estimator's shape, the benchmark report and the policy engine are the right building blocks. The review found that several of them give wrong answers today, and that the 30-40B goal needs a different route than the roadmap implies. Here's what I need from you.
 
@@ -14,7 +14,7 @@ Don't start coding until you've read 1 and 2. If something there contradicts wha
 
 ## Ground rules
 
-- **Labels.** Every user-facing claim (README, docs, CLI output, TUI) is SHIPPED, REPORTED-ONLY or PLANNED. Your last status said this was already done; it wasn't on `main`. This PR adds the labels to the docs; keep them true as you ship.
+- **Labels.** Every user-facing claim (README, docs, CLI output, TUI) is SHIPPED, REPORTED-ONLY or PLANNED. Your last status said this was already done; it wasn't on `main`. PR #2 added the labels to the docs; keep them true as you ship.
 - **No numbers without evidence.** No "speedup", "x faster" or tok/s in output unless it was measured in this session, or it's labelled "ceiling estimate". Real benchmarks run only on the owner's machine (list below). You don't run them and you don't invent them.
 - **One concern per PR**, each with tests and a CHANGELOG line under "Unreleased".
 - **Don't touch:** the project name (stays EigenCore; no rename to "eigen"), the v2 brand SVGs in `assets/brand/` (change them only with the owner), the ruff `<0.15` pin, and the sandbox-only `llama_cpp` test failures you already scoped out. Don't add binary files (PNG, PPTX, PDF) to PRs without the owner asking.
@@ -37,10 +37,10 @@ Don't start coding until you've read 1 and 2. If something there contradicts wha
 6. **Architecture-aware metadata** in `engine/inference.py` (`<arch>.` prefix instead of `llama.`), sharing the helper from task 1.
 7. **Harness:** count tokens via the tokenizer or usage fields, not stream chunks; report cold and warm separately.
 
-### Already done in PR #2 (don't redo)
+### Already on `main` via PRs #2-#4 (don't redo)
 
 - MIT `LICENSE`; README install-from-source and status table; community files and CHANGELOG.
-- Brand v2 SVG set in `assets/brand/`. Your only brand task: commit the PNG/ICO exports in a separate PR when the owner hands them over (or regenerate with the command in `assets/brand/README.md`), then switch any remaining PNG references to them.
+- Brand v2 SVG set in `assets/brand/`, including the realigned eigen-axis (an exact 45° dotted line inside the die; the middle trace ends on it). Your only brand task: commit the PNG/ICO exports in a separate PR when the owner hands them over (or regenerate with the command in `assets/brand/README.md`), then switch any remaining PNG references to them.
 - TUI spec and SVG screens in `docs/design/TUI.md` and `docs/design/tui/`.
 
 ### Stage C: the realistic 30B-class path (after Stage A)
