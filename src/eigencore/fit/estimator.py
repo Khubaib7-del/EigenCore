@@ -2,12 +2,14 @@
 Model-fit estimation — Phase 2 (honest hardware fit).
 
 Estimates the memory needed to *load and run* a model, separating:
-  - weights        (quant-dependent, from params × bytes-per-param)
+  - weights        (actual GGUF file size when known, else params × bytes-per-param)
   - runtime reserve (allocator/backend/OS overhead, configurable)
-  - KV cache       (context-length dependent; needs per-model metadata)
+  - KV cache       (context-length dependent; needs per-model geometry)
 
-Every estimate carries an `uncertainty` note and a fit verdict, because a
-Core i7 label alone cannot predict whether a 35B Q4 model is usable.
+All sizes are **GiB** (1 GiB = 1024**3 bytes) end to end. Without model
+geometry the KV cache is unknowable, so the verdict is `UNKNOWN` rather than
+a made-up heuristic — a Core i7 label alone cannot predict whether a 35B Q4
+model is usable.
 """
 
 from __future__ import annotations
@@ -92,43 +94,42 @@ class FitEstimate:
         return self.verdict in (FitVerdict.FITS_WITH_MARGIN, FitVerdict.TIGHT)
 
 
-def estimate_weights_gb(params_b: float, quant: str) -> tuple[float, str | None]:
-    """Weight bytes from param count and quant; unknown quants get a conservative note."""
+def estimate_weights_gib(
+    params_b: float,
+    quant: str,
+    file_size_bytes: int | None = None,
+) -> tuple[float, str | None]:
+    """Weight size in GiB.
+
+    Uses the actual GGUF file size when available (ground truth, includes
+    tokenizer/mmap overhead); otherwise params × bytes-per-param.
+    """
+    if file_size_bytes is not None:
+        return file_size_bytes / 1024**3, None
     bpp = BYTES_PER_PARAM.get(quant.upper())
     if bpp is None:
-        # unknown quant: assume 4-bit-ish but flag low confidence
-        return params_b * 0.55, f"unknown quant {quant!r}; assumed ~0.55 bytes/param"
+        return params_b * 0.61, f"unknown quant {quant!r}; assumed ~0.61 bytes/param (Q4_K_M class)"
     return params_b * bpp, None
 
 
-def estimate_kv_cache_gb(
+def estimate_kv_cache_gib(
     context_length: int,
     geometry: ModelGeometry | None,
     params_b: float,
     kv_quant: str = "fp16",
-) -> tuple[float, str | None]:
-    """KV cache size in GB for a given context length.
+) -> tuple[float | None, str | None]:
+    """KV cache size in GiB for a context length.
 
-    With full geometry: layers × kv_heads × head_dim × 2 (K+V) × bytes × ctx.
-    Without geometry: fall back to a per-billion-params heuristic and flag it.
+    layers × kv_heads × head_dim × 2 (K+V) × bytes-per-element × ctx.
+    Returns (None, note) when geometry is incomplete — no heuristic.
     """
-    if geometry is not None and geometry.is_complete:
-        bytes_per_elem = (
-            FP16_BYTES_PER_ELEMENT
-            if kv_quant.lower() in ("fp16", "f16")
-            else KV_BYTES_PER_ELEMENT_Q8
-        )
-        per_token = (
-            geometry.num_layers
-            * geometry.kv_heads
-            * geometry.head_dim
-            * 2  # K and V
-            * bytes_per_elem
-        )
-        return per_token * context_length / 1024**3, None
-    # heuristic fallback: ~0.5 MB per 1K tokens per 1B params at fp16 (order-of-magnitude)
-    gb = 0.0005 * params_b * (context_length / 1000)
-    return gb, "no model geometry available; KV estimate is a rough heuristic"
+    if geometry is None or not geometry.is_complete:
+        return None, "no GGUF geometry available; KV cache unknown"
+    bytes_per_elem = (
+        FP16_BYTES_PER_ELEMENT if kv_quant.lower() in ("fp16", "f16") else KV_BYTES_PER_ELEMENT_Q8
+    )
+    per_token = geometry.num_layers * geometry.kv_heads * geometry.head_dim * 2 * bytes_per_elem
+    return per_token * context_length / 1024**3, None
 
 
 def estimate_fit(
@@ -140,20 +141,25 @@ def estimate_fit(
     runtime_reserve_gb: float = DEFAULT_RUNTIME_RESERVE_GB,
     safety_margin_gb: float = DEFAULT_SAFETY_MARGIN_GB,
     kv_quant: str = "fp16",
+    file_size_bytes: int | None = None,
 ) -> FitEstimate:
-    """Full memory fit estimate for loading + running a model at a context length."""
+    """Full memory fit estimate (GiB) for loading + running a model at a context length."""
     notes: list[str] = []
-    weights_gb, note = estimate_weights_gb(params_b, quant)
+    weights_gb, note = estimate_weights_gib(params_b, quant, file_size_bytes)
     if note:
         notes.append(note)
-    kv_gb, note = estimate_kv_cache_gb(context_length, geometry, params_b, kv_quant)
+    kv_gb_raw, note = estimate_kv_cache_gib(context_length, geometry, params_b, kv_quant)
     if note:
         notes.append(note)
+    kv_gb = kv_gb_raw or 0.0
 
     total = weights_gb + runtime_reserve_gb + kv_gb
     headroom = available_ram_gb - total
 
-    if headroom >= safety_margin_gb:
+    if kv_gb_raw is None:
+        verdict = FitVerdict.UNKNOWN
+        notes.append("verdict UNKNOWN: KV cache excluded (no geometry); real usage is higher")
+    elif headroom >= safety_margin_gb:
         verdict = FitVerdict.FITS_WITH_MARGIN
     elif headroom >= 0:
         verdict = FitVerdict.TIGHT
@@ -185,25 +191,26 @@ def max_context_for_budget(
     safety_margin_gb: float = DEFAULT_SAFETY_MARGIN_GB,
     model_context_limit: int = 128 * 1024,
     kv_quant: str = "fp16",
+    file_size_bytes: int | None = None,
 ) -> int:
-    """Largest context length that still fits the RAM budget (power-of-two capped)."""
-    weights_gb, _ = estimate_weights_gb(params_b, quant)
+    """Largest context length that fits the RAM budget (power-of-two capped).
+
+    Returns 0 when geometry is unknown — without per-token KV bytes a context
+    recommendation would be a guess.
+    """
+    if geometry is None or not geometry.is_complete:
+        return 0
+    weights_gb, _ = estimate_weights_gib(params_b, quant, file_size_bytes)
     budget_gb = available_ram_gb - runtime_reserve_gb - safety_margin_gb - weights_gb
     if budget_gb <= 0:
         return 0
-    if geometry is not None and geometry.is_complete:
-        bytes_per_elem = (
-            FP16_BYTES_PER_ELEMENT
-            if kv_quant.lower() in ("fp16", "f16")
-            else KV_BYTES_PER_ELEMENT_Q8
-        )
-        per_token = geometry.num_layers * geometry.kv_heads * geometry.head_dim * 2 * bytes_per_elem
-        if per_token <= 0:
-            return 0
-        max_ctx = int(budget_gb * 1024**3 / per_token)
-    else:
-        kv_per_1k = 0.0005 * params_b
-        max_ctx = int((budget_gb / kv_per_1k) * 1000) if kv_per_1k > 0 else 0
+    bytes_per_elem = (
+        FP16_BYTES_PER_ELEMENT if kv_quant.lower() in ("fp16", "f16") else KV_BYTES_PER_ELEMENT_Q8
+    )
+    per_token = geometry.num_layers * geometry.kv_heads * geometry.head_dim * 2 * bytes_per_elem
+    if per_token <= 0:
+        return 0
+    max_ctx = int(budget_gb * 1024**3 / per_token)
     # snap down to a power of two, clamp to model limit and a sane floor
     ctx = 1
     while ctx * 2 <= max_ctx and ctx * 2 <= model_context_limit:

@@ -4,6 +4,9 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Fixed
+- Fit estimator: all sizes in GiB end to end; weights use actual GGUF file size when available; KV cache computed only from architecture-aware GGUF geometry (`{arch}.block_count` / `embedding_length` / `attention.head_count*`), otherwise verdict is `UNKNOWN` instead of a 15–30×-low heuristic; `max_context_for_budget` returns 0 without geometry. CLI `profile`/`models`/`chat` pass real GGUF metadata when the model is downloaded. Profiler GiB/GB mix fixed and 25% of usable RAM reserved for KV, so recommended context no longer pins at 2048 below ~38 GiB. Added `gguf` dependency and `eigencore.fit.read_gguf_model_info`.
+
 ### Documentation
 - Added a full review: truth audit, 30–40B memory and bandwidth arithmetic, ranked issues, prioritized plan and owner benchmark list (`docs/review/`).
 - Brand v2: flat logo, small mark, favicon, lockups, wordmarks and banners as SVG in `assets/brand/` (PNG/ICO exports to follow); v2 design handbook.

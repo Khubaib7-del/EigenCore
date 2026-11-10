@@ -194,10 +194,11 @@ def _compute_model_limits(
     - recommended thread count
     - recommended context length
 
-    Model size formula: params_B × bytes_per_param = model_memory_GB
-    We reserve ~2GB for OS/KV-cache overhead, then fit the largest model possible.
+    All sizes in GiB (1 GiB = 1024**3 bytes) end to end.
+    We reserve 2 GiB for OS/runtime overhead plus a KV-cache share, then fit
+    the largest model possible.
     """
-    usable_ram_gb = max(available_ram_gb - 2.0, 1.0)
+    usable_ram_gib = max(available_ram_gb - 2.0, 1.0)
 
     quant_options = [
         ("Q4_K_M", 0.55),  # ~0.55 bytes per param (4-bit with some FP16 layers)
@@ -210,7 +211,7 @@ def _compute_model_limits(
     best_quant = "Q4_K_M"
 
     for quant_name, bytes_per_param in quant_options:
-        max_params = (usable_ram_gb * 1024**3) / (bytes_per_param * 1e9)
+        max_params = (usable_ram_gib * 1024**3) / (bytes_per_param * 1e9)
         if max_params > best_params_b:
             best_params_b = max_params
             best_quant = quant_name
@@ -218,10 +219,10 @@ def _compute_model_limits(
     # cap at realistic model sizes available in GGUF
     best_params_b = min(best_params_b, 70.0)
 
-    # estimate tokens/sec: bandwidth / model_size_in_memory
-    model_size_gb = best_params_b * 0.55  # assuming best quant (Q4)
-    if model_size_gb > 0:
-        est_tps = bandwidth_gbps / model_size_gb
+    # estimate tokens/sec: bandwidth / model_size_in_memory (ceiling estimate)
+    model_size_gib = best_params_b * 0.55  # assuming best quant (Q4)
+    if model_size_gib > 0:
+        est_tps = bandwidth_gbps / model_size_gib
         est_tps = min(est_tps, 100.0)  # cap at reasonable maximum
     else:
         est_tps = 0.0
@@ -229,12 +230,15 @@ def _compute_model_limits(
     # recommended threads: physical cores (hyperthreads don't help much for inference)
     recommended_threads = psutil.cpu_count(logical=False) or 4
 
-    # context length: depends on available RAM after model
-    remaining_ram_gb = usable_ram_gb - model_size_gb
-    # KV cache: ~0.5 MB per 1K context tokens per billion params at Q4
-    if best_params_b > 0 and remaining_ram_gb > 0:
-        kv_per_1k = 0.0005 * best_params_b  # GB per 1K tokens
-        max_ctx = int((remaining_ram_gb / kv_per_1k) * 1000) if kv_per_1k > 0 else 2048
+    # context length: RAM left after model, reserving 25% of usable RAM for
+    # the KV cache so the recommendation does not collapse to the 2048 floor
+    # on machines under ~38 GiB.
+    kv_budget_gib = 0.25 * usable_ram_gib
+    remaining_gib = usable_ram_gib - model_size_gib - kv_budget_gib
+    if best_params_b > 0 and remaining_gib > 0:
+        # pessimistic geometry-free KV rate: ~2 MB per 1K tokens per 1B params (fp16)
+        kv_per_1k = 0.002 * best_params_b  # GiB per 1K tokens
+        max_ctx = int((remaining_gib / kv_per_1k) * 1000) if kv_per_1k > 0 else 2048
         recommended_ctx = min(max_ctx, 8192)  # cap at 8K for CPU
         recommended_ctx = max(recommended_ctx, 512)  # minimum usable
     else:

@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from eigencore.engine.inference import GenerationConfig
+from eigencore.fit import ModelGeometry
 from eigencore.hal.profiler import HardwareProfile, InstructionSet
 from eigencore.models.registry import ModelSpec
 from eigencore.tui.chat import ChatUI, ChatUiConfig
@@ -68,6 +69,7 @@ def _make_ui(inputs, reply=("Hello", " there", "!")):
         FakeEngine(reply),
         _spec(),
         _profile(),
+        geometry=GEO,
         policy_label="read-only",
         cfg=ChatUiConfig(plain=True),
         out=out,
@@ -121,7 +123,16 @@ def test_eof_ends_session():
 
     out = io.StringIO()
     ui = ChatUI(
-        FakeEngine(), _spec(), _profile(), cfg=ChatUiConfig(plain=True), out=out, inp=raise_eof
+        FakeEngine(),
+        _spec(),
+        _profile(),
+        geometry=GEO,
+        cfg=ChatUiConfig(plain=True),
+        out=out,
+        inp=raise_eof,
     )
     ui.run()
     assert "session ended" in out.getvalue()
+
+
+GEO = ModelGeometry(num_layers=28, hidden_size=3584, num_attention_heads=28, num_kv_heads=4)
