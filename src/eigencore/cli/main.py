@@ -328,7 +328,7 @@ def analyze(
     threshold: float,
     output: str | None,
 ):
-    """Measure activation sparsity for a prompt — the first gap exploitation metric."""
+    """Measure OUTPUT-LOGIT sparsity for a prompt (not neuron activation sparsity)."""
     from eigencore.analysis.sparsity import SparsityAnalyzer
 
     hw = profile_hardware()
@@ -398,9 +398,7 @@ def analyze(
         console.print(
             f"  Probability concentration: [cyan]{report_probs.overall_sparsity:.1%}[/] of mass in top tokens"
         )
-        console.print(
-            f"  Theoretical CPU speedup from sparsity: [green]{report_logits.potential_speedup:.1f}x[/]"
-        )
+        console.print("  (No speedup claimed: logit sparsity is not a measured inference speedup.)")
 
         if output:
             combined = {
