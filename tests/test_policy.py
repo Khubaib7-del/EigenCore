@@ -221,3 +221,26 @@ def test_timeout_kills_child_process():
 
         children = psutil.Process().children(recursive=True)
         assert all("sleepy" not in " ".join(c.cmdline()) for c in children)
+
+
+def test_limits_fn_builds_on_posix():
+    import os
+
+    executor = ToolExecutor(_registry(), max_cpu_seconds=7, max_memory_mb=256)
+    if os.name == "posix":
+        fn = executor._limits_fn()
+        assert callable(fn)
+    else:
+        assert executor._limits_fn is not None  # method exists; Popen skips preexec on non-posix
+
+
+def test_executor_accepts_resource_limit_kwargs():
+    executor = ToolExecutor(
+        _registry(), max_cpu_seconds=10, max_memory_mb=512, max_file_size_mb=32, max_processes=64
+    )
+    assert executor.max_cpu_seconds == 10
+    assert executor.max_memory_mb == 512
+    assert executor.max_file_size_mb == 32
+    assert executor.max_processes == 64
+    # default: NPROC not applied (0), because it breaks child library imports
+    assert ToolExecutor(_registry()).max_processes == 0
