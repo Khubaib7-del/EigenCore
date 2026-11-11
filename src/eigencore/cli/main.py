@@ -35,6 +35,30 @@ from eigencore.models.registry import ModelRegistry
 console = Console()
 
 
+def _resolve_or_bail(registry, model, hw, task="general"):
+    """Resolve a model spec; if the resolved one isn't downloaded, fall back
+    to the first downloaded model (with a note). Exit cleanly when none."""
+    try:
+        spec = registry.resolve(model, hw, task)
+    except ValueError as e:
+        console.print(f"[red]Error:[/] {e}")
+        sys.exit(1)
+    if not registry.is_downloaded(spec):
+        downloaded = next((m for m in registry.list_models() if registry.is_downloaded(m)), None)
+        if downloaded is not None and model is None:
+            console.print(
+                f"[yellow]{spec.name} not downloaded; using downloaded [cyan]{downloaded.name}[/][/]"
+            )
+            return downloaded
+        console.print(
+            f"[red]Model {spec.name} is not downloaded and cannot be fetched automatically.[/]\n"
+            f"  Download it with: eigencore download {spec.name}\n"
+            f"  Or run bare `eigencore` for the interactive menu."
+        )
+        sys.exit(1)
+    return spec
+
+
 def _fit_for_spec(spec, hw, registry, kv_quant: str = "fp16"):
     """Fit estimate for a registry spec.
 
@@ -79,10 +103,48 @@ def _fit_for_spec(spec, hw, registry, kv_quant: str = "fp16"):
     return est, max_ctx, gpu_layers
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(version="0.4.1", prog_name="eigencore")
-def cli():
+@click.pass_context
+def cli(ctx):
     """EigenCore — CPU-first LLM intelligence runtime."""
+    if ctx.invoked_subcommand is None and sys.stdin.isatty():
+        _home_menu(ctx)
+
+
+def _home_menu(ctx):
+    """Interactive home menu for bare `eigencore` on a TTY."""
+    console.print(Panel("[bold]EigenCore[/] — local-first LLM runtime", border_style="cyan"))
+    while True:
+        console.print(
+            "\n  [bold]1[/] profile   [bold]2[/] models   [bold]3[/] download   "
+            "[bold]4[/] delete   [bold]5[/] chat   [bold]6[/] run   [bold]q[/] quit"
+        )
+        try:
+            choice = console.input("[bold green]Choose:[/] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            break
+        mapping = {
+            "1": "profile",
+            "2": "models",
+            "3": "download",
+            "4": "delete",
+            "5": "chat",
+            "6": "run",
+            "q": None,
+            "quit": None,
+        }
+        cmd = mapping.get(choice)
+        if cmd is None:
+            break
+        try:
+            if cmd in ("download", "delete"):
+                name = console.input(f"Model name for {cmd}: ").strip()
+                ctx.invoke(globals()[cmd], name=name)
+            else:
+                ctx.invoke(globals()[cmd])
+        except SystemExit:
+            pass  # subcommand called sys.exit — keep the menu alive
 
 
 @cli.command()
@@ -136,7 +198,8 @@ def profile():
         console.print(f"  [dim]Max context that fits this budget: {max_ctx} tokens[/]")
     else:
         console.print(
-            "  [red]Cannot compute fitting context (model file not downloaded or no geometry)[/]"
+            "  [dim]Exact context fit needs the model file downloaded (GGUF geometry); "
+            "download with: eigencore download <name>[/]"
         )
 
     if not registry.is_downloaded(rec):
@@ -173,7 +236,7 @@ def models(task: str | None):
         elif est.verdict == FitVerdict.TIGHT:
             fits_label, fits_style = "tight", "yellow"
         elif est.verdict == FitVerdict.UNKNOWN:
-            fits_label, fits_style = "unknown", "dim"
+            fits_label, fits_style = "unknown*", "dim"
         else:
             fits_label, fits_style = "no", "red"
         table.add_row(
@@ -189,6 +252,7 @@ def models(task: str | None):
         )
 
     console.print(table)
+    console.print("[dim]* 'unknown*' = exact fit needs the model downloaded (GGUF geometry)[/]")
 
 
 @cli.command()
@@ -218,6 +282,22 @@ def download(name: str):
     except Exception as e:
         console.print(f"\n[red]Download failed:[/] {e}")
         sys.exit(1)
+
+
+@cli.command()
+@click.argument("name")
+def delete(name: str):
+    """Delete a downloaded model (frees disk)."""
+    registry = ModelRegistry()
+    for model in registry.list_models():
+        if model.name == name:
+            if registry.delete(model):
+                console.print(f"[green]Deleted:[/] {name}")
+            else:
+                console.print(f"[yellow]Not downloaded:[/] {name}")
+            return
+    console.print(f"[red]Unknown model:[/] {name}. Run: eigencore models")
+    sys.exit(1)
 
 
 @cli.command()
@@ -261,22 +341,7 @@ def run(
     hw = profile_hardware()
     registry = ModelRegistry()
 
-    try:
-        spec = registry.resolve(model, hw, task)
-    except ValueError as e:
-        console.print(f"[red]Error:[/] {e}")
-        sys.exit(1)
-
-    if not registry.is_downloaded(spec):
-        console.print(
-            f"Model [cyan]{spec.name}[/] not downloaded. Downloading ({spec.size_gb:.1f} GB)..."
-        )
-        try:
-            registry.download(spec)
-        except Exception as e:
-            console.print(f"[red]Download failed:[/] {e}")
-            sys.exit(1)
-
+    spec = _resolve_or_bail(registry, model, hw, task)
     model_path = spec.local_path(registry.cache_dir)
 
     console.print(
@@ -363,22 +428,7 @@ def chat(
     hw = profile_hardware()
     registry = ModelRegistry()
 
-    try:
-        spec = registry.resolve(model, hw, task)
-    except ValueError as e:
-        console.print(f"[red]Error:[/] {e}")
-        sys.exit(1)
-
-    if not registry.is_downloaded(spec):
-        console.print(
-            f"Model [cyan]{spec.name}[/] not downloaded. Downloading ({spec.size_gb:.1f} GB)..."
-        )
-        try:
-            registry.download(spec)
-        except Exception as e:
-            console.print(f"[red]Download failed:[/] {e}")
-            sys.exit(1)
-
+    spec = _resolve_or_bail(registry, model, hw, task)
     model_path = spec.local_path(registry.cache_dir)
     if gpu_layers == 0 and hw.available_vram_gb > 0:
         _, _, gpu_layers = _fit_for_spec(spec, hw, registry, kv_quant=kv_type)
@@ -467,22 +517,7 @@ def analyze(
     hw = profile_hardware()
     registry = ModelRegistry()
 
-    try:
-        spec = registry.resolve(model, hw)
-    except ValueError as e:
-        console.print(f"[red]Error:[/] {e}")
-        sys.exit(1)
-
-    if not registry.is_downloaded(spec):
-        console.print(
-            f"Model [cyan]{spec.name}[/] not downloaded. Downloading ({spec.size_gb:.1f} GB)..."
-        )
-        try:
-            registry.download(spec)
-        except Exception as e:
-            console.print(f"[red]Download failed:[/] {e}")
-            sys.exit(1)
-
+    spec = _resolve_or_bail(registry, model, hw)
     model_path = spec.local_path(registry.cache_dir)
     engine = InferenceEngine(model_path, hw, spec)
 
@@ -585,15 +620,7 @@ def benchmark(
     hw = profile_hardware()
     registry = ModelRegistry()
 
-    try:
-        spec = registry.resolve(model, hw)
-    except ValueError as e:
-        console.print(f"[red]Error:[/] {e}")
-        sys.exit(1)
-
-    if not registry.is_downloaded(spec):
-        console.print(f"[red]Model not downloaded.[/] Run: eigencore download {spec.name}")
-        sys.exit(1)
+    spec = _resolve_or_bail(registry, model, hw)
 
     model_path = spec.local_path(registry.cache_dir)
 

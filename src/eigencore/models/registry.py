@@ -52,11 +52,11 @@ REGISTRY: list[ModelSpec] = [
     ),
     ModelSpec(
         name="phi-3-mini",
-        repo_id="bartowski/Phi-3.1-mini-4k-instruct-GGUF",
-        filename="Phi-3.1-mini-4k-instruct-Q4_K_M.gguf",
+        repo_id="bartowski/Phi-3-mini-4k-instruct-GGUF",
+        filename="Phi-3-mini-4k-instruct-Q4_K_M.gguf",
         params_b=3.8,
         quant="Q4_K_M",
-        size_gb=2.2,
+        size_gb=2.4,
         task="general",
         context_length=4096,
         description="Strong 3.8B model. Good reasoning for its size.",
@@ -97,10 +97,11 @@ REGISTRY: list[ModelSpec] = [
     ModelSpec(
         name="qwen2.5-7b",
         repo_id="Qwen/Qwen2.5-7B-Instruct-GGUF",
-        filename="qwen2.5-7b-instruct-q4_k_m.gguf",
+        # Q4_K_M is sharded into 2 parts on HF; download() fetches all shards
+        filename="qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf",
         params_b=7.0,
         quant="Q4_K_M",
-        size_gb=4.4,
+        size_gb=4.7,
         task="general",
         context_length=4096,
         description="Large 7B model. Best quality but needs 8GB+ free RAM.",
@@ -152,23 +153,87 @@ class ModelRegistry:
         return min(REGISTRY, key=lambda m: m.size_gb)
 
     def is_downloaded(self, model: ModelSpec) -> bool:
-        return model.local_path(self.cache_dir).exists()
+        """True when the model file (or all its shards) is present locally."""
+        if not self.shard_prefix(model):
+            return model.local_path(self.cache_dir).exists()
+        prefix = self.shard_prefix(model)
+        count = self._shard_count(model)
+        return all(
+            (
+                model.local_path(self.cache_dir).parent / f"{prefix}-{i:05d}-of-{count:05d}.gguf"
+            ).exists()
+            for i in range(1, count + 1)
+        )
+
+    @staticmethod
+    def shard_prefix(model: ModelSpec) -> str | None:
+        """'file-00001-of-00002.gguf' → 'file' (None when not sharded)."""
+        import re
+
+        m = re.match(r"(.+)-(\d{5})-of-(\d{5})\.gguf$", model.filename)
+        if m and m.group(2) == "00001":
+            return m.group(1)
+        return None
+
+    @classmethod
+    def _shard_count(cls, model: ModelSpec) -> int:
+        import re
+
+        m = re.match(r".+-\d{5}-of-(\d{5})\.gguf$", model.filename)
+        return int(m.group(1)) if m else 1
 
     def download(self, model: ModelSpec, progress: bool = True) -> Path:
-        """Download a model from HuggingFace Hub. Returns local path."""
+        """Download a model from HuggingFace Hub (all shards when sharded).
+
+        Returns local path. Raises RuntimeError with a clean message on
+        failure (404, network) — never a raw HF traceback at the caller.
+        """
         local_path = model.local_path(self.cache_dir)
         if local_path.exists():
             return local_path
 
         local_path.parent.mkdir(parents=True, exist_ok=True)
 
-        downloaded = hf_hub_download(
-            repo_id=model.repo_id,
-            filename=model.filename,
-            local_dir=local_path.parent,
-            local_dir_use_symlinks=False,
-        )
-        return Path(downloaded)
+        try:
+            prefix = self.shard_prefix(model)
+            if prefix:
+                from huggingface_hub import snapshot_download
+
+                snapshot_download(
+                    repo_id=model.repo_id,
+                    allow_patterns=[f"{prefix}-*.gguf"],
+                    local_dir=local_path.parent,
+                )
+            else:
+                hf_hub_download(
+                    repo_id=model.repo_id,
+                    filename=model.filename,
+                    local_dir=local_path.parent,
+                )
+        except Exception as e:
+            raise RuntimeError(
+                f"Download of {model.name} from {model.repo_id} failed: {type(e).__name__}: {e}"
+            ) from e
+        return local_path
+
+    def delete(self, model: ModelSpec) -> bool:
+        """Delete a downloaded model (all shards). Returns True if anything was removed."""
+        local_path = model.local_path(self.cache_dir)
+        removed = False
+        prefix = self.shard_prefix(model)
+        if prefix:
+            for shard in local_path.parent.glob(f"{prefix}-*.gguf"):
+                shard.unlink()
+                removed = True
+        elif local_path.exists():
+            local_path.unlink()
+            removed = True
+        if removed:
+            try:
+                local_path.parent.rmdir()  # remove empty model dir
+            except OSError:
+                pass
+        return removed
 
     def resolve(
         self,

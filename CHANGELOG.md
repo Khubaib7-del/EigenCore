@@ -4,6 +4,10 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Fixed
+- Model registry: `qwen2.5-7b` filename corrected to the sharded HF pair (`qwen2.5-7b-instruct-q4_k_m-0000{1,2}-of-00002.gguf` — 404 before); `phi-3-mini` moved to `bartowski/Phi-3-mini-4k-instruct-GGUF` (TheBloke repo removed). Downloads are shard-aware (`snapshot_download` with allow_patterns), drop the deprecated `local_dir_use_symlinks`, and raise a clean one-line error instead of an HF traceback.
+- CLI UX: bare `eigencore` on a TTY opens an interactive home menu (profile / models / download / delete / chat / run); new `eigencore delete <name>` frees disk (shard-aware, idempotent); `run`/`chat`/`analyze`/`benchmark` no longer auto-download a missing default — they fall back to an already-downloaded model or exit with a clear hint. `models` shows `unknown*` fits with a note that exact fit needs the file downloaded.
+
 ## [0.4.1] - 2026-11-11
 
 ### Changed
