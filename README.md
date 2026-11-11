@@ -45,6 +45,7 @@ Labels: **SHIPPED** runs on `main` and is tested · **REPORTED-ONLY** computes p
 | Benchmark harness | SHIPPED | `eigencore benchmark --report run.json`; tokens counted via backend tokenizer, cold/warm reported separately; no published runs yet |
 | Terminal chat | SHIPPED (core) | Streaming, `--plain`, slash commands, fit header; model output sanitized (control sequences stripped, Rich-escaped), Ctrl-C/stream errors keep partial history without regenerating. Full-screen layout and onboarding PLANNED |
 | Tool policy | SHIPPED, deny-by-default | `ToolExecutor` defaults to `default_policy()` (READ-only, workspace-confined) even when no policy is passed. Path params are declared (`is_path=True`) and resolved to confined absolute paths before handlers. Timeouts run handlers in a spawned process that is killed on timeout. Handlers still run in-process otherwise — not an OS sandbox |
+| Tool policy | SHIPPED, deny-by-default | Same as above, plus POSIX rlimits (CPU/AS/FSIZE) on the child worker; NPROC opt-in (default off). Approval cards + full sandbox PLANNED (Stage D) |
 | Reference kernels | SHIPPED (scalar, NumPy) | RMSNorm, Q8_0 and Q4_0 (ggml strided nibble order, bit-exact vs `gguf.quants.dequantize`, raw 18/34-byte blocks accepted), Q8_0 dot. Not used by inference |
 | Layer skipping | REPORTED-ONLY | Planner and estimates only |
 | Activation sparsity | REPORTED-ONLY | Predictor never receives activations; `eigencore analyze` measures output-logit sparsity, not neurons |

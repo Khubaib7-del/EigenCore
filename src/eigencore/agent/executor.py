@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import pickle
 import subprocess
 import sys
@@ -84,11 +85,21 @@ class ToolExecutor:
         timeout: float = DEFAULT_TIMEOUT,
         max_output_chars: int = 4096,
         policy: PolicyEngine | None = None,
+        max_cpu_seconds: int = 60,
+        max_memory_mb: int = 4096,
+        max_file_size_mb: int = 64,
+        max_processes: int = 0,  # 0 = do not set RLIMIT_NPROC (breaks library imports); >0 enables it
     ):
         self.registry = registry
         self.timeout = timeout
         self.max_output_chars = max_output_chars
         self.policy = policy if policy is not None else default_policy()
+        # POSIX resource limits applied to the child process (best-effort;
+        # silently skipped on platforms without resource/preexec_fn).
+        self.max_cpu_seconds = max_cpu_seconds
+        self.max_memory_mb = max_memory_mb
+        self.max_file_size_mb = max_file_size_mb
+        self.max_processes = max_processes
         self.log = ExecutionLog()
 
     def execute(self, tool_name: str, args: dict[str, Any]) -> ToolResult:
@@ -172,6 +183,7 @@ class ToolExecutor:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            preexec_fn=self._limits_fn() if os.name == "posix" else None,
         )
         try:
             out, _ = proc.communicate(input=payload, timeout=self.timeout)
@@ -219,6 +231,24 @@ class ToolExecutor:
             error=redact_text(value),
             elapsed_seconds=elapsed,
         )
+
+    def _limits_fn(self):
+        """Build a preexec_fn applying rlimits to the child (POSIX only)."""
+        import resource
+
+        max_cpu = self.max_cpu_seconds
+        max_mem = self.max_memory_mb * 1024 * 1024
+        max_fsize = self.max_file_size_mb * 1024 * 1024
+        max_nproc = self.max_processes
+
+        def apply() -> None:
+            resource.setrlimit(resource.RLIMIT_CPU, (max_cpu, max_cpu + 5))
+            resource.setrlimit(resource.RLIMIT_AS, (max_mem, max_mem))
+            resource.setrlimit(resource.RLIMIT_FSIZE, (max_fsize, max_fsize))
+            if max_nproc > 0:
+                resource.setrlimit(resource.RLIMIT_NPROC, (max_nproc, max_nproc))
+
+        return apply
 
 
 _WORKER_CODE = """
