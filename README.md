@@ -26,7 +26,7 @@ python -m pip install eigencore
 #   so use the prebuilt index; on GPU machines use the CUDA index instead):
 python -m pip install "eigencore[inference]" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 # pipx alternative: pipx install "eigencore[inference]"
-# from source (development): git clone ... && python -m pip install -e ".[dev]"
+# from source (development): git clone ... && python -m pip install -e ".[dev,inference]"
 
 eigencore profile
 eigencore models
@@ -88,7 +88,7 @@ This is a module map, not a process-isolation diagram. In particular, the curren
 ## Development
 
 ```bash
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,inference]"
 pytest tests/ -v
 ruff check src/ tests/
 ruff format --check src/ tests/

@@ -12,7 +12,7 @@ Thanks for helping. EigenCore is a small, pre-alpha project, so this guide is sh
 ```bash
 git clone https://github.com/Khubaib7-del/EigenCore.git
 cd EigenCore
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,inference]"
 pytest tests/ -v
 ruff check src/ tests/
 ruff format --check src/ tests/
