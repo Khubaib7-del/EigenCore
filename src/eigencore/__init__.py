@@ -1,6 +1,6 @@
 """EigenCore — CPU-first LLM intelligence runtime."""
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 from eigencore.agent.executor import ToolExecutor, ToolResult
 from eigencore.agent.grammar import GBNFBuilder
