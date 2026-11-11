@@ -20,6 +20,9 @@ from eigencore.engine.speculative import SpeculativeDecoder
 from eigencore.hal.profiler import HardwareProfile, InstructionSet
 from eigencore.models.registry import ModelSpec
 
+# llama-cpp-python expects an int KV type; map our string names.
+_KV_TYPE_MAP = {"fp16": 0, "q8_0": 1}
+
 
 @dataclass
 class GenerationConfig:
@@ -55,10 +58,16 @@ class InferenceEngine:
         model_path: Path,
         profile: HardwareProfile,
         model_spec: ModelSpec | None = None,
+        kv_type: str = "fp16",
+        flash_attn: bool = True,
     ):
         self.model_path = model_path
         self.profile = profile
         self.model_spec = model_spec
+        # Load-time backend options: KV cache type ("fp16" default; "q8_0"
+        # halves KV memory at a small quality cost) and flash attention.
+        self.kv_type = kv_type
+        self.flash_attn = flash_attn
         self._llm = None
 
         self._layer_skipper: LayerSkipScheduler | None = None
@@ -90,6 +99,8 @@ class InferenceEngine:
             n_threads_batch=n_threads,
             n_batch=n_batch,
             n_gpu_layers=0,  # CPU-only
+            type_kv=_KV_TYPE_MAP[self.kv_type],
+            flash_attn=self.flash_attn,
             verbose=False,
         )
 

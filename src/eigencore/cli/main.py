@@ -29,7 +29,7 @@ from eigencore.models.registry import ModelRegistry
 console = Console()
 
 
-def _fit_for_spec(spec, hw, registry):
+def _fit_for_spec(spec, hw, registry, kv_quant: str = "fp16"):
     """Fit estimate for a registry spec.
 
     Uses real GGUF metadata (geometry + file size) when the model file is
@@ -50,6 +50,7 @@ def _fit_for_spec(spec, hw, registry):
         geometry=geometry,
         file_size_bytes=file_size,
         bandwidth_gbps=hw.estimated_bandwidth_gbps,
+        kv_quant=kv_quant,
         active_params_b=(
             spec.params_b * spec.experts_active / spec.experts_total if spec.is_moe else None
         ),
@@ -208,6 +209,14 @@ def download(name: str):
 @click.option("--temperature", default=0.7, help="Sampling temperature")
 @click.option("--task", default="general", help="Task type for auto model selection")
 @click.option("--no-stream", is_flag=True, help="Disable streaming output")
+@click.option(
+    "--kv",
+    "kv_type",
+    default="fp16",
+    type=click.Choice(["fp16", "q8_0"]),
+    help="KV cache type (q8_0 halves KV memory)",
+)
+@click.option("--no-flash", is_flag=True, help="Disable flash attention")
 def run(
     model: str | None,
     prompt: str,
@@ -215,6 +224,8 @@ def run(
     temperature: float,
     task: str,
     no_stream: bool,
+    kv_type: str,
+    no_flash: bool,
 ):
     """Run inference with a prompt."""
     hw = profile_hardware()
@@ -242,7 +253,7 @@ def run(
         f"[dim]Model: {spec.name} | Threads: {hw.recommended_threads} | Ctx: {hw.recommended_context_length}[/]"
     )
 
-    engine = InferenceEngine(model_path, hw, spec)
+    engine = InferenceEngine(model_path, hw, spec, kv_type=kv_type, flash_attn=not no_flash)
 
     with console.status("[bold cyan]Loading model..."):
         engine.load()
@@ -282,12 +293,22 @@ def run(
 @click.option(
     "--plain", is_flag=True, help="Plain-text mode: no panels/colors (pipes, SSH, screen readers)"
 )
+@click.option(
+    "--kv",
+    "kv_type",
+    default="fp16",
+    type=click.Choice(["fp16", "q8_0"]),
+    help="KV cache type (q8_0 halves KV memory)",
+)
+@click.option("--no-flash", is_flag=True, help="Disable flash attention")
 def chat(
     model: str | None,
     max_tokens: int,
     temperature: float,
     task: str,
     plain: bool,
+    kv_type: str,
+    no_flash: bool,
 ):
     """Start an interactive chat session (streaming, slash commands, plain mode available)."""
     hw = profile_hardware()
@@ -310,7 +331,7 @@ def chat(
             sys.exit(1)
 
     model_path = spec.local_path(registry.cache_dir)
-    engine = InferenceEngine(model_path, hw, spec)
+    engine = InferenceEngine(model_path, hw, spec, kv_type=kv_type, flash_attn=not no_flash)
 
     with console.status("[bold cyan]Loading model..."):
         engine.load()
