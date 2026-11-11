@@ -4,8 +4,16 @@
 
 ## 1. Where the TUI stands today
 
+> **2026-11-11 owner decision:** chat goes full-screen (Gemini-CLI-style) on a TTY,
+> superseding §2's "keep line mode for chat" for `eigencore chat`. `--plain` /
+> non-TTY keeps the line-mode `tui/chat.py` UI, and the safety rules below
+> (sanitiser, markup off, Ctrl-C, no regenerate, labeled numbers) all still apply.
+
 | Piece | Status | Evidence / known problem |
 | --- | --- | --- |
+| `eigencore chat` full-screen TUI on a TTY | SHIPPED | `tui/app.py` (ChatApp), `tui/keys.py` (cross-platform key reader), `tui/banner.py` (banner reveal); 13 tests in `tests/test_tui_app.py` + pty end-to-end drive |
+| In-TUI model picker (switch / download / delete-from-disk) | SHIPPED | `/models` overlay: ↑/↓, Enter switch, `d` download, `x` delete with confirm |
+| In-TUI slash commands | SHIPPED | `/help /models /model /download /delete /context /clear /tokens /temp /exit` with Tab completion and suggestions |
 | `eigencore chat` streaming multi-turn chat (Rich) | SHIPPED | `tui/chat.py`; 5 tests, all in plain mode |
 | `--plain` / non-TTY mode | SHIPPED | `tui/chat.py` |
 | Slash commands `/help /model /context /clear /exit` with suggestions | SHIPPED | `tui/chat.py` |

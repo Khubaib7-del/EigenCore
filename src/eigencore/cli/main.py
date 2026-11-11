@@ -5,7 +5,7 @@ Usage:
     eigencore profile              # show hardware profile + recommendations
     eigencore models               # list available models
     eigencore run --prompt "..."   # run inference (auto-selects model if not specified)
-    eigencore chat                 # interactive chat session
+    eigencore chat                 # full-screen TUI chat on a TTY (banner, onboarding, model picker)
     eigencore download <model>     # pre-download a model
     eigencore analyze --prompt "." # measure activation sparsity on a prompt
     eigencore benchmark            # benchmark with/without Phase 2 optimizations
@@ -424,9 +424,17 @@ def chat(
     gpu_layers: int,
     pld: bool,
 ):
-    """Start an interactive chat session (streaming, slash commands, plain mode available)."""
+    """Start an interactive chat session (full-screen TUI on a TTY, streaming, slash
+    commands; --plain or piped stdin gives the line-mode UI)."""
     hw = profile_hardware()
     registry = ModelRegistry()
+    from eigencore.tui.theme import probe_terminal
+
+    caps = probe_terminal(force_plain=plain)
+    if sys.stdin.isatty() and not caps.plain:
+        from eigencore.tui.banner import render_banner
+
+        render_banner(console)
 
     spec = _resolve_or_bail(registry, model, hw, task)
     model_path = spec.local_path(registry.cache_dir)
@@ -475,27 +483,61 @@ def chat(
     with console.status("[bold cyan]Loading model..."):
         engine.load()
 
-    from eigencore.tui.chat import ChatUI, ChatUiConfig
-    from eigencore.tui.theme import probe_terminal
+    from eigencore.tui.chat import ChatUiConfig
 
     info = read_gguf_model_info(model_path)
-    caps = probe_terminal(force_plain=plain)
-    ui = ChatUI(
-        engine,
-        spec,
-        hw,
-        geometry=info.geometry if info else None,
-        policy_label="read-only (policy engine attached in P4)",
-        caps=caps,
-        cfg=ChatUiConfig(
-            plain=caps.plain,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            prompt_lookup=pld,
-        ),
+    geometry = info.geometry if info else None
+    cfg = ChatUiConfig(
+        plain=caps.plain,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        prompt_lookup=pld,
     )
-    ui.approval_card = ui.render_approval_card
-    ui.run()
+    if caps.plain:
+        from eigencore.tui.chat import ChatUI
+
+        ui = ChatUI(
+            engine,
+            spec,
+            hw,
+            geometry=geometry,
+            policy_label="read-only (policy engine attached in P4)",
+            caps=caps,
+            cfg=cfg,
+        )
+        ui.approval_card = ui.render_approval_card
+        ui.run()
+    else:
+        from eigencore.tui.app import ChatApp
+
+        state = {"engine": engine}
+
+        def _switch_model(new_spec):
+            """Reload the engine with another (downloaded) model from the TUI."""
+            state["engine"].unload()
+            state["engine"] = InferenceEngine(
+                new_spec.local_path(registry.cache_dir),
+                hw,
+                new_spec,
+                kv_type=kv_type,
+                flash_attn=not no_flash,
+                n_gpu_layers=gpu_layers,
+            )
+            with console.status("[bold cyan]Loading model..."):
+                state["engine"].load()
+
+        app = ChatApp(
+            engine_getter=lambda: state["engine"],
+            spec=spec,
+            profile=hw,
+            registry=registry,
+            geometry=geometry,
+            cfg=cfg,
+            caps=caps,
+            on_model_change=_switch_model,
+        )
+        app.run()
+        engine = state["engine"]
 
     engine.unload()
 
