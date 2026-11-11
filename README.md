@@ -17,12 +17,14 @@ EigenCore profiles a machine, estimates whether a local model fits, and runs inf
 
 ## Quick start
 
-EigenCore is not published on PyPI yet. Install from source:
+Install from PyPI:
 
 ```bash
-git clone https://github.com/Khubaib7-del/EigenCore.git
-cd EigenCore
-python -m pip install -e .
+python -m pip install eigencore
+# on Windows/CPU without prebuilt llama.cpp wheels, add the prebuilt index for a fast install:
+# python -m pip install eigencore --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+# pipx alternative: pipx install eigencore
+# from source (development): git clone ... && python -m pip install -e ".[dev]"
 
 eigencore profile
 eigencore models

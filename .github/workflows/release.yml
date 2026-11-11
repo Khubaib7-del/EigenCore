@@ -7,8 +7,32 @@ on:
 
 permissions:
   contents: write
+  id-token: write  # PyPI trusted publishing (OIDC) — no API token stored in GitHub
 
 jobs:
+  pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Publish to PyPI (trusted publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Requires the GitHub OIDC publisher configured once at
+          # https://pypi.org/manage/project/eigencore/publishing/ (owner action).
+          print-hash: true
+
   release:
     runs-on: ubuntu-latest
     steps:
