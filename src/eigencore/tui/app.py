@@ -25,6 +25,7 @@ import threading
 import time
 from typing import Callable, Optional
 
+from rich import box
 from rich.console import Console, Group
 from rich.layout import Layout
 from rich.live import Live
@@ -32,15 +33,14 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich import box
 
 from eigencore import __version__
 from eigencore.engine.inference import GenerationConfig
 from eigencore.fit import ModelGeometry, estimate_fit, read_gguf_model_info
 from eigencore.hal.profiler import HardwareProfile
 from eigencore.models.registry import ModelRegistry, ModelSpec
-from eigencore.tui.chat import ChatUiConfig, sanitize_model_text
 from eigencore.tui import keys as K
+from eigencore.tui.chat import ChatUiConfig, sanitize_model_text
 from eigencore.tui.theme import TOKENS, TerminalCaps, probe_terminal
 
 SLASH_COMMANDS = (
