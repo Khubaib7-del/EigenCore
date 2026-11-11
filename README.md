@@ -20,10 +20,12 @@ EigenCore profiles a machine, estimates whether a local model fits, and runs inf
 Install from PyPI:
 
 ```bash
+# core CLI (no compiler needed):
 python -m pip install eigencore
-# on Windows/CPU without prebuilt llama.cpp wheels, add the prebuilt index for a fast install:
-# python -m pip install eigencore --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
-# pipx alternative: pipx install eigencore
+# + the native inference backend (llama.cpp has no Windows wheel on PyPI,
+#   so use the prebuilt index; on GPU machines use the CUDA index instead):
+python -m pip install "eigencore[inference]" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+# pipx alternative: pipx install "eigencore[inference]"
 # from source (development): git clone ... && python -m pip install -e ".[dev]"
 
 eigencore profile

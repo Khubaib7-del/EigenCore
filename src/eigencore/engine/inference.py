@@ -90,8 +90,9 @@ class InferenceEngine:
             from llama_cpp import Llama
         except ImportError:
             raise ImportError(
-                "llama-cpp-python is required for inference. "
-                "Install with: pip install llama-cpp-python"
+                "llama-cpp-python is required for inference. Install the backend extra: "
+                'pip install "eigencore[inference]" '
+                "--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu"
             )
 
         ctx_length = self.profile.recommended_context_length

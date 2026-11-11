@@ -4,6 +4,9 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Changed
+- Packaging: `llama-cpp-python` moved from a hard dependency to the optional `[inference]` extra, because PyPI has no Windows wheel for it and a source build needs a C++ toolchain (broke `pip install eigencore` on plain Windows machines). Core CLI now installs with a bare `pip install eigencore`; inference commands raise a clear hint to install `eigencore[inference]` with the prebuilt wheel index. Added `python -m eigencore` entry point. README quick start updated to the two-step install.
+
 ## [0.4.0] - 2026-11-11
 
 ### Added
