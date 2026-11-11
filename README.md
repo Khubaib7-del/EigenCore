@@ -48,6 +48,7 @@ Labels: **SHIPPED** runs on `main` and is tested · **REPORTED-ONLY** computes p
 | Tool policy | SHIPPED, deny-by-default | Same as above, plus POSIX rlimits on the child worker and approval cards (`ApprovalManager` + `/approvals` in chat; y/s/n with redacted args, enforced in the executor). Full OS sandbox (cgroups/namespaces) PLANNED |
 | Reference kernels | SHIPPED (scalar, NumPy) | RMSNorm, Q8_0/Q4_0 (ggml layout, bit-exact vs gguf-py) and Q4_K super-blocks (bit-exact), Q8_0/Q4_K dots. Not used by inference; SIMD/C-intrinsics lib PLANNED (Stage E) |
 | Layer skipping | REPORTED-ONLY | Planner and estimates only |
+| Layer pruning (ShortGPT BI) | REPORTED-ONLY (experiment scaffolding) | `engine/pruning.py`: BI scores, head/tail-protected prune plan, kill criterion on quality delta. Not wired into inference; needs owner calibration + perplexity runs |
 | Activation sparsity | REPORTED-ONLY | Predictor never receives activations; `eigencore analyze` measures output-logit sparsity, not neurons |
 | Speculative decoding | REPORTED-ONLY | Module not wired into generation; verifier now implements correct rejection sampling (distribution-preserving, tested) but no speedup is measured or claimed |
 | MoE-aware fit + SSD-paging warning + decode ceiling on active weights | SHIPPED | `qwen3-30b-a3b` registered; `estimate_fit` reports active/resident/ceiling |
