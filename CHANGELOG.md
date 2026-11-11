@@ -4,6 +4,11 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-11
+
+### Added
+- PyPI release pipeline: `release.yml` now publishes sdist+wheel to PyPI on `v*` tags via trusted publishing (OIDC, `pypa/gh-action-pypi-publish`, no stored tokens). After tagging `v0.4.0` and configuring the GitHub OIDC publisher at pypi.org, `pip install eigencore` works. README quick start updated accordingly (prebuilt llama.cpp wheel index documented for Windows/CPU).
+
 ### Added
 - Stage E slice 3: activation-sparsity experiment scaffolding (REPORTED-ONLY, not wired into inference). `engine/sparsity_experiment.py`: per-layer activation sparsity measurement, sparse-mask plan that only applies above a minimum sparsity, and the kill criterion (measured quality delta > allowed → killed). Rationale recorded: on bandwidth-bound CPU decode the compute saving is small, so the kill criterion matters. No claim without owner runs.
 - Stage E slice 2: layer-pruning experiment scaffolding (REPORTED-ONLY, not wired into inference). `engine/pruning.py` computes ShortGPT Block Influence per layer from boundary hidden states, builds a prune plan that protects head/tail layers, and enforces the kill criterion (measured quality delta > allowed → killed, no pruning). No quality/performance claim without the owner's calibration + perplexity runs.
