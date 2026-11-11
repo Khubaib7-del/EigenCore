@@ -47,6 +47,7 @@ class ChatUiConfig:
     plain: bool = False
     max_tokens: int = 512
     temperature: float = 0.7
+    prompt_lookup: bool = False  # PLD: off by default until owner measurements
 
 
 class ChatUI:
@@ -192,6 +193,7 @@ class ChatUI:
                 max_tokens=self.cfg.max_tokens,
                 temperature=self.cfg.temperature,
                 stream=True,
+                prompt_lookup=self.cfg.prompt_lookup,
             )
             try:
                 for token in self.engine.stream_messages(self.messages, stream_config):

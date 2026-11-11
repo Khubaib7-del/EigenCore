@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from eigencore.engine.layer_skip import LayerSkipScheduler, SkipStrategy
+from eigencore.engine.prompt_lookup import longest_prompt_continuation
 from eigencore.engine.sparse_inference import SparsityCache, SparsityPredictor
 from eigencore.engine.speculative import SpeculativeDecoder
 from eigencore.hal.profiler import HardwareProfile, InstructionSet
@@ -36,6 +37,9 @@ class GenerationConfig:
     enable_layer_skip: bool = True
     enable_sparse_inference: bool = True
     complexity: float = 0.5
+    # Prompt-lookup decoding: copy prompt-verbatim spans instead of decoding
+    # them. Default OFF; enable only after owner benchmarks (FINAL_REPORT §9 item 9).
+    prompt_lookup: bool = False
 
 
 @dataclass
@@ -78,6 +82,7 @@ class InferenceEngine:
         self._sparsity_predictor: SparsityPredictor | None = None
         self._sparsity_cache = SparsityCache()
         self._speculative_decoder = SpeculativeDecoder(adaptive=True)
+        self.last_pld_copied_chars = 0
 
     def load(self) -> None:
         """Load the model with hardware-optimized settings."""
@@ -205,11 +210,20 @@ class InferenceEngine:
         messages: list[dict[str, str]],
         config: GenerationConfig | None = None,
     ) -> Iterator[str]:
-        """Stream a chat completion from a full message list (multi-turn)."""
+        """Stream a chat completion from a full message list (multi-turn).
+
+        When config.prompt_lookup is set, prompt-verbatim continuations are
+        emitted directly (byte-identical copy, see engine.prompt_lookup);
+        copied characters are reported via `last_pld_copied_chars`.
+        """
         if self._llm is None:
             raise RuntimeError("Model not loaded. Call .load() first.")
         if config is None:
             config = GenerationConfig(stream=True)
+        prompt_text = " ".join(m.get("content", "") for m in messages)
+        generated = ""
+        self.last_pld_copied_chars = 0
+        pending_skip = 0  # backend chars to swallow (already copied from prompt)
         for chunk in self._llm.create_chat_completion(
             messages=messages,
             max_tokens=config.max_tokens,
@@ -223,6 +237,22 @@ class InferenceEngine:
             delta = chunk["choices"][0].get("delta", {})
             token = delta.get("content", "")
             if token:
+                if pending_skip > 0:
+                    # this backend token is part of a span we already copied
+                    pending_skip -= len(token)
+                    continue
+                if config.prompt_lookup:
+                    continuation = longest_prompt_continuation(prompt_text, generated + token)
+                    if continuation:
+                        # The prompt continues the generation verbatim: emit the
+                        # copied span after this token and swallow its backend copy.
+                        pending_skip = len(continuation)
+                        self.last_pld_copied_chars += len(continuation)
+                        generated += token + continuation
+                        yield token
+                        yield continuation
+                        continue
+                generated += token
                 yield token
 
     def chat(
