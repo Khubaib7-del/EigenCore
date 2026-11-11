@@ -58,6 +58,8 @@ class ModelGeometry:
     hidden_size: int | None = None
     num_attention_heads: int | None = None
     num_kv_heads: int | None = None  # GQA/MQA: defaults to num_attention_heads
+    expert_count: int | None = None  # MoE: total experts per MoE layer
+    expert_used_count: int | None = None  # MoE: experts activated per token
 
     @property
     def kv_heads(self) -> int | None:
@@ -75,10 +77,15 @@ class ModelGeometry:
             v is not None for v in (self.num_layers, self.hidden_size, self.num_attention_heads)
         )
 
+    @property
+    def is_moe(self) -> bool:
+        return bool(self.expert_count and self.expert_used_count)
+
 
 @dataclass
 class FitEstimate:
     weights_gb: float
+    active_weights_gb: float | None  # MoE only: weights actually read per decode token
     runtime_reserve_gb: float
     kv_cache_gb: float
     total_gb: float
@@ -87,6 +94,8 @@ class FitEstimate:
     verdict: FitVerdict
     context_length: int
     quant: str
+    resident: bool  # file fully in RAM (False → mmap/SSD paging)
+    decode_ceiling_tok_s: float | None  # bandwidth / active bytes-per-token ceiling
     notes: list[str] = field(default_factory=list)
 
     @property
@@ -132,6 +141,19 @@ def estimate_kv_cache_gib(
     return per_token * context_length / 1024**3, None
 
 
+def decode_ceiling_tok_s(bandwidth_gbps: float, active_weights_gib: float) -> float:
+    """Optimistic decode ceiling: bandwidth / bytes streamed per token.
+
+    For dense models active == resident weights. For MoE, only the activated
+    experts' weights are read per token (plus shared/non-expert weights, which
+    we approximate as included in the active figure). This is a CEILING —
+    real decode is lower due to cache misses, dequant, sampling overhead.
+    """
+    if active_weights_gib <= 0:
+        return 0.0
+    return bandwidth_gbps / active_weights_gib
+
+
 def estimate_fit(
     params_b: float,
     quant: str,
@@ -142,12 +164,29 @@ def estimate_fit(
     safety_margin_gb: float = DEFAULT_SAFETY_MARGIN_GB,
     kv_quant: str = "fp16",
     file_size_bytes: int | None = None,
+    bandwidth_gbps: float | None = None,
+    active_params_b: float | None = None,
 ) -> FitEstimate:
-    """Full memory fit estimate (GiB) for loading + running a model at a context length."""
+    """Full memory fit estimate (GiB) for loading + running a model at a context length.
+
+    MoE: pass `active_params_b` (params activated per token) — resident memory
+    still uses the full file size, but the decode ceiling uses active weights.
+    """
     notes: list[str] = []
     weights_gb, note = estimate_weights_gib(params_b, quant, file_size_bytes)
     if note:
         notes.append(note)
+    if geometry is not None and geometry.is_moe and active_params_b is None:
+        # derive active params from expert ratio when geometry is present
+        assert geometry.expert_count and geometry.expert_used_count
+        active_params_b = params_b * geometry.expert_used_count / geometry.expert_count
+        notes.append(
+            f"MoE: {geometry.expert_count} experts, {geometry.expert_used_count} active/token "
+            f"→ active ≈ {active_params_b:.1f}B params"
+        )
+    active_weights_gb: float | None = None
+    if active_params_b is not None and active_params_b < params_b:
+        active_weights_gb, _ = estimate_weights_gib(active_params_b, quant)
     kv_gb_raw, note = estimate_kv_cache_gib(context_length, geometry, params_b, kv_quant)
     if note:
         notes.append(note)
@@ -155,6 +194,7 @@ def estimate_fit(
 
     total = weights_gb + runtime_reserve_gb + kv_gb
     headroom = available_ram_gb - total
+    resident = weights_gb <= available_ram_gb
 
     if kv_gb_raw is None:
         verdict = FitVerdict.UNKNOWN
@@ -168,8 +208,20 @@ def estimate_fit(
         verdict = FitVerdict.DOES_NOT_FIT
         notes.append(f"short by {-headroom:.1f} GB at context {context_length}")
 
+    if not resident:
+        notes.append(
+            f"model file ({weights_gb:.1f} GiB) exceeds available RAM ({available_ram_gb:.1f} GiB): "
+            "would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
+        )
+
+    ceiling = None
+    if bandwidth_gbps is not None:
+        active_gib = active_weights_gb if active_weights_gb is not None else weights_gb
+        ceiling = decode_ceiling_tok_s(bandwidth_gbps, active_gib)
+
     return FitEstimate(
         weights_gb=weights_gb,
+        active_weights_gb=active_weights_gb,
         runtime_reserve_gb=runtime_reserve_gb,
         kv_cache_gb=kv_gb,
         total_gb=total,
@@ -178,6 +230,8 @@ def estimate_fit(
         verdict=verdict,
         context_length=context_length,
         quant=quant,
+        resident=resident,
+        decode_ceiling_tok_s=ceiling,
         notes=notes,
     )
 

@@ -49,6 +49,10 @@ def _fit_for_spec(spec, hw, registry):
         hw.available_ram_gb,
         geometry=geometry,
         file_size_bytes=file_size,
+        bandwidth_gbps=hw.estimated_bandwidth_gbps,
+        active_params_b=(
+            spec.params_b * spec.experts_active / spec.experts_total if spec.is_moe else None
+        ),
     )
     max_ctx = max_context_for_budget(
         spec.params_b,
@@ -97,6 +101,16 @@ def profile():
         f"{est.total_gb:.1f} GB of {est.available_ram_gb:.1f} GB available "
         f"[{verdict_style}]{est.verdict.value}[/] (headroom {est.headroom_gb:.1f} GB)"
     )
+    if est.active_weights_gb is not None:
+        console.print(
+            f"  MoE: active weights/token ≈ {est.active_weights_gb:.1f} GiB "
+            f"(resident file {est.weights_gb:.1f} GiB, {'RAM' if est.resident else 'mmap/SSD paging'})"
+        )
+    if est.decode_ceiling_tok_s is not None:
+        console.print(
+            f"  Decode ceiling estimate: ~{est.decode_ceiling_tok_s:.1f} tok/s "
+            f"(bandwidth / active bytes per token — ceiling, not a measurement)"
+        )
     for note in est.notes:
         console.print(f"    [dim]* {note}[/]")
     if max_ctx > 0:
@@ -124,6 +138,7 @@ def models(task: str | None):
     table = Table(title="Available Models")
     table.add_column("Name", style="cyan")
     table.add_column("Params", justify="right")
+    table.add_column("Active", justify="right")
     table.add_column("Quant")
     table.add_column("Size", justify="right")
     table.add_column("Task")
@@ -145,6 +160,7 @@ def models(task: str | None):
         table.add_row(
             m.name,
             f"{m.params_b:.1f}B",
+            f"{m.params_b * m.experts_active / m.experts_total:.1f}B" if m.is_moe else "—",
             m.quant,
             f"{m.size_gb:.1f}GB",
             m.task,

@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from eigencore.fit import (
     FitVerdict,
     ModelGeometry,
+    decode_ceiling_tok_s,
     estimate_fit,
     estimate_kv_cache_gib,
     estimate_weights_gib,
@@ -110,3 +111,51 @@ def test_max_context_uses_file_size():
         max_context_for_budget(35.0, "Q4_K_M", 16.0, geometry=GEO, file_size_bytes=21 * 1024**3)
         == 0
     )
+
+
+MOE_GEO = ModelGeometry(
+    num_layers=48,
+    hidden_size=2048,
+    num_attention_heads=32,
+    num_kv_heads=4,
+    expert_count=128,
+    expert_used_count=8,
+)
+
+
+def test_moe_geometry_flag():
+    assert MOE_GEO.is_moe
+    assert not GEO.is_moe
+
+
+def test_moe_fit_active_weights_and_ceiling():
+    # 30.5B total, 8/128 experts → 1.9125B active; file 18.6 GiB; 16 GiB RAM; 40 GB/s
+    est = estimate_fit(
+        30.5,
+        "Q4_K_M",
+        4096,
+        16.0,
+        geometry=MOE_GEO,
+        file_size_bytes=int(18.6 * 1024**3),
+        bandwidth_gbps=40.0,
+    )
+    assert est.active_weights_gb is not None
+    expected_active = 30.5 * 8 / 128 * 0.55
+    assert abs(est.active_weights_gb - expected_active) < 1e-6
+    # file (18.6 GiB) > RAM (16 GiB) → not resident, paging warning present
+    assert est.resident is False
+    assert any("SSD paging" in n for n in est.notes)
+    # ceiling uses ACTIVE weights, not the resident file
+    assert est.decode_ceiling_tok_s == 40.0 / est.active_weights_gb
+    assert est.decode_ceiling_tok_s > 10
+
+
+def test_dense_ceiling_uses_full_weights():
+    est = estimate_fit(7.0, "Q4_K_M", 4096, 16.0, geometry=GEO, bandwidth_gbps=30.0)
+    assert est.active_weights_gb is None
+    assert est.decode_ceiling_tok_s == 30.0 / est.weights_gb
+
+
+def test_decode_ceiling_helper():
+    assert decode_ceiling_tok_s(40.0, 2.0) == 20.0
+    assert decode_ceiling_tok_s(40.0, 0.0) == 0.0

@@ -49,7 +49,7 @@ Labels: **SHIPPED** runs on `main` and is tested · **REPORTED-ONLY** computes p
 | Layer skipping | REPORTED-ONLY | Planner and estimates only |
 | Activation sparsity | REPORTED-ONLY | Predictor never receives activations; `eigencore analyze` measures output-logit sparsity, not neurons |
 | Speculative decoding | REPORTED-ONLY | Module not wired into generation; verifier now implements correct rejection sampling (distribution-preserving, tested) but no speedup is measured or claimed |
-| MoE-aware fit, SSD paging warning, KV-type options, GPU offload | PLANNED | See the plan in the review |
+| MoE-aware fit + SSD-paging warning + decode ceiling on active weights | SHIPPED | `qwen3-30b-a3b` registered; `estimate_fit` reports active/resident/ceiling. KV-type options, GPU offload, prompt-lookup decoding PLANNED |
 | SIMD / native kernels | PLANNED | Research track; decode is bandwidth-bound |
 | Training (LoRA/QLoRA) | Code present, not evaluated | Optional `[train]` extra |
 
