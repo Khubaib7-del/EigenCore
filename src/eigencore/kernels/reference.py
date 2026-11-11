@@ -45,6 +45,10 @@ class BackendProtocol(Protocol):
         self, packed: np.ndarray, scales: np.ndarray | None = None
     ) -> np.ndarray: ...
 
+    def dequantize_q4_k(self, blocks: np.ndarray | bytes) -> np.ndarray: ...
+
+    def quantized_dot_q4_k(self, packed: np.ndarray | bytes, vec: np.ndarray) -> float: ...
+
     def quantized_dot_q8_0(
         self, packed: np.ndarray, vec: np.ndarray, group_size: int = Q8_0_BLOCK_SIZE
     ) -> float: ...
@@ -152,3 +156,13 @@ class ScalarBackend:
         self, packed: np.ndarray, vec: np.ndarray, group_size: int = Q8_0_BLOCK_SIZE
     ) -> float:
         return quantized_dot_q8_0(packed, vec, group_size)
+
+    def dequantize_q4_k(self, blocks: np.ndarray | bytes) -> np.ndarray:
+        from eigencore.kernels.q4k import dequantize_q4_k
+
+        return dequantize_q4_k(blocks)
+
+    def quantized_dot_q4_k(self, packed: np.ndarray | bytes, vec: np.ndarray) -> float:
+        from eigencore.kernels.q4k import quantized_dot_q4_k
+
+        return quantized_dot_q4_k(packed, vec)

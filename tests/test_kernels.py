@@ -133,3 +133,32 @@ def test_scalar_backend_implements_protocol():
     blocks = np.concatenate([scales.astype(np.float32)[:, None], quants], axis=1)
     np.testing.assert_allclose(backend.dequantize_q8_0(blocks), dequantize_q8_0(blocks))
     assert backend.name == "scalar-numpy"
+
+
+def test_q4_k_bitexact_vs_gguf_py():
+    gguf = pytest.importorskip("gguf")
+    from gguf.quants import dequantize as gguf_dequantize
+
+    from eigencore.kernels import Q4_K_BLOCK_BYTES, QK_K, dequantize_q4_k, quantized_dot_q4_k
+
+    rng_local = np.random.default_rng(11)
+    n = 6
+    raw = rng_local.integers(0, 256, n * Q4_K_BLOCK_BYTES, dtype=np.uint8).tobytes()
+    ours = dequantize_q4_k(raw)
+    ref = gguf_dequantize(np.frombuffer(raw, dtype=np.uint8), gguf.GGMLQuantizationType.Q4_K)
+    np.testing.assert_array_equal(ours, ref.astype(np.float32))
+
+    vec = rng_local.standard_normal(n * QK_K).astype(np.float32)
+    got = quantized_dot_q4_k(raw, vec)
+    expected = float(np.dot(ref.astype(np.float32), vec))
+    assert abs(got - expected) < 1e-2 * max(1.0, abs(expected))
+
+
+def test_q4_k_raw_length_validation():
+    from eigencore.kernels import dequantize_q4_k
+
+    try:
+        dequantize_q4_k(b"\x00" * 7)
+        raise AssertionError("should reject bad length")
+    except ValueError:
+        pass
