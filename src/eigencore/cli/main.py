@@ -240,6 +240,11 @@ def download(name: str):
     default=0,
     help="Layers to offload to GPU (0 = CPU-only; auto-recommended when a GPU is detected and flag omitted)",
 )
+@click.option(
+    "--pld",
+    is_flag=True,
+    help="Enable prompt-lookup decoding (copies prompt-verbatim spans; default OFF until measured)",
+)
 def run(
     model: str | None,
     prompt: str,
@@ -250,6 +255,7 @@ def run(
     kv_type: str,
     no_flash: bool,
     gpu_layers: int,
+    pld: bool,
 ):
     """Run inference with a prompt."""
     hw = profile_hardware()
@@ -289,6 +295,7 @@ def run(
         engine.load()
 
     config = GenerationConfig(
+        prompt_lookup=pld,
         max_tokens=max_tokens,
         temperature=temperature,
         stream=not no_stream,
@@ -336,6 +343,11 @@ def run(
     default=0,
     help="Layers to offload to GPU (0 = CPU-only; auto-recommended when a GPU is detected and flag omitted)",
 )
+@click.option(
+    "--pld",
+    is_flag=True,
+    help="Enable prompt-lookup decoding (copies prompt-verbatim spans; default OFF until measured)",
+)
 def chat(
     model: str | None,
     max_tokens: int,
@@ -345,6 +357,7 @@ def chat(
     kv_type: str,
     no_flash: bool,
     gpu_layers: int,
+    pld: bool,
 ):
     """Start an interactive chat session (streaming, slash commands, plain mode available)."""
     hw = profile_hardware()
@@ -386,7 +399,10 @@ def chat(
         geometry=info.geometry if info else None,
         policy_label="read-only (policy engine attached in P4)",
         cfg=ChatUiConfig(
-            plain=plain or not sys.stdin.isatty(), max_tokens=max_tokens, temperature=temperature
+            plain=plain or not sys.stdin.isatty(),
+            max_tokens=max_tokens,
+            temperature=temperature,
+            prompt_lookup=pld,
         ),
     )
     ui.run()
