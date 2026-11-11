@@ -7,10 +7,10 @@ from eigencore.fit.estimator import (
     FitEstimate,
     FitVerdict,
     ModelGeometry,
+    decode_ceiling_tok_s,
     estimate_fit,
     estimate_kv_cache_gib,
     estimate_weights_gib,
-    decode_ceiling_tok_s,
     max_context_for_budget,
 )
 from eigencore.fit.gguf_meta import GGUFModelInfo, read_gguf_model_info
