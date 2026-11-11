@@ -382,6 +382,42 @@ def chat(
     model_path = spec.local_path(registry.cache_dir)
     if gpu_layers == 0 and hw.available_vram_gb > 0:
         _, _, gpu_layers = _fit_for_spec(spec, hw, registry, kv_quant=kv_type)
+
+    # SSD-paging warning before load when the file exceeds free RAM (TUI.md 3.4)
+    est0, _, _ = _fit_for_spec(spec, hw, registry, kv_quant=kv_type)
+    if not est0.resident:
+        console.print(
+            f"[yellow]WARNING:[/] {spec.name} file ~{est0.weights_gb:.1f} GiB > free RAM "
+            f"{est0.available_ram_gb:.1f} GiB — loading will page from SSD (severe slowdown).[/]"
+        )
+
+    # First-run onboarding: only when interactive and not yet onboarded
+    from eigencore.tui.onboarding import load_config, run_onboarding, save_config
+
+    cfg_store = load_config()
+    interactive = sys.stdin.isatty() and not plain
+    if interactive and not cfg_store.get("onboarded") and model is None:
+        estimates = {
+            m.name: _fit_for_spec(m, hw, registry, kv_quant=kv_type)[0]
+            for m in registry.list_models()
+        }
+        chosen = run_onboarding(
+            hw,
+            registry,
+            estimates,
+            ask=lambda prompt="": console.input(prompt),
+            out=lambda line="": console.print(line),
+        )
+        if chosen is not None and chosen.name != spec.name:
+            spec = chosen
+            if not registry.is_downloaded(spec):
+                console.print(f"Downloading [cyan]{spec.name}[/] ({spec.size_gb:.1f} GB)...")
+                registry.download(spec)
+            model_path = spec.local_path(registry.cache_dir)
+        cfg_store["onboarded"] = True
+        cfg_store["model"] = spec.name
+        save_config(cfg_store)
+
     engine = InferenceEngine(
         model_path, hw, spec, kv_type=kv_type, flash_attn=not no_flash, n_gpu_layers=gpu_layers
     )
@@ -390,16 +426,19 @@ def chat(
         engine.load()
 
     from eigencore.tui.chat import ChatUI, ChatUiConfig
+    from eigencore.tui.theme import probe_terminal
 
     info = read_gguf_model_info(model_path)
+    caps = probe_terminal(force_plain=plain)
     ui = ChatUI(
         engine,
         spec,
         hw,
         geometry=info.geometry if info else None,
         policy_label="read-only (policy engine attached in P4)",
+        caps=caps,
         cfg=ChatUiConfig(
-            plain=plain or not sys.stdin.isatty(),
+            plain=caps.plain,
             max_tokens=max_tokens,
             temperature=temperature,
             prompt_lookup=pld,

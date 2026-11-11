@@ -29,6 +29,7 @@ from eigencore.engine.inference import GenerationConfig, InferenceEngine
 from eigencore.fit import ModelGeometry, estimate_fit
 from eigencore.hal.profiler import HardwareProfile
 from eigencore.models.registry import ModelSpec
+from eigencore.tui.theme import TerminalCaps, probe_terminal
 
 SLASH_COMMANDS = ("/help", "/model", "/context", "/clear", "/approvals", "/exit")
 
@@ -63,6 +64,7 @@ class ChatUI:
         policy_label: str = "no tools",
         approval_card=None,  # callable(tool_name, args) -> bool; renders a card and collects the answer
         cfg: ChatUiConfig | None = None,
+        caps: TerminalCaps | None = None,
         out=None,
         inp=None,
     ):
@@ -73,6 +75,9 @@ class ChatUI:
         self.policy_label = policy_label
         self.approval_card = approval_card
         self.cfg = cfg or ChatUiConfig()
+        self.caps = caps or probe_terminal(force_plain=self.cfg.plain)
+        if self.caps.plain:
+            self.cfg.plain = True
         self._out = out  # file-like for output (tests); None → rich console
         self._inp = inp  # callable returning next line (tests); None → console.input
         self.messages: list[dict[str, str]] = []
@@ -119,8 +124,14 @@ class ChatUI:
             self.geometry,
         )
         verdict = est.verdict.value.replace("_", " ")
+        prefix = "eigencore chat"
+        if self.caps.tier == "narrow":
+            return (
+                f"{prefix} | {self.spec.name} {self.spec.quant} | ctx {self.profile.recommended_context_length} | "
+                f"{verdict}"
+            )
         return (
-            f"eigencore chat | {self.spec.name} ({self.spec.params_b:.1f}B {self.spec.quant}) | "
+            f"{prefix} | {self.spec.name} ({self.spec.params_b:.1f}B {self.spec.quant}) | "
             f"ctx {self.profile.recommended_context_length} | "
             f"fit: {verdict} (headroom {est.headroom_gb:.1f} GB) | tools: {self.policy_label}"
         )
