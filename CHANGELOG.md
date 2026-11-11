@@ -4,6 +4,8 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-11-11
+
 ### Added
 - Full-screen chat TUI for `eigencore chat` on a TTY (zero new dependencies — Rich Live + stdlib key reader): ASCII banner with reveal animation, first-run onboarding, then a full-screen app with header (model, context bar, fit, last measured tok/s), streaming transcript, editable input with history and slash-command Tab completion. Slash commands: `/help /models /model /download <name> /delete <name> /context /clear /tokens /temp /exit`. The `/models` picker switches the active model (engine reload), downloads (`d`), and deletes (`x`, with confirmation) models from disk. Ctrl-C interrupts generation without losing history; `--plain`/non-TTY keeps the previous line-mode UI.
 - `src/eigencore/tui/app.py` (ChatApp, InputLine, overlays), `src/eigencore/tui/keys.py` (cross-platform key reader), `src/eigencore/tui/banner.py` (banner art + reveal).
