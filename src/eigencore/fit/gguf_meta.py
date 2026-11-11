@@ -73,6 +73,8 @@ def _from_gguf_package(path: Path) -> GGUFModelInfo | None:
         hidden_size=arch_int("embedding_length"),
         num_attention_heads=arch_int("attention.head_count"),
         num_kv_heads=arch_int("attention.head_count_kv"),
+        expert_count=arch_int("expert_count"),
+        expert_used_count=arch_int("expert_used_count"),
     )
     ctx = arch_int("context_length") or arch_int("attention.context_length")
     params = get("general.parameter_count")
@@ -108,6 +110,8 @@ def _from_llama_metadata(path: Path) -> GGUFModelInfo | None:
         hidden_size=m("embedding_length"),
         num_attention_heads=m("attention.head_count"),
         num_kv_heads=m("attention.head_count_kv"),
+        expert_count=m("expert_count"),
+        expert_used_count=m("expert_used_count"),
     )
     return GGUFModelInfo(
         architecture=arch,

@@ -4,6 +4,9 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Added
+- MoE-aware fit (Stage C slice 1): `ModelGeometry.expert_count`/`expert_used_count` parsed from GGUF (`{arch}.expert_count*`); `ModelSpec.experts_total`/`experts_active` with `is_moe`; registry gains `qwen3-30b-a3b` (Qwen3-30B-A3B, 128 experts / 8 active, Q4_K_M ≈ 18.6 GiB). `estimate_fit` now reports `active_weights_gb`, `resident`, and a `decode_ceiling_tok_s` = bandwidth ÷ active bytes-per-token (ceiling, not a measurement); non-resident models get an explicit mmap/SSD-paging warning. CLI shows MoE active params, resident/paging status, and the ceiling. No dense-model SSD streaming built, per the review.
+
 ### Fixed
 - Chat TUI: model output is sanitized (ANSI/OSC/CSI stripped, newline/tab kept) and Rich-escaped; Ctrl-C mid-stream keeps partial history without regenerating; stream errors keep the partial response and never double-print.
 - Benchmark harness: completion tokens counted via the backend tokenizer (chars/4 fallback only when no tokenizer), and the summary reports cold (first run per case) vs warm runs separately instead of one mixed median.

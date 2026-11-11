@@ -25,6 +25,12 @@ class ModelSpec:
     task: str
     context_length: int
     description: str
+    experts_total: int | None = None  # MoE: total experts per MoE layer
+    experts_active: int | None = None  # MoE: experts activated per token
+
+    @property
+    def is_moe(self) -> bool:
+        return self.experts_total is not None and self.experts_active is not None
 
     def local_path(self, cache_dir: Path) -> Path:
         safe_name = self.repo_id.replace("/", "--")
@@ -98,6 +104,19 @@ REGISTRY: list[ModelSpec] = [
         task="general",
         context_length=4096,
         description="Large 7B model. Best quality but needs 8GB+ free RAM.",
+    ),
+    ModelSpec(
+        name="qwen3-30b-a3b",
+        repo_id="Qwen/Qwen3-30B-A3B-GGUF",
+        filename="Qwen3-30B-A3B-Q4_K_M.gguf",
+        params_b=30.5,
+        quant="Q4_K_M",
+        size_gb=18.6,
+        task="general",
+        context_length=32768,
+        description="MoE 30B (3.3B active/token). Decode is bandwidth-bound on ACTIVE weights; full file must be resident or mmap-paged.",
+        experts_total=128,
+        experts_active=8,
     ),
 ]
 
