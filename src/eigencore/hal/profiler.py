@@ -47,6 +47,9 @@ class HardwareProfile:
     estimated_tokens_per_sec: float
     recommended_threads: int
     recommended_context_length: int
+    gpu_name: str | None = None
+    total_vram_gb: float = 0.0  # 0 = no GPU / unknown
+    available_vram_gb: float = 0.0
     notes: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
@@ -59,6 +62,11 @@ class HardwareProfile:
             f"ISA: {', '.join(isa_names) if isa_names else 'baseline'}",
             f"RAM: {self.available_ram_gb:.1f} / {self.total_ram_gb:.1f} GB available",
             f"Bandwidth: ~{self.estimated_bandwidth_gbps:.1f} GB/s",
+            (
+                f"GPU: {self.gpu_name} | VRAM: {self.available_vram_gb:.1f} / {self.total_vram_gb:.1f} GB available"
+                if self.gpu_name
+                else "GPU: none detected (CPU-only mode)"
+            ),
             "",
             f"Max model: ~{self.max_model_params_b:.1f}B params at {self.optimal_quantization}",
             f"Est. speed: ~{self.estimated_tokens_per_sec:.0f} tok/s",
@@ -263,6 +271,7 @@ def profile_hardware() -> HardwareProfile:
         isa = InstructionSet.NONE
 
     mem = psutil.virtual_memory()
+    gpu_name, total_vram_gb, available_vram_gb = _detect_gpu()
     total_ram_gb = mem.total / (1024**3)
     available_ram_gb = mem.available / (1024**3)
 
@@ -296,5 +305,45 @@ def profile_hardware() -> HardwareProfile:
         estimated_tokens_per_sec=est_tps,
         recommended_threads=threads,
         recommended_context_length=ctx,
+        gpu_name=gpu_name,
+        total_vram_gb=total_vram_gb,
+        available_vram_gb=available_vram_gb,
         notes=notes,
     )
+
+
+def _detect_gpu() -> tuple[str | None, float, float]:
+    """Best-effort GPU/VRAM detection.
+
+    Tries NVIDIA via `nvidia-smi` (name + memory), else returns no GPU.
+    Never raises; unknown hardware just yields zeros and a note.
+    """
+    import shutil
+    import subprocess
+
+    if not shutil.which("nvidia-smi"):
+        return None, 0.0, 0.0
+    try:
+        out = (
+            subprocess.run(
+                [
+                    "nvidia-smi",
+                    "--query-gpu=name,memory.total,memory.used",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=True,
+            )
+            .stdout.strip()
+            .splitlines()
+        )
+        if not out:
+            return None, 0.0, 0.0
+        name, total_mb, used_mb = out[0].split(",")
+        total_gb = float(total_mb) / 1024.0
+        used_gb = float(used_mb) / 1024.0
+        return name.strip(), total_gb, max(total_gb - used_gb, 0.0)
+    except Exception:
+        return None, 0.0, 0.0
