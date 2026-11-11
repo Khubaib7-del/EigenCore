@@ -405,6 +405,7 @@ def chat(
             prompt_lookup=pld,
         ),
     )
+    ui.approval_card = ui.render_approval_card
     ui.run()
 
     engine.unload()

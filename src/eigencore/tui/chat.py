@@ -30,7 +30,7 @@ from eigencore.fit import ModelGeometry, estimate_fit
 from eigencore.hal.profiler import HardwareProfile
 from eigencore.models.registry import ModelSpec
 
-SLASH_COMMANDS = ("/help", "/model", "/context", "/clear", "/exit")
+SLASH_COMMANDS = ("/help", "/model", "/context", "/clear", "/approvals", "/exit")
 
 # Strip ANSI/OSC/CSI control sequences but keep newline/tab — model output is
 # untrusted and must never drive the terminal or Rich markup.
@@ -61,6 +61,7 @@ class ChatUI:
         profile: HardwareProfile,
         geometry: ModelGeometry | None = None,
         policy_label: str = "no tools",
+        approval_card=None,  # callable(tool_name, args) -> bool; renders a card and collects the answer
         cfg: ChatUiConfig | None = None,
         out=None,
         inp=None,
@@ -70,6 +71,7 @@ class ChatUI:
         self.profile = profile
         self.geometry = geometry
         self.policy_label = policy_label
+        self.approval_card = approval_card
         self.cfg = cfg or ChatUiConfig()
         self._out = out  # file-like for output (tests); None → rich console
         self._inp = inp  # callable returning next line (tests); None → console.input
@@ -161,6 +163,11 @@ class ChatUI:
         elif cmd == "/clear":
             self.messages.clear()
             self._print("history cleared")
+        elif cmd == "/approvals":
+            self._print(
+                f"approval mode: {getattr(self, 'approval_mode', 'ask')}; "
+                "tool calls require approval before running (enforced in the executor, not the UI)"
+            )
         elif cmd.startswith("/"):
             suggestion = difflib.get_close_matches(cmd, SLASH_COMMANDS, n=1)
             hint = f" Did you mean {suggestion[0]}?" if suggestion else ""
@@ -218,3 +225,30 @@ class ChatUI:
             tps = n / elapsed if elapsed > 0 else 0.0
             label = "interrupted" if interrupted else "measured this turn"
             self._print(f"\n[{n} tokens in {elapsed:.1f}s, {tps:.1f} tok/s ({label})]")
+
+    def render_approval_card(self, tool_name: str, args: dict) -> bool:
+        """Render the approval card and collect y/n. Default denies."""
+        from eigencore.agent.policy import redact_args
+
+        safe_args = redact_args(args)
+        lines = [
+            "┌ Tool request ─────────────────────────",
+            f"│ tool: {tool_name}",
+            f"│ args: {safe_args}",
+            "│ [y] approve once   [s] approve session   [n] deny",
+            "└──────────────────────────────────────────",
+        ]
+        if self.cfg.plain or self._console is None:
+            for line in lines:
+                self._print(line)
+        else:
+            from rich.panel import Panel
+
+            self._console.print(
+                Panel("\n".join(lines[1:-1]), title="[bold]Tool request[/]", border_style="yellow")
+            )
+        try:
+            answer = self._input("approve? [y/s/n]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return False
+        return answer in ("y", "s")

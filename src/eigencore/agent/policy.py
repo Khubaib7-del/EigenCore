@@ -17,6 +17,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
@@ -205,3 +206,57 @@ def default_policy(
         workspace_root=workspace_root,
         audit_log=audit_log,
     )
+
+
+class ApprovalMode(Enum):
+    """How a user approves a tool call. Enforcement stays in the policy engine;
+    this only records intent for the UI to ask."""
+
+    ASK = auto()  # ask every time (default)
+    SESSION = auto()  # approve once, allow same tool+capability for the session
+    DENY = auto()  # deny this call
+
+
+@dataclass
+class ApprovalRequest:
+    """A pending tool call awaiting user approval."""
+
+    tool_name: str
+    capability: str
+    args: dict[str, Any]  # already redacted for display
+    reason: str
+
+    def summary(self) -> str:
+        args = ", ".join(f"{k}={v!r}" for k, v in self.args.items())
+        return f"{self.tool_name}({args}) [{self.capability}] — {self.reason}"
+
+
+class ApprovalManager:
+    """Tracks approvals. The executor consults this AFTER policy passes but
+    BEFORE running; the UI renders the pending request and calls
+    `record()`. A session approval covers the same tool name only."""
+
+    def __init__(self, mode: ApprovalMode = ApprovalMode.ASK, audit_log: AuditLog | None = None):
+        self.mode = mode
+        self._session_approved: set[str] = set()
+        self.audit_log = audit_log
+
+    def needs_approval(self, tool_name: str) -> bool:
+        if self.mode is ApprovalMode.ASK:
+            return tool_name not in self._session_approved
+        return False
+
+    def record(self, tool_name: str, approved: bool, session: bool = False) -> None:
+        if approved and session:
+            self._session_approved.add(tool_name)
+        if self.audit_log is not None:
+            self.audit_log.record(
+                AuditEntry(
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    tool_name=tool_name,
+                    capability="approval",
+                    args={"approved": approved, "session": session},
+                    decision="approved" if approved else "denied",
+                    reason="user approval",
+                )
+            )

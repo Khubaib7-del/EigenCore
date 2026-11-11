@@ -11,7 +11,13 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any
 
-from eigencore.agent.policy import PolicyEngine, default_policy, redact_text, resolve_in_workspace
+from eigencore.agent.policy import (
+    ApprovalManager,
+    PolicyEngine,
+    default_policy,
+    redact_text,
+    resolve_in_workspace,
+)
 from eigencore.agent.tool import Tool, ToolRegistry
 
 
@@ -89,6 +95,8 @@ class ToolExecutor:
         max_memory_mb: int = 4096,
         max_file_size_mb: int = 64,
         max_processes: int = 0,  # 0 = do not set RLIMIT_NPROC (breaks library imports); >0 enables it
+        approver: ApprovalManager | None = None,
+        ask_fn=None,  # callable(tool_name, args) -> bool; required when approver needs a human
     ):
         self.registry = registry
         self.timeout = timeout
@@ -100,6 +108,8 @@ class ToolExecutor:
         self.max_memory_mb = max_memory_mb
         self.max_file_size_mb = max_file_size_mb
         self.max_processes = max_processes
+        self.approver = approver
+        self.ask_fn = ask_fn
         self.log = ExecutionLog()
 
     def execute(self, tool_name: str, args: dict[str, Any]) -> ToolResult:
@@ -127,6 +137,28 @@ class ToolExecutor:
                 entry = self.policy.audit_log.entries[-1]
                 entry.status = ToolStatus.POLICY_DENIED.name
             return result
+
+        # Approval gate: after policy, before validation/running. Enforcement
+        # is here in code; the UI only renders and collects the answer.
+        if self.approver is not None and self.approver.needs_approval(tool_name):
+            if self.ask_fn is None:
+                result = ToolResult(
+                    tool_name=tool_name,
+                    status=ToolStatus.POLICY_DENIED,
+                    error="Denied: approval required but no approval callback is attached",
+                )
+                self.log.add(result)
+                return result
+            approved = bool(self.ask_fn(tool_name, args))
+            self.approver.record(tool_name, approved)
+            if not approved:
+                result = ToolResult(
+                    tool_name=tool_name,
+                    status=ToolStatus.POLICY_DENIED,
+                    error="Denied by user approval",
+                )
+                self.log.add(result)
+                return result
 
         try:
             validated_args = tool.validate_args(args)

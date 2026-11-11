@@ -3,6 +3,9 @@
 from eigencore.agent.executor import ToolExecutor, ToolResult
 from eigencore.agent.grammar import GBNFBuilder
 from eigencore.agent.policy import (
+    ApprovalManager,
+    ApprovalMode,
+    ApprovalRequest,
     AuditEntry,
     AuditLog,
     PolicyDecision,
@@ -17,6 +20,9 @@ from eigencore.agent.react import AgentResult, AgentStep, ReActAgent, StepKind
 from eigencore.agent.tool import Tool, ToolParam, ToolRegistry
 
 __all__ = [
+    "ApprovalManager",
+    "ApprovalMode",
+    "ApprovalRequest",
     "AgentResult",
     "AgentStep",
     "AuditEntry",
