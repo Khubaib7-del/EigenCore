@@ -22,7 +22,13 @@ from rich.panel import Panel
 from rich.table import Table
 
 from eigencore.engine.inference import GenerationConfig, InferenceEngine
-from eigencore.fit import FitVerdict, estimate_fit, max_context_for_budget, read_gguf_model_info
+from eigencore.fit import (
+    FitVerdict,
+    estimate_fit,
+    gpu_layers_for_vram,
+    max_context_for_budget,
+    read_gguf_model_info,
+)
 from eigencore.hal.profiler import profile_hardware
 from eigencore.models.registry import ModelRegistry
 
@@ -51,10 +57,17 @@ def _fit_for_spec(spec, hw, registry, kv_quant: str = "fp16"):
         file_size_bytes=file_size,
         bandwidth_gbps=hw.estimated_bandwidth_gbps,
         kv_quant=kv_quant,
+        available_vram_gb=hw.available_vram_gb,
         active_params_b=(
             spec.params_b * spec.experts_active / spec.experts_total if spec.is_moe else None
         ),
     )
+    gpu_layers = 0
+    if hw.available_vram_gb > 0 and geometry is not None and geometry.num_layers and file_size:
+        layer_bytes = int(file_size / geometry.num_layers)
+        gpu_layers = gpu_layers_for_vram(
+            geometry.num_layers, layer_bytes, hw.available_vram_gb, est.kv_cache_gb
+        )
     max_ctx = max_context_for_budget(
         spec.params_b,
         spec.quant,
@@ -63,7 +76,7 @@ def _fit_for_spec(spec, hw, registry, kv_quant: str = "fp16"):
         file_size_bytes=file_size,
         model_context_limit=ctx_limit,
     )
-    return est, max_ctx
+    return est, max_ctx, gpu_layers
 
 
 @click.group()
@@ -89,7 +102,7 @@ def profile():
     console.print(
         f"  Size: {rec.size_gb:.1f} GB | Params: {rec.params_b:.1f}B | Quant: {rec.quant}"
     )
-    est, max_ctx = _fit_for_spec(rec, hw, registry)
+    est, max_ctx, gpu_layers = _fit_for_spec(rec, hw, registry)
     verdict_style = {
         FitVerdict.FITS_WITH_MARGIN: "green",
         FitVerdict.TIGHT: "yellow",
@@ -111,6 +124,11 @@ def profile():
         console.print(
             f"  Decode ceiling estimate: ~{est.decode_ceiling_tok_s:.1f} tok/s "
             f"(bandwidth / active bytes per token — ceiling, not a measurement)"
+        )
+    if gpu_layers > 0:
+        console.print(
+            f"  [dim]GPU offload recommendation: {gpu_layers} layers to "
+            f"{hw.gpu_name} ({hw.available_vram_gb:.1f} GiB VRAM free)[/]"
         )
     for note in est.notes:
         console.print(f"    [dim]* {note}[/]")
@@ -148,7 +166,7 @@ def models(task: str | None):
     table.add_column("Description")
 
     for m in sorted(available, key=lambda x: x.params_b):
-        est, _ = _fit_for_spec(m, hw, registry)
+        est, _, _ = _fit_for_spec(m, hw, registry)
         downloaded = registry.is_downloaded(m)
         if est.verdict == FitVerdict.FITS_WITH_MARGIN:
             fits_label, fits_style = "fits", "green"
@@ -217,6 +235,11 @@ def download(name: str):
     help="KV cache type (q8_0 halves KV memory)",
 )
 @click.option("--no-flash", is_flag=True, help="Disable flash attention")
+@click.option(
+    "--gpu-layers",
+    default=0,
+    help="Layers to offload to GPU (0 = CPU-only; auto-recommended when a GPU is detected and flag omitted)",
+)
 def run(
     model: str | None,
     prompt: str,
@@ -226,6 +249,7 @@ def run(
     no_stream: bool,
     kv_type: str,
     no_flash: bool,
+    gpu_layers: int,
 ):
     """Run inference with a prompt."""
     hw = profile_hardware()
@@ -253,7 +277,13 @@ def run(
         f"[dim]Model: {spec.name} | Threads: {hw.recommended_threads} | Ctx: {hw.recommended_context_length}[/]"
     )
 
-    engine = InferenceEngine(model_path, hw, spec, kv_type=kv_type, flash_attn=not no_flash)
+    if gpu_layers == 0 and hw.available_vram_gb > 0:
+        _, _, gpu_layers = _fit_for_spec(spec, hw, registry, kv_quant=kv_type)
+    if gpu_layers > 0:
+        console.print(f"[dim]Offloading {gpu_layers} layers to {hw.gpu_name}[/]")
+    engine = InferenceEngine(
+        model_path, hw, spec, kv_type=kv_type, flash_attn=not no_flash, n_gpu_layers=gpu_layers
+    )
 
     with console.status("[bold cyan]Loading model..."):
         engine.load()
@@ -301,6 +331,11 @@ def run(
     help="KV cache type (q8_0 halves KV memory)",
 )
 @click.option("--no-flash", is_flag=True, help="Disable flash attention")
+@click.option(
+    "--gpu-layers",
+    default=0,
+    help="Layers to offload to GPU (0 = CPU-only; auto-recommended when a GPU is detected and flag omitted)",
+)
 def chat(
     model: str | None,
     max_tokens: int,
@@ -309,6 +344,7 @@ def chat(
     plain: bool,
     kv_type: str,
     no_flash: bool,
+    gpu_layers: int,
 ):
     """Start an interactive chat session (streaming, slash commands, plain mode available)."""
     hw = profile_hardware()
@@ -331,7 +367,11 @@ def chat(
             sys.exit(1)
 
     model_path = spec.local_path(registry.cache_dir)
-    engine = InferenceEngine(model_path, hw, spec, kv_type=kv_type, flash_attn=not no_flash)
+    if gpu_layers == 0 and hw.available_vram_gb > 0:
+        _, _, gpu_layers = _fit_for_spec(spec, hw, registry, kv_quant=kv_type)
+    engine = InferenceEngine(
+        model_path, hw, spec, kv_type=kv_type, flash_attn=not no_flash, n_gpu_layers=gpu_layers
+    )
 
     with console.status("[bold cyan]Loading model..."):
         engine.load()

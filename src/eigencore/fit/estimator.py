@@ -96,11 +96,31 @@ class FitEstimate:
     quant: str
     resident: bool  # file fully in RAM (False → mmap/SSD paging)
     decode_ceiling_tok_s: float | None  # bandwidth / active bytes-per-token ceiling
+    gpu_layers: int | None = None  # layers offloaded to GPU, if a VRAM budget was given
+    gpu_weights_gb: float = 0.0  # share of weights resident in VRAM
     notes: list[str] = field(default_factory=list)
 
     @property
     def fits(self) -> bool:
         return self.verdict in (FitVerdict.FITS_WITH_MARGIN, FitVerdict.TIGHT)
+
+
+def gpu_layers_for_vram(
+    num_layers: int,
+    layer_bytes: int,
+    available_vram_gb: float,
+    kv_cache_gb: float = 0.0,
+    vram_reserve_gb: float = 1.0,
+) -> int:
+    """How many layers fit in VRAM: (vram - reserve - kv) / layer_bytes, capped at num_layers.
+
+    layer_bytes is the per-layer weight size (uniform approximation; real
+    per-layer sizes vary slightly). Returns 0 when nothing fits.
+    """
+    if num_layers <= 0 or layer_bytes <= 0 or available_vram_gb <= 0:
+        return 0
+    budget_bytes = max((available_vram_gb - vram_reserve_gb - kv_cache_gb) * 1024**3, 0.0)
+    return min(num_layers, int(budget_bytes // layer_bytes))
 
 
 def estimate_weights_gib(
@@ -166,6 +186,7 @@ def estimate_fit(
     file_size_bytes: int | None = None,
     bandwidth_gbps: float | None = None,
     active_params_b: float | None = None,
+    available_vram_gb: float = 0.0,
 ) -> FitEstimate:
     """Full memory fit estimate (GiB) for loading + running a model at a context length.
 
@@ -219,6 +240,21 @@ def estimate_fit(
         active_gib = active_weights_gb if active_weights_gb is not None else weights_gb
         ceiling = decode_ceiling_tok_s(bandwidth_gbps, active_gib)
 
+    gpu_layers = None
+    gpu_weights_gb = 0.0
+    if available_vram_gb > 0 and geometry is not None and geometry.num_layers:
+        layer_bytes = int(weights_gb * 1024**3 / geometry.num_layers) if weights_gb > 0 else 0
+        gpu_layers = gpu_layers_for_vram(geometry.num_layers, layer_bytes, available_vram_gb, kv_gb)
+        gpu_weights_gb = gpu_layers * layer_bytes / 1024**3
+        if gpu_layers > 0:
+            notes.append(
+                f"GPU offload: ~{gpu_layers}/{geometry.num_layers} layers "
+                f"(≈{gpu_weights_gb:.1f} GiB) fit in {available_vram_gb:.1f} GiB VRAM; "
+                "rest stays in RAM"
+            )
+        else:
+            notes.append("VRAM present but too small for even one layer after reserve/KV")
+
     return FitEstimate(
         weights_gb=weights_gb,
         active_weights_gb=active_weights_gb,
@@ -232,6 +268,8 @@ def estimate_fit(
         quant=quant,
         resident=resident,
         decode_ceiling_tok_s=ceiling,
+        gpu_layers=gpu_layers,
+        gpu_weights_gb=gpu_weights_gb,
         notes=notes,
     )
 

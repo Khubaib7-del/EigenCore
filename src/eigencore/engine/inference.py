@@ -60,6 +60,7 @@ class InferenceEngine:
         model_spec: ModelSpec | None = None,
         kv_type: str = "fp16",
         flash_attn: bool = True,
+        n_gpu_layers: int = 0,
     ):
         self.model_path = model_path
         self.profile = profile
@@ -68,6 +69,9 @@ class InferenceEngine:
         # halves KV memory at a small quality cost) and flash attention.
         self.kv_type = kv_type
         self.flash_attn = flash_attn
+        # 0 = CPU-only (default, safe). Set from the fit estimator's
+        # gpu_layers_for_vram when a VRAM budget exists.
+        self.n_gpu_layers = n_gpu_layers
         self._llm = None
 
         self._layer_skipper: LayerSkipScheduler | None = None
@@ -98,7 +102,7 @@ class InferenceEngine:
             n_threads=n_threads,
             n_threads_batch=n_threads,
             n_batch=n_batch,
-            n_gpu_layers=0,  # CPU-only
+            n_gpu_layers=self.n_gpu_layers,
             type_kv=_KV_TYPE_MAP[self.kv_type],
             flash_attn=self.flash_attn,
             verbose=False,
