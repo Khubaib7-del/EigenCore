@@ -22,8 +22,8 @@
 1. **Download** [EigenCore-Setup.exe](https://github.com/Khubaib7-del/EigenCore/releases/latest/download/EigenCore-Setup.exe).
 2. **Open it** and click through the installer. It installs just for you, so it doesn't ask for admin rights. If Windows shows "Windows protected your PC", click **More info**, then **Run anyway** (the app isn't code-signed yet).
 3. **Start EigenCore** from the Start menu.
-4. Go to **Models**, pick one and click **Download**. `tinyllama-1.1b` (0.7 GB) is a good first try.
-5. Go back to **Chat**, pick the model at the top and start typing.
+4. Go to **Models**, pick one and click **Download**, then **Use**. `tinyllama-1.1b` (0.7 GB) is a good first try.
+5. Go back to **Chat** and start typing. You can switch models from the picker under the message box.
 
 **Updating:** click **Update** at the bottom of the sidebar when a new version is out. EigenCore downloads it, installs it over the old one and reopens. Your downloaded models stay where they are.
 
@@ -38,7 +38,8 @@ Download [EigenCore.exe](https://github.com/Khubaib7-del/EigenCore/releases/late
 ## What to expect
 
 - **Which models will run?** Open the **Profile** tab. It reads your CPU and memory, tells you the largest model size it recommends, and the Models tab marks each model as fits, tight or does not fit.
-- **How fast?** Small models (1–3B) are the quickest. Bigger models get slower on a normal CPU, because every word needs the whole model read from memory. Speeds shown in the app are estimates until you measure your own machine.
+- **How fast?** Small models (1–3B) are the quickest. Bigger models get slower on a normal CPU, because every word needs the whole model read from memory. The speed under each reply (and in **Monitor**) is measured on your machine; the numbers in **Profile** are estimates.
+- **Looks different?** Version 0.4.6 has a new design. It uses Microsoft Edge WebView2, which comes with Windows 11 and most Windows 10 PCs. If it's missing, EigenCore opens in its previous design instead, and everything still works.
 - **Privacy:** prompts and replies never leave your computer. The internet is only used to download models and check for updates.
 
 ## Use it from the terminal (Windows, macOS, Linux)
