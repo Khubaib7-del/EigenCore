@@ -4,6 +4,9 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Added
+- `docs/PROJECT_JOURNEY.md`: a plain-language, detailed account of the project — what EigenCore is, the ordered journey (honesty review, packaging, Windows fixes, releases 0.4.0–0.4.5, terminal TUI, desktop app + installer + in-app updater), analysis conclusions, current state, full architecture and release pipeline, and a glossary for every technical term. Linked from `docs/INDEX.md`.
+
 ## [0.4.5] - 2026-11-13
 
 ### Added

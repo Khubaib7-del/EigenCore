@@ -1,5 +1,8 @@
 # EigenCore documentation
 
+## Start here
+- [Project journey & architecture in plain language](PROJECT_JOURNEY.md) — what we built, what we analyzed, where we are, full pipeline.
+
 ## Review (2026-11)
 
 - [Final report](review/FINAL_REPORT.md) — truth audit, 30–40B arithmetic, ranked issues, plan, owner benchmarks.
