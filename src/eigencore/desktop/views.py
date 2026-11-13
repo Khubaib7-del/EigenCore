@@ -362,11 +362,11 @@ class ModelsView(View):
         def do_delete(e):
             self.backend.delete(name)
             if self._page is not None:
-                self._page.close_dialog()
+                self._page.pop_dialog()
 
         def cancel(e):
             if self._page is not None:
-                self._page.close_dialog()
+                self._page.pop_dialog()
 
         if self._page is None:
             self.backend.delete(name)  # headless/tests: no dialog
@@ -379,7 +379,7 @@ class ModelsView(View):
                 ft.TextButton("Cancel", on_click=cancel),
             ],
         )
-        self._page.open(dlg)
+        self._page.show_dialog(dlg)  # Flet 1.x API (page.open was removed)
 
     def handle_event(self, ev) -> None:
         kind = ev[0]
