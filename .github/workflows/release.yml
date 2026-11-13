@@ -64,7 +64,7 @@ jobs:
             --icon src/eigencore/desktop/assets/eigencore.ico \
             --product-version "$VER" --file-version "$VER.0" \
             --add-data "src/eigencore/desktop/assets;assets" \
-            --pyinstaller-build-args "--collect-all" "llama_cpp" \
+            --pyinstaller-build-args=--collect-all=llama_cpp \
             --distpath dist
           ls -la dist/
 
