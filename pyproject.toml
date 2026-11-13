@@ -47,13 +47,16 @@ train = [
     "bitsandbytes>=0.43.0",
 ]
 desktop = [
-    # Windows-first desktop app (Flet 1.x). Pack with `flet pack` — see docs/desktop.md.
+    # Windows-first desktop app: the web UI (ui/) in a pywebview window
+    # (WebView2 on Windows), with the Flet 1.x app as fallback (--flet).
+    # Packaged with PyInstaller (packaging/windows/EigenCore.spec), see docs/desktop.md.
+    "pywebview>=5.0",
     "flet>=1.0,<2",
 ]
 
 [project.scripts]
 eigencore = "eigencore.cli.main:cli"
-eigencore-gui = "eigencore.desktop.app:cli"
+eigencore-gui = "eigencore.desktop.launcher:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/eigencore"]
