@@ -297,6 +297,38 @@ def test_backend_shares_cli_cache_dir():
     assert be  # placeholder no-op
 
 
+def test_app_main_runs_without_page_update_crash(monkeypatch, tmp_path):
+    """Regression for the packaged-exe crash: 'Control must be added to the
+    page first' — main() used to call content.update() before page.add().
+    Driving main() with a mock page must complete without raising."""
+    import asyncio
+    from unittest.mock import MagicMock
+
+    import eigencore.desktop.app as app_mod
+
+    registry = ModelRegistry(cache_dir=tmp_path / "models")
+    be = DesktopBackend(
+        registry=registry,
+        profile=_profile(),
+        engine_factory=lambda s: FakeEngine(),
+    )
+    monkeypatch.setattr(app_mod, "DesktopBackend", lambda: be)
+    monkeypatch.setattr(app_mod, "latest_release", lambda *a, **k: None)  # no network
+    # the event pump loops forever; don't let it hang asyncio.run's shutdown
+    monkeypatch.setattr(app_mod.asyncio, "create_task", lambda coro: coro.close())
+
+    page = MagicMock()
+    page.window = MagicMock()
+    added = []
+
+    def fake_add(*controls, **kwargs):
+        added.extend(controls)
+
+    page.add = fake_add
+    asyncio.run(app_mod.main(page))
+    assert added, "main() must add its layout to the page"
+
+
 def test_fit_chip_pairs_colour_with_word(tmp_path):
     be, registry, spec, _, _ = _backend(tmp_path)
     _mark_downloaded(registry, spec)

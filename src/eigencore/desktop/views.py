@@ -14,9 +14,13 @@ ASSETS = __import__("pathlib").Path(__file__).parent / "assets"
 
 def _safe_update(control) -> None:
     try:
+        if control.page is None:
+            return
         control.update()
+    except RuntimeError:
+        pass  # "Control must be added to the page first" — not mounted yet
     except Exception:
-        pass  # not mounted yet (headless tests)
+        pass
 
 
 def fit_chip(fit: str) -> ft.Control:
