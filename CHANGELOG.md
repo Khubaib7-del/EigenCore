@@ -7,6 +7,10 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 ## [0.4.4] - 2026-11-13
 
 ### Added
+- Release pipeline now builds the Windows desktop app on a `windows-latest` runner (`flet pack`) and attaches `EigenCore-win-x64.zip` to every GitHub release; README hero has a **Download for Windows** button linking to the latest release, and the quick start is exe-first for beginners (pip/CLI moved to a collapsible section).
+- Desktop app sidebar: brand logo on top, version + **Download** button at the bottom (opens the latest release, so updates are one click); the app checks GitHub once at startup and shows an update banner when a newer version exists (`latest_release`/`is_newer` in the desktop backend, covered by tests).
+
+### Added
 - Windows-first desktop app (`eigencore-gui` / `python -m eigencore.desktop`), new optional extra `eigencore[desktop]` (Flet 1.x, no new hard dependency). Dark theme from the design handbook; three screens — Chat (model dropdown, Markdown streaming, stop button, measured tok/s per turn), Models (fit chips, live download progress, delete-from-disk with confirm, active model protected), Profile (hardware + recommendation card, speeds labeled estimate). Logic lives in a UI-agnostic, headlessly-tested backend (`src/eigencore/desktop/backend.py`); 12 tests in `tests/test_desktop.py`. Packaging: `flet pack` on Windows — see `docs/desktop.md`.
 
 ## [0.4.3] - 2026-11-11

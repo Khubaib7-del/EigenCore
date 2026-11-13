@@ -18,9 +18,11 @@ tested without a display. Event tuples:
 from __future__ import annotations
 
 import contextlib
+import json
 import queue
 import threading
 import time
+import urllib.request
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -28,6 +30,38 @@ from eigencore.engine.inference import GenerationConfig, InferenceEngine
 from eigencore.fit import FitVerdict, estimate_fit, read_gguf_model_info
 from eigencore.hal.profiler import HardwareProfile, profile_hardware
 from eigencore.models.registry import ModelRegistry, ModelSpec
+
+REPO = "Khubaib7-del/EigenCore"
+RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
+API_LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
+
+
+def _http_get(url: str, timeout: float = 8.0) -> str:
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "eigencore-desktop", "Accept": "application/vnd.github+json"}
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode()
+
+
+def latest_release(fetcher: Optional[Callable[[str], str]] = None) -> Optional[dict]:
+    """Latest GitHub release: {"tag": "v0.4.4", "url": ...}; None on any error."""
+    fetcher = fetcher or _http_get
+    try:
+        data = json.loads(fetcher(API_LATEST))
+        return {"tag": data.get("tag_name", ""), "url": data.get("html_url", RELEASES_URL)}
+    except Exception:
+        return None
+
+
+def is_newer(tag: str, current_version: str) -> bool:
+    """True when release tag v0.4.5 is newer than current_version 0.4.4."""
+    try:
+        return tuple(int(p) for p in tag.lstrip("vV").split(".")) > tuple(
+            int(p) for p in current_version.split(".")
+        )
+    except ValueError:
+        return False
 
 
 @dataclass

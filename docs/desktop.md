@@ -7,6 +7,12 @@ always paired with a word).
 
 ## Run it
 
+Every `v*` release attaches a ready-to-run **`EigenCore-win-x64.zip`**
+(built on a Windows runner by `flet pack`) — the same link the README
+Download button points to. In-app, the sidebar **Download** button opens the
+latest release so updates are one click; the app also checks once at startup
+and shows a banner when a newer version exists.
+
 ```powershell
 # Windows (PowerShell), with the prebuilt CPU backend wheel:
 pip install "eigencore[desktop,inference]" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu

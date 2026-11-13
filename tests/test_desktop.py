@@ -9,7 +9,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from eigencore.desktop import theme as T
-from eigencore.desktop.backend import DesktopBackend, ModelRow, fit_label
+from eigencore.desktop.backend import (
+    RELEASES_URL,
+    DesktopBackend,
+    ModelRow,
+    fit_label,
+    is_newer,
+    latest_release,
+)
 from eigencore.desktop.views import ChatView, ModelsView, ProfileView, fit_chip
 from eigencore.engine.inference import GenerationConfig
 from eigencore.hal.profiler import HardwareProfile, InstructionSet
@@ -268,3 +275,29 @@ def test_fit_chip_pairs_colour_with_word(tmp_path):
     label = fit_label(spec, registry, be.profile)
     chip = fit_chip(label)
     assert chip.content.value  # word present, not colour-only
+
+
+# ----- release / update helpers ---------------------------------------------------
+
+
+def test_is_newer():
+    assert is_newer("v0.4.5", "0.4.4")
+    assert is_newer("0.5.0", "0.4.4")
+    assert not is_newer("v0.4.4", "0.4.4")
+    assert not is_newer("v0.4.3", "0.4.4")
+    assert not is_newer("garbage", "0.4.4")
+
+
+def test_latest_release_parses_tag_and_url():
+    payload = '{"tag_name": "v0.4.4", "html_url": "https://example/r/v0.4.4"}'
+    rel = latest_release(fetcher=lambda url: payload)
+    assert rel == {"tag": "v0.4.4", "url": "https://example/r/v0.4.4"}
+
+
+def test_latest_release_returns_none_on_error():
+    assert latest_release(fetcher=lambda url: (_ for _ in ()).throw(OSError("offline"))) is None
+    assert latest_release(fetcher=lambda url: "not json") is None
+
+
+def test_releases_url_points_at_repo():
+    assert "Khubaib7-del/EigenCore" in RELEASES_URL and "releases/latest" in RELEASES_URL
