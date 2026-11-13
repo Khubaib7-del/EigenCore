@@ -38,6 +38,7 @@ inference = [
 dev = [
     "pytest>=8.0.0",
     "ruff>=0.4.0,<0.15",
+    "flet>=1.0,<2",  # desktop app tests
 ]
 train = [
     "torch>=2.0.0",
@@ -45,9 +46,14 @@ train = [
     "transformers>=4.40.0",
     "bitsandbytes>=0.43.0",
 ]
+desktop = [
+    # Windows-first desktop app (Flet 1.x). Pack with `flet pack` — see docs/desktop.md.
+    "flet>=1.0,<2",
+]
 
 [project.scripts]
 eigencore = "eigencore.cli.main:cli"
+eigencore-gui = "eigencore.desktop.app:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/eigencore"]

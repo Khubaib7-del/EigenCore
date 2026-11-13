@@ -35,6 +35,8 @@ eigencore run --prompt "Explain binary search in one paragraph"
 eigencore chat            # add --plain for scripts or minimal terminals
 ```
 
+Windows desktop app: `pip install "eigencore[desktop,inference]" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu` then `eigencore-gui` (pack a .exe with `flet pack` — see [docs/desktop.md](docs/desktop.md)).
+
 Use `eigencore --help` for every command. `llama-cpp-python` may need a backend-specific install; see its documentation before assuming GPU acceleration (EigenCore currently loads models CPU-only).
 
 ## Status
