@@ -5,19 +5,36 @@ estimator as the CLI — one codebase, no WebView2 dependency. Dark theme from
 the design handbook (graphite ground, single indigo accent, state colours
 always paired with a word).
 
-## Run it
+## Install it (Windows)
 
-Every `v*` release attaches a ready-to-run, single-file **`EigenCore.exe`**
-(built on a Windows runner with `flet pack --onefile`). The README Download
-button and the in-app sidebar **Download** button both point at the direct
-asset URL (`releases/latest/download/EigenCore.exe`), so one click downloads
-the exe — no release-page hop, no zip. The app also checks once at startup and
-shows a banner when a newer version exists.
+Every `v*` release attaches two files:
+
+| File | What it is |
+| --- | --- |
+| `EigenCore-Setup.exe` | **Recommended.** Installer built with Inno Setup from `packaging/windows/EigenCore.iss`. Installs per user into `%LOCALAPPDATA%\Programs\EigenCore` (no admin prompt) and adds a Start menu entry plus an entry in Settings > Apps > Installed apps, with an uninstaller. |
+| `EigenCore.exe` | Portable single file. Nothing is installed, so it is not listed in Installed apps and cannot update itself. |
+
+Direct links that always point to the newest release:
+`https://github.com/Khubaib7-del/EigenCore/releases/latest/download/EigenCore-Setup.exe` and
+`.../latest/download/EigenCore.exe`.
+
+### Updates
+
+`desktop/updater.py` drives the sidebar button:
+
+1. At startup the app checks `api.github.com/repos/Khubaib7-del/EigenCore/releases/latest` once. The button shows **Up to date** or **Update to vX**.
+2. On click (installed copy only), it streams `EigenCore-Setup.exe` to a temp folder with a progress percentage, then starts it with `/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS`.
+3. The installer closes the app, installs over the same folder (same `AppId`, so Windows treats it as an update, not a second app) and reopens EigenCore.
+
+An install counts as "installed" when `unins000.exe` sits next to the running exe. For the portable exe and pip installs, the button opens the release page instead.
+
+`~/.eigencore` (models and settings) is never touched by install, update or uninstall.
+
+### From Python instead
 
 ```powershell
-# Windows (PowerShell), with the prebuilt CPU backend wheel:
 pip install "eigencore[desktop,inference]" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
-eigencore-gui            # or: python -m eigencore.desktop
+eigencore-gui
 ```
 
 ## Screens
@@ -37,24 +54,30 @@ eigencore-gui            # or: python -m eigencore.desktop
 - **Profile** — detected CPU/RAM/GPU and the recommendation card. Speed there
   is labeled *estimate* until you run `eigencore benchmark`.
 
-## Pack a Windows .exe
+## Build the Windows app yourself
 
-On the Windows machine:
+The release workflow (`.github/workflows/release.yml`, job `windows-app`) does exactly this on `windows-latest`. It uploads straight to the GitHub Release and uses no Actions artifacts.
 
 ```powershell
-pip install "flet>=1.0,<2" pyinstaller
-flet pack src/eigencore/desktop/app.py `
-  --name EigenCore --icon src/eigencore/desktop/assets/eigencore.ico `
-  --product-version 0.4.4 --file-version 0.4.4.0 --add-data "src/eigencore/desktop/assets;assets" `
-  --pyinstaller-build-args=--collect-all=llama_cpp
+pip install -e . "flet>=1.0,<2" "flet-cli>=1.0,<2" pyinstaller
+pip install "llama-cpp-python>=0.3.0" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+# 1. one-folder build for the installer -> dist\EigenCore\EigenCore.exe
+flet pack src/eigencore/desktop/app.py --onedir -y --name EigenCore `
+  --icon src/eigencore/desktop/assets/eigencore.ico `
+  --product-version 0.4.5 --file-version 0.4.5.0 `
+  --add-data "src/eigencore/desktop/assets;assets" `
+  --pyinstaller-build-args=--collect-all=llama_cpp --distpath dist
+
+# 2. installer -> dist\EigenCore-Setup.exe (Inno Setup 6)
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=0.4.5 "/DSourceDir=$PWD\dist\EigenCore" packaging\windows\EigenCore.iss
 ```
 
-Output is a single `dist/EigenCore.exe`. Inference still needs
-`llama-cpp-python` — bundle it by installing the prebuilt CPU wheel in the
-build environment and passing `--pyinstaller-build-args=--collect-all=llama_cpp`
-so PyInstaller collects the native `llama_cpp/lib` DLL (without it the exe
-starts but cannot load any model). The `=` form is required: argparse treats
-a leading `--` value as another flag.
+For the portable single file, run step 1 without `--onedir` and with `--distpath dist-portable`.
+
+`--collect-all=llama_cpp` bundles the native `llama_cpp/lib` DLL. Without it, the app starts but can't load any model. The `=` form is required because argparse treats a leading `--` value as another flag.
+
+Keep `AppId` in `EigenCore.iss` unchanged forever: it is how Windows recognises a new installer as an update.
 
 ## Layout
 
@@ -62,8 +85,10 @@ a leading `--` value as another flag.
   worker threads, event queue). Fully unit-tested headlessly.
 - `src/eigencore/desktop/views.py` — Flet views (constructible without a display).
 - `src/eigencore/desktop/theme.py` — brand tokens.
-- `src/eigencore/desktop/app.py` — entry point (`eigencore-gui`).
-- `tests/test_desktop.py` — 12 headless tests.
+- `src/eigencore/desktop/app.py` — entry point (`eigencore-gui`), title bar, sidebar update button.
+- `src/eigencore/desktop/updater.py` — release check, installer download, silent in-place update.
+- `packaging/windows/EigenCore.iss` — Inno Setup installer script.
+- `tests/test_desktop.py` — headless tests (backend, views, updater, close button).
 
 ## Not verified here
 

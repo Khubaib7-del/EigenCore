@@ -3,76 +3,109 @@
 </p>
 
 <h1 align="center">EigenCore</h1>
-<p align="center">A CPU-first Python runtime for local language models, hardware-aware inference, and agent building blocks.</p>
+<p align="center">Chat with AI models that run entirely on your own computer. No account, no cloud, no internet needed after the download.</p>
 
 <p align="center">
-  <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white">
-  <img alt="Version" src="https://img.shields.io/github/v/release/Khubaib7-del/EigenCore?color=5B6CF0">
+  <a href="https://github.com/Khubaib7-del/EigenCore/releases/latest/download/EigenCore-Setup.exe">
+    <img alt="Download for Windows" src="https://img.shields.io/badge/Download%20for%20Windows-5B6CF0?style=for-the-badge&logo=windows&logoColor=white">
+  </a>
+</p>
+
+<p align="center">
+  <img alt="Latest version" src="https://img.shields.io/github/v/release/Khubaib7-del/EigenCore?color=5B6CF0&label=latest">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-72B7A8">
-  <img alt="Windows app" src="https://img.shields.io/badge/Windows%20app-.exe-5B6CF0?logo=windows&logoColor=white">
+  <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white">
 </p>
 
-<p align="center">
-  <a href="https://github.com/Khubaib7-del/EigenCore/releases/latest/download/EigenCore.exe">
-    <img alt="Download EigenCore.exe for Windows" src="https://img.shields.io/badge/Download%20EigenCore.exe%20(Windows)-5B6CF0?style=for-the-badge&logo=windows&logoColor=white">
-  </a>
-  &nbsp;
-  <a href="https://pypi.org/project/eigencore/">
-    <img alt="PyPI" src="https://img.shields.io/pypi/v/eigencore?logo=pypi&logoColor=white&color=3776AB&style=for-the-badge">
-  </a>
-</p>
+## Get started on Windows
 
-EigenCore profiles a machine, estimates whether a local model fits, and runs inference through `llama-cpp-python` (llama.cpp). It also ships a benchmark harness, a terminal chat, and agent building blocks with a tool policy layer. The transformer math is llama.cpp's; EigenCore owns the judgement around it.
+1. **Download** [EigenCore-Setup.exe](https://github.com/Khubaib7-del/EigenCore/releases/latest/download/EigenCore-Setup.exe).
+2. **Open it** and click through the installer. It installs just for you, so it doesn't ask for admin rights. If Windows shows "Windows protected your PC", click **More info**, then **Run anyway** (the app isn't code-signed yet).
+3. **Start EigenCore** from the Start menu.
+4. Go to **Models**, pick one and click **Download**. `tinyllama-1.1b` (0.7 GB) is a good first try.
+5. Go back to **Chat**, pick the model at the top and start typing.
 
-> **Reality check:** a dense 30–40B model at 4-bit is roughly 18–24 GB of weights, more than 8–16 GB of RAM before any KV cache. It can only run by paging from SSD, and decode is then expected to be well under 1 token/s (estimate). Even when a model fits, CPU decode is memory-bandwidth-bound: tok/s ≤ bandwidth ÷ weight bytes. The realistic route to 30B-class models on a 16 GB laptop is a Mixture-of-Experts model, which is planned and not yet measured. See the [review](docs/review/FINAL_REPORT.md) for the arithmetic. No speed figure in this repository is a measurement until a named-hardware run is published.
+**Updating:** click **Update** at the bottom of the sidebar when a new version is out. EigenCore downloads it, installs it over the old one and reopens. Your downloaded models stay where they are.
 
-## Quick start
+**Uninstalling:** Settings, then Apps, then Installed apps, then EigenCore, then Uninstall. Models are kept in `C:\Users\<you>\.eigencore\models`; delete that folder too if you want the disk space back.
 
-**No install needed on Windows:** click **Download EigenCore.exe** above (or
-[here](https://github.com/Khubaib7-del/EigenCore/releases/latest/download/EigenCore.exe))
-and run the downloaded `EigenCore.exe` — one file, nothing to unzip. Models
-download in-app from the Models tab, and the app's sidebar **Download** button
-fetches the latest `.exe` directly, so updates are one click.
+<details><summary>Prefer not to install? Use the portable version</summary>
 
-**Prefer the terminal / other OS:** install from PyPI.
-
-```bash
-# core CLI (no compiler needed)
-python -m pip install eigencore
-# + native inference backend (llama.cpp has no Windows wheel on PyPI — use the prebuilt CPU index)
-python -m pip install "eigencore[inference]" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
-
-eigencore profile
-eigencore models
-eigencore download tinyllama-1.1b
-eigencore run --prompt "Explain binary search in one paragraph"
-eigencore chat            # full-screen TUI on a terminal; add --plain for scripts
-```
-
-Desktop app without the .exe: `python -m pip install "eigencore[desktop,inference]" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu` then `eigencore-gui` (see [docs/desktop.md](docs/desktop.md)).
-
-<details><summary>All CLI commands</summary>
-
-```bash
-eigencore                  # interactive menu on a terminal
-eigencore profile          # hardware + recommended model
-eigencore models           # registry with fit estimates
-eigencore download NAME    # pre-download a model
-eigencore delete NAME      # remove a model from disk
-eigencore run -p "..."     # one-shot inference
-eigencore chat             # full-screen chat TUI
-eigencore analyze -p "..." # output sparsity report
-eigencore benchmark        # measured tok/s harness
-eigencore train -d data.jsonl   # QLoRA on CPU
-```
-
-`eigencore --help` lists everything. EigenCore currently loads models CPU-only; see the backend docs before assuming GPU acceleration.
+Download [EigenCore.exe](https://github.com/Khubaib7-del/EigenCore/releases/latest/download/EigenCore.exe) and double-click it. Nothing is installed, so it won't appear in your app list and it can't update itself. Download the newest copy when you want to update.
 
 </details>
 
-## Status
+## What to expect
 
-Labels: **SHIPPED** runs on `main` and is tested · **REPORTED-ONLY** computes plans or numbers that never reach llama.cpp · **PLANNED** design docs only.
+- **Which models will run?** Open the **Profile** tab. It reads your CPU and memory, tells you the largest model size it recommends, and the Models tab marks each model as fits, tight or does not fit.
+- **How fast?** Small models (1–3B) are the quickest. Bigger models get slower on a normal CPU, because every word needs the whole model read from memory. Speeds shown in the app are estimates until you measure your own machine.
+- **Privacy:** prompts and replies never leave your computer. The internet is only used to download models and check for updates.
+
+## Use it from the terminal (Windows, macOS, Linux)
+
+Install the command-line version with Python 3.10 or newer:
+
+```bash
+python -m pip install eigencore
+python -m pip install "eigencore[inference]" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+```
+
+The second line adds the part that actually runs the models.
+
+Then:
+
+```bash
+eigencore profile                   # what your computer can run
+eigencore download tinyllama-1.1b   # get a small model
+eigencore chat                      # chat in the terminal
+```
+
+<details><summary>All commands</summary>
+
+| Command | What it does |
+| --- | --- |
+| `eigencore` | Interactive menu |
+| `eigencore profile` | Hardware report and recommended model |
+| `eigencore models` | List models and whether they fit |
+| `eigencore download NAME` | Download a model |
+| `eigencore delete NAME` | Remove a model from disk |
+| `eigencore run -p "..."` | Ask one question |
+| `eigencore chat` | Chat in the terminal (`--plain` for scripts) |
+| `eigencore benchmark` | Measure real speed on your machine |
+| `eigencore analyze -p "..."` | Output-sparsity report |
+| `eigencore train -d data.jsonl` | Fine-tune with QLoRA on CPU |
+| `eigencore-gui` | Open the desktop app (needs `eigencore[desktop]`) |
+
+`eigencore --help` lists every option.
+
+</details>
+
+---
+
+## For developers
+
+Everything below is for people working on EigenCore itself.
+
+### Build and test
+
+```bash
+python -m pip install -e ".[dev,inference]"
+pytest tests/ -v
+ruff check src/ tests/
+ruff format --check src/ tests/
+```
+
+How the desktop app and its installer are built: [docs/desktop.md](docs/desktop.md). How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately as described in [SECURITY.md](SECURITY.md). This project follows a [code of conduct](CODE_OF_CONDUCT.md).
+
+### Why big models are slow on a CPU
+
+A dense 30–40B model at 4-bit is about 18–24 GB of weights, more than most laptops' RAM, so it has to page from the SSD and runs well under 1 token/s (estimate). Even when a model fits, speed is capped by memory bandwidth: tokens per second ≤ bandwidth ÷ bytes read per token. The realistic route to 30B-class models on a 16 GB laptop is a Mixture-of-Experts model. The arithmetic is in the [review](docs/review/FINAL_REPORT.md). No speed figure in this repository is a measurement until a run on named hardware is published.
+
+### Feature status
+
+**SHIPPED** runs on `main` and is tested · **REPORTED-ONLY** computes plans or numbers that never reach llama.cpp · **PLANNED** design docs only.
+
+<details><summary>Show the full status table</summary>
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -81,7 +114,6 @@ Labels: **SHIPPED** runs on `main` and is tested · **REPORTED-ONLY** computes p
 | Model-fit estimator | SHIPPED | Weights (real GGUF file size when downloaded) + reserve + KV from architecture-aware GGUF geometry + margin; GiB end to end. Without geometry the verdict is `UNKNOWN` — no heuristic. CLI passes real GGUF metadata when the model file exists |
 | Benchmark harness | SHIPPED | `eigencore benchmark --report run.json`; tokens counted via backend tokenizer, cold/warm reported separately; no published runs yet |
 | Terminal chat | SHIPPED | Streaming, `--plain`/NO_COLOR/TERM=dumb auto-detection, width-tiered header, slash commands incl. `/approvals`, sanitized output, safe Ctrl-C. First-run onboarding (fit-grouped model picker + SSD-paging warning, runs once via config) SHIPPED. Full-screen takeover deliberately not done (line mode per TUI.md) |
-| Tool policy | SHIPPED, deny-by-default | `ToolExecutor` defaults to `default_policy()` (READ-only, workspace-confined) even when no policy is passed. Path params are declared (`is_path=True`) and resolved to confined absolute paths before handlers. Timeouts run handlers in a spawned process that is killed on timeout. Handlers still run in-process otherwise — not an OS sandbox |
 | Tool policy | SHIPPED, deny-by-default | Same as above, plus POSIX rlimits on the child worker and approval cards (`ApprovalManager` + `/approvals` in chat; y/s/n with redacted args, enforced in the executor). Full OS sandbox (cgroups/namespaces) PLANNED |
 | Reference kernels | SHIPPED (scalar, NumPy) | RMSNorm, Q8_0/Q4_0 (ggml layout, bit-exact vs gguf-py) and Q4_K super-blocks (bit-exact), Q8_0/Q4_K dots. Not used by inference; SIMD/C-intrinsics lib PLANNED (Stage E) |
 | Layer skipping | REPORTED-ONLY | Planner and estimates only |
@@ -96,7 +128,11 @@ Labels: **SHIPPED** runs on `main` and is tested · **REPORTED-ONLY** computes p
 | SIMD / native kernels | PLANNED | Research track; decode is bandwidth-bound |
 | Training (LoRA/QLoRA) | Code present, not evaluated | Optional `[train]` extra |
 
-## Architecture
+</details>
+
+### Architecture
+
+<details><summary>Show the module map</summary>
 
 ```mermaid
 flowchart LR
@@ -118,31 +154,20 @@ flowchart LR
 
 This is a module map, not a process-isolation diagram. In particular, the current executor’s validation and timeout are not an OS sandbox or an approval workflow.
 
-## Development
+This is a module map, not a process-isolation diagram. Tool handlers run in the same Python process; the tool policy is not an OS sandbox.
 
-```bash
-python -m pip install -e ".[dev,inference]"
-pytest tests/ -v
-ruff check src/ tests/
-ruff format --check src/ tests/
-```
+</details>
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately as described in [SECURITY.md](SECURITY.md). This project follows a [code of conduct](CODE_OF_CONDUCT.md).
+### Documentation
 
-## Documentation
+- [Desktop app and installer](docs/desktop.md)
+- [Review and plan (2026-11)](docs/review/FINAL_REPORT.md)
+- [Design handbook](docs/design/DESIGN_HANDBOOK.md) and [brand assets](assets/brand/README.md)
+- [Terminal UI](docs/design/TUI.md) and [terminal chat design](docs/design/terminal-chat.md)
+- [System architecture](docs/architecture/system-overview.md) and [local inference roadmap](docs/architecture/local-inference-roadmap.md)
+- [Documentation index](docs/INDEX.md) and [changelog](CHANGELOG.md)
 
-- [Review and plan (2026-11)](docs/review/FINAL_REPORT.md): truth audit, 30–40B arithmetic, prioritized plan, benchmarks to run.
-- [Design handbook](docs/design/DESIGN_HANDBOOK.md): v2 identity, palette, terminal UI, approval flow.
-- [Terminal UI status and v2 screens](docs/design/TUI.md).
-- [Brand assets](assets/brand/README.md).
-- [System architecture](docs/architecture/system-overview.md) and [local inference roadmap](docs/architecture/local-inference-roadmap.md).
-- [Terminal chat design](docs/design/terminal-chat.md).
-- [Documentation index](docs/INDEX.md).
-- [Changelog](CHANGELOG.md).
-
-## Project status
-
-Pre-alpha. APIs and behaviour may change. Feature presence is not a performance claim.
+Pre-alpha: APIs and behaviour may change. A feature being present is not a performance claim.
 
 ## License
 
