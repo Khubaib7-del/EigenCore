@@ -43,7 +43,7 @@ SILENT_ARGS = ["/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS
 
 @dataclass
 class Release:
-    version: str  # "0.4.5"
+    version: str  # "0.4.6"
     page_url: str  # release page
     installer_url: Optional[str]  # direct download of EigenCore-Setup.exe
     installer_size: int = 0  # bytes, 0 when unknown

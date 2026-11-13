@@ -4,8 +4,23 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-11-13
+
 ### Added
+- New desktop UI. The Windows app (installer, portable exe and in-app update) now opens the web interface from `ui/` (Vite + React + TypeScript) in a frameless pywebview window using Microsoft Edge WebView2, with its own title bar (drag, double-click to maximise, minimise / maximise / close) and edge grips for resizing. Screens: Chat, Models, Monitor, Profile, Settings, plus Ctrl K search and Ctrl N new chat.
+- Everything in it is real data: the model registry, files on disk and fit verdicts, the hardware profile (bandwidth and the size recommendation are labelled as the profiler's estimates), streamed replies, measured first-token time and output speed per reply (Chat and Monitor), and the updater. Chats start empty and are saved, with the theme, to `~/.eigencore/desktop-ui.json`.
+- `desktop/web.py`: the pywebview host. `WebBridge` is the `js_api` object over the existing `DesktopBackend` and `updater`; backend events reach the page in batches as `CustomEvent("eigencore")`. `ui/src/api/bridge.ts` implements the UI's `EigenCoreApi` over it; in a plain browser the UI keeps using the mock API for design work.
+- `eigencore-gui --flet` opens the previous Flet app. It also opens automatically when the web UI can't start (pywebview missing, no WebView2 runtime, UI files missing, or the page doesn't load within 25 s); the reason goes to `~/.eigencore/logs/desktop.log`.
+- `eigencore-gui --self-test REPORT.json` (used by CI on the packaged exe) reports what a build can load without opening a window. New `Desktop build` workflow builds both Windows packages on pull requests and runs it; nothing is uploaded.
 - `docs/PROJECT_JOURNEY.md`: a plain-language, detailed account of the project — what EigenCore is, the ordered journey (honesty review, packaging, Windows fixes, releases 0.4.0–0.4.5, terminal TUI, desktop app + installer + in-app updater), analysis conclusions, current state, full architecture and release pipeline, and a glossary for every technical term. Linked from `docs/INDEX.md`.
+
+### Changed
+- Windows packaging uses PyInstaller directly (`packaging/windows/EigenCore.spec`) instead of `flet pack`. The release job builds the UI with Node 20 (`npm ci && npm run build`) and bundles `ui/dist`, pywebview (WebView2) with pythonnet, llama.cpp, and Flet with its desktop client for the fallback. Asset names are unchanged (`EigenCore-Setup.exe`, `EigenCore.exe`), so 0.4.5 updates to 0.4.6 in-app as usual.
+- `pywebview` added to the `desktop` extra. CI also type-checks and builds `ui/`.
+- Desktop backend: emits `prompt_eval` (prompt being read / first token), adds `first_token_s` and `decode_tok_per_sec` to the per-reply stats, keeps each reply in the conversation (before, the model never saw its own earlier answers in the desktop chat), and accepts the chat history from the UI.
+
+### Not yet in the desktop UI
+- Settings for threads, context length, KV cache type, tool approvals and the models folder are shown as "Coming soon" (the desktop engine doesn't take them yet). Run benchmark in Profile is the same; use `eigencore benchmark`. The desktop chat has no tool calls, so no approval prompts appear.
 
 ## [0.4.5] - 2026-11-13
 

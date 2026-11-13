@@ -1,7 +1,7 @@
 ; EigenCore Windows installer (Inno Setup 6).
 ;
 ; Built by .github/workflows/release.yml from the one-folder app build:
-;   iscc /DAppVersion=0.4.5 /DSourceDir=dist\EigenCore packaging\windows\EigenCore.iss
+;   iscc /DAppVersion=0.4.6 /DSourceDir=dist\EigenCore packaging\windows\EigenCore.iss
 ;
 ; What it does:
 ; - Installs for the current user only (no admin prompt) into
