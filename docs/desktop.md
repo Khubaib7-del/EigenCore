@@ -44,14 +44,16 @@ On the Windows machine:
 ```powershell
 pip install "flet>=1.0,<2" pyinstaller
 flet pack src/eigencore/desktop/app.py `
-  --onefile `
   --name EigenCore --icon src/eigencore/desktop/assets/eigencore.ico `
-  --product-version 0.4.3 --file-version 0.4.3.0 --add-data "src/eigencore/desktop/assets;assets"
+  --product-version 0.4.4 --file-version 0.4.4.0 --add-data "src/eigencore/desktop/assets;assets" `
+  --pyinstaller-build-args "--collect-all" "llama_cpp"
 ```
 
 Output is a single `dist/EigenCore.exe`. Inference still needs
 `llama-cpp-python` — bundle it by installing the prebuilt CPU wheel in the
-build environment (the release workflow does exactly this).
+build environment and passing `--pyinstaller-build-args "--collect-all"
+"llama_cpp"` so PyInstaller collects the native `llama_cpp/lib` DLL (without
+it the exe starts but cannot load any model).
 
 ## Layout
 

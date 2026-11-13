@@ -247,9 +247,29 @@ def test_chat_view_build_and_events(tmp_path):
     got = _drain_events(events, lambda ev: ev[0] == "done")
     for ev in got:
         view.handle_event(ev)
-    assert "Hello there" in view.chat_log.controls[-1].content.controls[1].value
+    bubble = view.chat_log.controls[-1]
+    assert "Hello there" in bubble.content.controls[1].controls[1].value
     assert "tok/s" in view.status.value and "measured this turn" in view.status.value
     assert view.send_btn.visible and not view.stop_btn.visible
+
+
+def test_models_view_shows_progress_bar_while_downloading(tmp_path):
+    be, registry, spec, _, events = _backend(tmp_path)
+    # pick a model that is NOT downloaded so its row shows the progress bar
+    spec = next(
+        m
+        for m in registry.list_models()
+        if not registry.is_downloaded(m) and registry.shard_prefix(m) is None
+    )
+    view = ModelsView(be)
+    view.build()
+    be._downloading.add(spec.name)
+    view.rebuild()
+    assert spec.name in view.progress
+    view.handle_event(("dl_progress", spec.name, 42.0))
+    assert abs(view.progress[spec.name].value - 0.42) < 1e-6
+    assert view.pct_label[spec.name].value == "42.0%"
+    be._downloading.discard(spec.name)
 
 
 def test_models_view_lists_rows_with_actions(tmp_path):
