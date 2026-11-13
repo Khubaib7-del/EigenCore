@@ -26,12 +26,71 @@ async def main(page: ft.Page) -> None:
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 0
     try:
+        # frameless: the OS title bar (min/max/close) is replaced by the quiet
+        # custom title bar below (WindowDragArea + ghost buttons)
+        page.window.frameless = True
         page.window.width = 1080
         page.window.height = 720
         page.window.min_width = 800
         page.window.min_height = 560
     except AttributeError:
         pass  # web/preview targets without a native window
+
+    def win_btn(icon, tooltip, action, hover=None):
+        return ft.IconButton(
+            icon=icon,
+            tooltip=tooltip,
+            icon_size=14,
+            icon_color=T.MUTED_DARK,
+            width=36,
+            height=28,
+            on_click=action,
+            style=ft.ButtonStyle(
+                color=T.MUTED_DARK,
+                bgcolor={
+                    ft.ControlState.HOVERED: hover or "#33373D",
+                    ft.ControlState.DEFAULT: "transparent",
+                },
+            ),
+        )
+
+    title_bar = ft.Container(
+        content=ft.Row(
+            [
+                ft.WindowDragArea(
+                    content=ft.Row(
+                        [
+                            ft.Image(src=str(ASSETS / "logo.svg"), width=18, height=18),
+                            ft.Text(f"EigenCore v{__version__}", size=12, color=T.MUTED_DARK),
+                        ],
+                        spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    expand=True,
+                    height=32,
+                ),
+                win_btn(
+                    ft.Icons.REMOVE, "minimize", lambda e: setattr(page.window, "minimized", True)
+                ),
+                win_btn(
+                    ft.Icons.CROP_SQUARE,
+                    "maximize / restore",
+                    lambda e: setattr(page.window, "maximized", not page.window.maximized),
+                ),
+                win_btn(
+                    ft.Icons.CLOSE,
+                    "close",
+                    lambda e: page.window.close(),
+                    hover="#C42B1C",
+                ),
+            ],
+            spacing=0,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+        bgcolor=T.GRAPHITE,
+        height=32,
+        padding=ft.Padding.only(left=12, right=4),
+    )
 
     backend = DesktopBackend()
     chat = ChatView(backend)
@@ -110,7 +169,11 @@ async def main(page: ft.Page) -> None:
 
     page.add(
         ft.Column(
-            [update_banner, ft.Row([rail, ft.VerticalDivider(width=1), content], expand=True)],
+            [
+                title_bar,
+                update_banner,
+                ft.Row([rail, ft.VerticalDivider(width=1), content], expand=True),
+            ],
             expand=True,
             spacing=0,
         )

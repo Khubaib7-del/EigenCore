@@ -51,11 +51,13 @@ class ChatView(View):
     def __init__(self, backend: DesktopBackend) -> None:
         super().__init__(backend)
         self.model_dropdown = ft.Dropdown(
-            label="model",
             options=[ft.DropdownOption(n) for n in backend.downloaded_names()],
             on_select=self._on_model_change,
+            width=240,
+            label="Model",
         )
         self.status = ft.Text("no model loaded — pick one in Models", color=T.MUTED_DARK, size=12)
+        self.engine_pill = T.chip("NO MODEL", T.MUTED_DARK)
         self.chat_log = ft.ListView(expand=True, spacing=10, auto_scroll=True)
         self.input = ft.TextField(
             hint_text="Message EigenCore… (Enter to send, Shift+Enter for newline)",
@@ -64,51 +66,90 @@ class ChatView(View):
             max_lines=6,
             on_submit=lambda e: self.submit(),
             expand=True,
+            border_radius=12,
         )
         self.send_btn = ft.IconButton(
-            icon=ft.Icons.SEND, tooltip="send", on_click=lambda e: self.submit()
+            icon=ft.Icons.SEND,
+            tooltip="send",
+            on_click=lambda e: self.submit(),
+            style=ft.ButtonStyle(bgcolor=T.CORE, color=T.LIGHT),
         )
         self.stop_btn = ft.IconButton(
             icon=ft.Icons.STOP_CIRCLE_OUTLINED,
             tooltip="stop",
             on_click=lambda e: self.backend.stop(),
             visible=False,
+            style=ft.ButtonStyle(bgcolor=T.DANGER, color=T.LIGHT),
         )
         self._assistant_md: ft.Markdown | None = None
-        self._page = None
+        self._empty = True
 
     def refresh_models(self) -> None:
         names = self.backend.downloaded_names()
         self.model_dropdown.options = [ft.DropdownOption(n) for n in names]
         if self.backend.active_spec is not None:
             self.model_dropdown.value = self.backend.active_spec.name
+            self.engine_pill = T.chip(f"● {self.backend.active_spec.name}", T.OK)
         _safe_update(self.model_dropdown)
+        _safe_update(self.engine_pill)
 
     def _on_model_change(self, e) -> None:
         if self.model_dropdown.value:
             self.backend.switch_model(self.model_dropdown.value)
 
+    def _hero(self) -> ft.Control:
+        """Empty-state hero (reference look): banner, tagline, quick actions."""
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Image(src=str(ASSETS / "banner.png"), width=320),
+                    ft.Text(
+                        "Local models, on your own silicon.",
+                        size=16,
+                        color=T.MUTED_DARK,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    ft.Text(
+                        "Download a model in the Models tab, pick it above, then type below.",
+                        size=12,
+                        color=T.MUTED_DARK,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8,
+            ),
+            expand=True,
+            alignment=ft.Alignment.CENTER,
+        )
+
     def build(self) -> ft.Control:
         header = ft.Row(
             [
-                ft.Image(src=str(ASSETS / "logo.svg"), width=28, height=28),
                 ft.Text("Chat", size=20, weight=ft.FontWeight.BOLD),
                 ft.Container(expand=True),
+                self.engine_pill,
                 self.model_dropdown,
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=10,
         )
         body = ft.Container(
-            content=ft.Column([self.chat_log], expand=True),
+            content=ft.Stack([self.chat_log, self._hero()], expand=True),
             expand=True,
-            padding=ft.Padding.all(12),
+            padding=ft.Padding.only(left=16, right=16, top=8),
         )
         composer = ft.Row(
             [self.input, self.send_btn, self.stop_btn],
             vertical_alignment=ft.CrossAxisAlignment.END,
+            spacing=8,
+        )
+        composer_wrap = ft.Container(
+            content=composer,
+            padding=ft.Padding.only(left=16, right=16, bottom=10, top=4),
         )
         return ft.Column(
-            [header, ft.Divider(height=1), body, self.status, composer],
+            [header, ft.Divider(height=1), body, self.status, composer_wrap],
             expand=True,
             spacing=6,
         )
@@ -119,6 +160,7 @@ class ChatView(View):
         if not text.strip():
             return
         self.input.value = ""
+        self._empty = False
         self._add_bubble("You", text, T.CORE_ICE)
         self.backend.send(text)
         self.send_btn.visible = False
@@ -128,19 +170,33 @@ class ChatView(View):
         _safe_update(self.input)
 
     def _add_bubble(self, who: str, text: str, color: str) -> ft.Control:
+        avatar = ft.CircleAvatar(
+            content=ft.Text("◩" if who != "You" else "Y", size=12, color=T.LIGHT),
+            bgcolor=T.CORE if who != "You" else T.MUTED_DARK,
+            radius=12,
+        )
         bubble = ft.Container(
-            content=ft.Column(
+            content=ft.Row(
                 [
-                    ft.Text(who, size=11, weight=ft.FontWeight.BOLD, color=color),
-                    ft.Markdown(text, selectable=True)
-                    if who != "You"
-                    else ft.Text(text, selectable=True),
+                    avatar,
+                    ft.Column(
+                        [
+                            ft.Text(who, size=11, weight=ft.FontWeight.BOLD, color=color),
+                            ft.Markdown(text, selectable=True)
+                            if who != "You"
+                            else ft.Text(text, selectable=True),
+                        ],
+                        spacing=2,
+                        expand=True,
+                    ),
                 ],
-                spacing=2,
+                spacing=10,
+                vertical_alignment=ft.CrossAxisAlignment.START,
             ),
             bgcolor=T.PANEL,
-            border_radius=10,
+            border_radius=14,
             padding=ft.Padding.all(10),
+            width=760,
         )
         self.chat_log.controls.append(bubble)
         _safe_update(self.chat_log)
@@ -151,7 +207,7 @@ class ChatView(View):
         if kind == "tok":
             if self._assistant_md is None:
                 bubble = self._add_bubble("EigenCore", "", T.CORE)
-                self._assistant_md = bubble.content.controls[1]
+                self._assistant_md = bubble.content.controls[1].controls[1]
                 assert isinstance(self._assistant_md, ft.Markdown)
             self._assistant_md.value += ev[1]
             _safe_update(self._assistant_md)
@@ -178,6 +234,13 @@ class ChatView(View):
                 state, msg = ev[1], ev[2]
                 self.status.value = msg
                 self.status.color = {"ready": T.OK, "error": T.DANGER}.get(state, T.CAUTION)
+                if state == "ready" and self.backend.active_spec is not None:
+                    self.engine_pill = T.chip(f"● {self.backend.active_spec.name}", T.OK)
+                elif state == "error":
+                    self.engine_pill = T.chip("● LOAD ERROR", T.DANGER)
+                elif state == "loading":
+                    self.engine_pill = T.chip("● LOADING…", T.CAUTION)
+                _safe_update(self.engine_pill)
                 _safe_update(self.status)
             if kind in ("switched", "dl_done", "deleted"):
                 self.refresh_models()
@@ -188,6 +251,8 @@ class ModelsView(View):
         super().__init__(backend)
         self.rows_host = ft.Column(spacing=6, scroll=ft.ScrollMode.AUTO)
         self.status = ft.Text("", size=12, color=T.MUTED_DARK)
+        self.progress: dict[str, ft.ProgressBar] = {}
+        self.pct_label: dict[str, ft.Text] = {}
 
     def build(self) -> ft.Control:
         self.rebuild()
@@ -219,6 +284,8 @@ class ModelsView(View):
 
     def rebuild(self) -> None:
         self.rows_host.controls.clear()
+        self.progress.clear()
+        self.pct_label.clear()
         for row in self.backend.model_rows():
             self.rows_host.controls.append(self._row(row))
         _safe_update(self.rows_host)
@@ -231,6 +298,7 @@ class ModelsView(View):
         if row.is_active:
             state = T.chip("ACTIVE", T.CORE_ICE)
         actions = []
+        extra: list[ft.Control] = []
         if not row.downloaded:
             actions.append(
                 ft.FilledButton(
@@ -239,6 +307,12 @@ class ModelsView(View):
                     on_click=lambda e, n=row.name: self.backend.download(n),
                 )
             )
+            if row.name in getattr(self.backend, "_downloading", set()):
+                bar = ft.ProgressBar(value=0, color=T.CORE, bgcolor="#33373D", height=6)
+                label = ft.Text("0.0%", size=11, color=T.MUTED_DARK)
+                self.progress[row.name] = bar
+                self.pct_label[row.name] = label
+                extra = [ft.Row([bar, label], spacing=8)]
         else:
             actions.append(
                 ft.OutlinedButton(
@@ -268,6 +342,7 @@ class ModelsView(View):
                                 color=T.MUTED_DARK,
                             ),
                             ft.Text(row.description, size=11, color=T.MUTED_DARK, italic=True),
+                            *extra,
                         ],
                         spacing=2,
                         expand=True,
@@ -309,6 +384,14 @@ class ModelsView(View):
     def handle_event(self, ev) -> None:
         kind = ev[0]
         if kind in ("dl_progress", "dl_done", "deleted", "switched"):
+            if kind == "dl_progress":
+                _, name, pct = ev
+                if name in self.progress:
+                    self.progress[name].value = min(pct, 100.0) / 100.0
+                    self.pct_label[name].value = f"{pct:.1f}%"
+                    _safe_update(self.progress[name])
+                    _safe_update(self.pct_label[name])
+                return
             if kind == "dl_done":
                 _, name, ok, msg = ev
                 self.status.value = msg
