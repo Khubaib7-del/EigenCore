@@ -2,7 +2,7 @@
   "name": "eigencore-ui",
   "private": true,
   "version": "0.0.0",
-  "description": "EigenCore desktop UI (preview, mock data). Vite + React + TypeScript.",
+  "description": "EigenCore desktop UI. Vite + React + TypeScript.",
   "license": "MIT",
   "type": "module",
   "scripts": {

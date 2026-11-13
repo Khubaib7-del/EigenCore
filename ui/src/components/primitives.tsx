@@ -74,11 +74,13 @@ export function Segmented<T extends string>({
   options,
   onChange,
   label,
+  disabled,
 }: {
   value: T;
   options: { value: T; label: string; icon?: IconName }[];
   onChange: (v: T) => void;
   label: string;
+  disabled?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
@@ -87,7 +89,7 @@ export function Segmented<T extends string>({
     if (el) setPill({ left: el.offsetLeft, width: el.offsetWidth });
   }, [value, options.length]);
   return (
-    <div className="segmented" role="radiogroup" aria-label={label} ref={ref}>
+    <div className={`segmented ${disabled ? "disabled" : ""}`} role="radiogroup" aria-label={label} aria-disabled={disabled || undefined} ref={ref}>
       {pill && <span className="segmented-pill" style={{ transform: `translateX(${pill.left - 3}px)`, width: pill.width }} />}
       {options.map((o) => (
         <button
@@ -96,6 +98,7 @@ export function Segmented<T extends string>({
           aria-checked={o.value === value}
           data-value={o.value}
           className={o.value === value ? "on" : ""}
+          disabled={disabled}
           onClick={() => onChange(o.value)}
         >
           {o.icon && <Icon name={o.icon} size={14} />}

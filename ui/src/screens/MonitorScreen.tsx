@@ -35,6 +35,9 @@ export function MonitorScreen() {
   const ctxUsed = Math.round((chat?.messages.reduce((n, m) => n + m.content.length, 0) ?? 0) / 4);
   const ctxTotal = model?.context_length ?? 0;
   const tag = state.sampleTelemetry ? "Sample · " : api.kind === "mock" ? "Mock stream · " : "";
+  const desktop = api.kind === "pywebview";
+  const speed = last ? (last.decode_tok_per_sec ?? last.tok_per_sec) : null;
+  const speedFoot = !last ? "Shown after the first reply" : last.decode_tok_per_sec != null ? `${tag}last turn, output after first token` : `${tag}last turn, end to end`;
   const sessionTokens = state.turns.reduce((n, t) => n + t.tokens, 0);
   return (
     <div className="page">
@@ -43,7 +46,7 @@ export function MonitorScreen() {
           <h1>Monitor</h1>
           <p className="muted">Live engine state for the active model.</p>
         </div>
-        {state.sampleTelemetry ? <SampleBadge>Sample telemetry · not measured</SampleBadge> : <SampleBadge>Mock engine</SampleBadge>}
+        {state.sampleTelemetry ? <SampleBadge>Sample telemetry · not measured</SampleBadge> : !desktop && <SampleBadge>Mock engine</SampleBadge>}
       </header>
 
       <div className="card engine-card">
@@ -65,7 +68,7 @@ export function MonitorScreen() {
       </div>
 
       <div className="stat-grid">
-        <Stat icon="bolt" label="Speed" value={last ? last.tok_per_sec.toFixed(1) : "—"} unit="tok/s" foot={last ? `${tag}last turn, decode` : "Shown after the first reply"} />
+        <Stat icon="bolt" label="Speed" value={speed != null ? speed.toFixed(1) : "—"} unit="tok/s" foot={speedFoot} />
         <Stat icon="sparkle" label="Tokens" value={sessionTokens.toLocaleString()} foot={`${tag}${state.turns.length} turns this session`} />
         <Stat icon="clock" label="First token" value={last?.first_token_s != null ? last.first_token_s.toFixed(2) : "—"} unit="s" foot={last ? `${tag}last turn` : "Shown after the first reply"} />
         <Stat
@@ -81,7 +84,7 @@ export function MonitorScreen() {
         <div className="card chart-card">
           <div className="card-head">
             <span>Tokens per second</span>
-            <span className="muted mono">last {state.tps.length} samples</span>
+            <span className="muted mono">{state.tps.length ? `last ${state.tps.length} replies` : "no replies yet"}</span>
           </div>
           <Sparkline data={state.tps} height={96} />
         </div>
@@ -147,7 +150,9 @@ export function MonitorScreen() {
                 <td className="mono">{t.model}</td>
                 <td className="num mono">{t.prompt_tokens?.toLocaleString() ?? "—"}</td>
                 <td className="num mono">{t.tokens.toLocaleString()}</td>
-                <td className="num mono">{t.tok_per_sec.toFixed(1)}</td>
+                <td className="num mono" title={t.decode_tok_per_sec != null ? `end to end ${t.tok_per_sec.toFixed(1)} tok/s` : undefined}>
+                  {(t.decode_tok_per_sec ?? t.tok_per_sec).toFixed(1)}
+                </td>
                 <td className="num mono">{t.first_token_s != null ? `${t.first_token_s.toFixed(2)} s` : "—"}</td>
                 <td className="num mono">{t.seconds.toFixed(1)} s</td>
                 <td>

@@ -1,9 +1,10 @@
-# EigenCore desktop UI (preview)
+# EigenCore desktop UI
 
-A new desktop interface for EigenCore, built as a web app: Vite + React +
-TypeScript, styled with CSS variables. **This is UI only.** Every value comes
-from a mock API (`src/api/mock.ts`). The current Flet app in
-`src/eigencore/desktop/` is unchanged and is still what ships.
+The EigenCore desktop interface, built as a web app: Vite + React +
+TypeScript, styled with CSS variables. Since v0.4.6 this is what the Windows
+app shows: `src/eigencore/desktop/web.py` opens `ui/dist` in a frameless
+pywebview window (WebView2) and connects it to the real backend. In a plain
+browser (`npm run dev`) it runs on a mock API instead, for design work.
 
 ## Run it
 
@@ -17,7 +18,17 @@ npm run build      # type-check (tsc) + production build into ui/dist/
 npm run typecheck  # tsc only
 ```
 
-### Preview switches
+### Against the real backend
+
+```bash
+npm run build && eigencore-gui            # desktop window, loads ui/dist
+# or with hot reload: keep `npm run dev` running, then
+EIGENCORE_UI_URL=http://localhost:5173 eigencore-gui
+```
+
+`eigencore-gui --debug` opens the WebView dev tools.
+
+### Preview switches (mock only)
 
 Add these to the URL to open a screen in a given state (handy for reviews
 and screenshots):
@@ -58,55 +69,49 @@ and screenshots):
   collapsible sidebar with nav, chat history, version and update button,
   Ctrl K search, Ctrl N new chat.
 
-## What is mock and what is real
+## Desktop (real) vs browser preview (mock)
 
-| Real (from the repo) | Mock |
-| --- | --- |
-| Model names, sizes, quant, context, descriptions, repos (`models/registry.py`) | Which models are downloaded, the active model, fit verdicts |
-| Event names and payloads (`desktop/backend.py`) | The reply text and its timing |
-| Fit verdict values (`fit/estimator.py`) | Hardware numbers (an example i7-10610U laptop) |
-| Approval modes and redaction (`agent/policy.py`) | The tool calls |
-| Version 0.4.5 and the updater flow (`desktop/updater.py`) | The "newer" release tag |
+`src/api/index.ts` picks the API once, before the first render: inside the
+desktop window (`window.pywebview` / the `EigenCoreDesktop` user agent) it
+waits for `pywebviewready` and uses `BridgeApi` (`src/api/bridge.ts`);
+anywhere else it uses `MockApi`.
 
-Nothing on screen is a measurement. Seeded replies show `— tok/s`. Replies
-streamed by the mock show the mock's own timing with a **mock stream** chip.
-Monitor numbers only appear with `?sample=1`, under a **Sample telemetry ·
-not measured** badge. The title bar always shows **Preview · mock data**.
+In the desktop app everything on screen is real: the registry, what is on
+disk, fit verdicts, the hardware profile (bandwidth and the size
+recommendation are the profiler's estimates and say so), streamed replies,
+measured speed and first-token time, and the updater. Chats start empty and
+are saved to `~/.eigencore/desktop-ui.json`, with the theme. There is no
+mock pill, no seeded chat and no sample telemetry. Settings the desktop
+engine does not take yet (threads, context length, KV cache type, tool
+approvals, changing the models folder) are shown as **Coming soon** and
+cannot be changed; Run benchmark is the same. The approval card and tool
+chips never appear, because the desktop chat has no tool calls yet.
+
+In the browser preview, every value comes from the mock and is marked:
+**Preview · mock data** in the title bar, a **mock stream** chip on
+streamed replies, and Monitor numbers only with `?sample=1` under a
+**Sample telemetry · not measured** badge.
 
 ## API layer
 
 `src/api/types.ts` defines `EigenCoreApi` and the `BackendEvent` union. The
-events mirror the tuples `DesktopBackend` puts on its queue:
+Python host sends batches of the tuples `DesktopBackend` puts on its queue,
+as `CustomEvent("eigencore", { detail: [[...], ...] })`:
 
 ```
 ("dl_progress", name, pct)      → { type: "dl_progress", name, pct }
 ("dl_done", name, ok, message)  → { type: "dl_done", name, ok, message }
 ("engine", state, message)      → { type: "engine", state, message }   // loading | ready | error
+("prompt_eval", started)        → { type: "prompt_eval", started }
 ("tok", text)                   → { type: "tok", text }
-("done", stats)                 → { type: "done", stats }              // tokens, seconds, tok_per_sec, interrupted, error
+("done", stats)                 → { type: "done", stats }              // tokens, seconds, tok_per_sec, first_token_s, decode_tok_per_sec, interrupted, error
 ("deleted", name, ok)           → { type: "deleted", name, ok }
 ("switched", name)              → { type: "switched", name }
+("update", state)               → { type: "update", state }           // updater (desktop/web.py)
 ```
 
-`fromTuple()` converts a tuple sent as a JSON array. A few events are marked
-**PROPOSED**: the backend does not send them yet (`prompt_eval`,
-`approval_request`, `tool_call`, `update`, and `first_token_s` /
-`prompt_tokens` in `done`).
-
-## Planned wiring (later)
-
-1. Load `ui/dist/index.html` in a frameless **pywebview** window (Edge
-   WebView2 on Windows). `vite.config.ts` uses `base: "./"`, so the build
-   works from `file://`.
-2. Expose `DesktopBackend` through `js_api`; a `PyWebviewApi` class
-   implements `EigenCoreApi` by calling `window.pywebview.api.*`.
-3. A Python thread drains `backend.events` and pushes each tuple to the page
-   with `window.evaluate_js(...)`; the UI turns it into a `BackendEvent`
-   with `fromTuple`.
-4. The title bar uses the `pywebview-drag-region` class; its buttons call
-   window minimise / maximise / close.
-5. Add `first_token_s`, `prompt_tokens` and the approval / tool-call /
-   updater events on the Python side.
+`fromTuple()` converts one tuple. Still **PROPOSED** (mock only):
+`approval_request`, `tool_call`, and `prompt_tokens` in `done`.
 
 ## Design notes
 

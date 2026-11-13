@@ -12,14 +12,18 @@
  *   ("deleted", name, ok)
  *   ("switched", name)
  *
+ *   ("prompt_eval", started)         True while the prompt is read, False at the first token
+ *   ("update", state)                updater state (desktop/web.py), see UpdateState
+ *
  * Anything marked PROPOSED does not exist in the backend yet; the UI is
- * ready for it and the mock emits it so the screens can be designed.
+ * ready for it and the mock emits it so the screens can be designed. The
+ * desktop bridge (bridge.ts) never sends PROPOSED events.
  */
 
 /** FitVerdict values from src/eigencore/fit/estimator.py */
 export type FitVerdict = "fits_with_margin" | "tight" | "does_not_fit" | "unknown";
 
-export type Provider = "tinyllama" | "microsoft" | "qwen" | "meta" | "mistral" | "gemma" | "deepseek" | "ai2";
+export type Provider = "tinyllama" | "microsoft" | "qwen" | "meta" | "mistral" | "gemma" | "deepseek" | "ai2" | "huggingface";
 
 /** Mirrors desktop.backend.ModelRow (+ repo_id from ModelSpec, + UI-derived provider). */
 export interface ModelRow {
@@ -41,7 +45,12 @@ export interface ModelRow {
 
 export type EngineBackendState = "loading" | "ready" | "error";
 
-/** Payload of ("done", stats). first_token_s is PROPOSED (not sent yet). */
+/**
+ * Payload of ("done", stats). `tokens` counts streamed pieces (one per token
+ * for llama.cpp in practice). tok_per_sec is end to end (prompt + output);
+ * decode_tok_per_sec is the output rate after the first token.
+ * prompt_tokens is PROPOSED (not sent by the backend yet).
+ */
 export interface GenerationStats {
   tokens: number;
   seconds: number;
@@ -49,6 +58,7 @@ export interface GenerationStats {
   interrupted: boolean;
   error: string | null;
   first_token_s?: number | null;
+  decode_tok_per_sec?: number | null;
   prompt_tokens?: number | null;
 }
 
@@ -71,6 +81,8 @@ export type UpdateState =
   | { kind: "available"; tag: string; url: string }
   | { kind: "downloading"; tag: string; pct: number }
   | { kind: "ready_to_install"; tag: string }
+  /** Portable or pip copy: the release page was opened instead of updating in place. */
+  | { kind: "manual"; tag: string; url: string; message: string }
   | { kind: "error"; message: string };
 
 export type BackendEvent =
@@ -81,11 +93,11 @@ export type BackendEvent =
   | { type: "done"; stats: GenerationStats }
   | { type: "deleted"; name: string; ok: boolean }
   | { type: "switched"; name: string }
-  /* PROPOSED events */
   | { type: "prompt_eval"; started: boolean }
+  | { type: "update"; state: UpdateState }
+  /* PROPOSED events (mock only: the desktop chat has no tool calls yet) */
   | { type: "approval_request"; request: ApprovalRequest }
-  | { type: "tool_call"; tool_name: string; summary: string; ok: boolean }
-  | { type: "update"; state: UpdateState };
+  | { type: "tool_call"; tool_name: string; summary: string; ok: boolean };
 
 /** Mirrors desktop HardwareProfile (eigencore.hal.profiler). Estimates may be null in the UI until known. */
 export interface HardwareProfile {
@@ -115,23 +127,38 @@ export interface Settings {
   approvals: "ask" | "session";
 }
 
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface SendOptions {
   max_tokens?: number;
   temperature?: number;
+  /** Earlier turns of this chat, so the engine sees the whole conversation. */
+  history?: ChatTurn[];
 }
+
+export type WindowOp = "minimize" | "toggle_maximize" | "close" | "resize";
 
 export type Unsubscribe = () => void;
 
 /**
- * The surface the UI talks to. MockApi implements it today; a PyWebviewApi
- * will implement it later by calling `window.pywebview.api.*` and turning the
- * backend's event tuples into BackendEvent with `fromTuple`.
+ * The surface the UI talks to. MockApi (browser preview) and BridgeApi
+ * (desktop app: `window.pywebview.api.*`, events turned into BackendEvent
+ * with `fromTuple`) implement it.
  */
 export interface EigenCoreApi {
   readonly kind: "mock" | "pywebview";
   version(): Promise<string>;
   listModels(): Promise<ModelRow[]>;
-  hardwareProfile(): Promise<HardwareProfile>;
+  /** rescan=true runs the hardware profiler again. */
+  hardwareProfile(rescan?: boolean): Promise<HardwareProfile>;
+  /** Saved chats (desktop: ~/.eigencore/desktop-ui.json; preview: none). */
+  loadChats(): Promise<unknown[]>;
+  saveChats(chats: unknown[]): void;
+  windowControl(op: WindowOp, ...args: number[]): void;
+  openUrl(url: string): void;
   getSettings(): Promise<Settings>;
   saveSettings(patch: Partial<Settings>): Promise<Settings>;
   download(name: string): void;
@@ -163,6 +190,10 @@ export function fromTuple(t: unknown[]): BackendEvent | null {
       return { type: "deleted", name: String(a), ok: Boolean(b) };
     case "switched":
       return { type: "switched", name: String(a) };
+    case "prompt_eval":
+      return { type: "prompt_eval", started: Boolean(a) };
+    case "update":
+      return { type: "update", state: a as UpdateState };
     default:
       return null;
   }
