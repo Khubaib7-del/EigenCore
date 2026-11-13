@@ -13,8 +13,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Khubaib7-del/EigenCore/releases/latest">
-    <img alt="Download for Windows" src="https://img.shields.io/badge/Download%20for%20Windows-.exe-5B6CF0?style=for-the-badge&logo=windows&logoColor=white">
+  <a href="https://github.com/Khubaib7-del/EigenCore/releases/latest/download/EigenCore.exe">
+    <img alt="Download EigenCore.exe for Windows" src="https://img.shields.io/badge/Download%20EigenCore.exe%20(Windows)-5B6CF0?style=for-the-badge&logo=windows&logoColor=white">
   </a>
   &nbsp;
   <a href="https://pypi.org/project/eigencore/">
@@ -28,11 +28,11 @@ EigenCore profiles a machine, estimates whether a local model fits, and runs inf
 
 ## Quick start
 
-**No install needed on Windows:** download `EigenCore-win-x64.zip` from the
-[latest release](https://github.com/Khubaib7-del/EigenCore/releases/latest),
-unzip, run `EigenCore.exe`. Models download in-app from the Models tab. The
-app's sidebar **Download** button re-opens the latest release, so updates are
-one click, not a re-download hunt.
+**No install needed on Windows:** click **Download EigenCore.exe** above (or
+[here](https://github.com/Khubaib7-del/EigenCore/releases/latest/download/EigenCore.exe))
+and run the downloaded `EigenCore.exe` — one file, nothing to unzip. Models
+download in-app from the Models tab, and the app's sidebar **Download** button
+fetches the latest `.exe` directly, so updates are one click.
 
 **Prefer the terminal / other OS:** install from PyPI.
 

@@ -59,20 +59,17 @@ jobs:
           VER=$(python -c "import eigencore; print(eigencore.__version__)")
           flet pack src/eigencore/desktop/app.py \
             --name EigenCore \
+            --onefile \
             --icon src/eigencore/desktop/assets/eigencore.ico \
             --product-version "$VER" --file-version "$VER.0" \
             --add-data "src/eigencore/desktop/assets;assets" \
             --distpath dist
-      - name: Zip the app (PowerShell — no zip.exe on windows runners)
-        shell: pwsh
-        run: |
-          Compress-Archive -Path dist/EigenCore -DestinationPath dist/EigenCore-win-x64.zip -Force
           ls -la dist/
 
       - uses: actions/upload-artifact@v4
         with:
           name: eigencore-windows-exe
-          path: dist/EigenCore-win-x64.zip
+          path: dist/EigenCore.exe
 
   release:
     runs-on: ubuntu-latest
@@ -105,11 +102,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: false
-          files: dist-exe/EigenCore-win-x64.zip
+          files: dist-exe/EigenCore.exe
           body: |
             ## What's Changed
             ${{ steps.changelog.outputs.changes }}
             
             ## Download
-            - **Windows app:** [EigenCore-win-x64.zip](https://github.com/Khubaib7-del/EigenCore/releases/latest) (unzip, run EigenCore.exe)
+            - **Windows app (one click):** [EigenCore.exe](https://github.com/Khubaib7-del/EigenCore/releases/latest/download/EigenCore.exe) — direct download of the latest build
             - PyPI: `pip install eigencore` — see README

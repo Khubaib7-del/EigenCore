@@ -33,6 +33,7 @@ from eigencore.models.registry import ModelRegistry, ModelSpec
 
 REPO = "Khubaib7-del/EigenCore"
 RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
+EXE_URL = f"https://github.com/{REPO}/releases/latest/download/EigenCore.exe"
 API_LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
 
 

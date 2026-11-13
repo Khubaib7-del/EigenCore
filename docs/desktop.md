@@ -7,11 +7,12 @@ always paired with a word).
 
 ## Run it
 
-Every `v*` release attaches a ready-to-run **`EigenCore-win-x64.zip`**
-(built on a Windows runner by `flet pack`) — the same link the README
-Download button points to. In-app, the sidebar **Download** button opens the
-latest release so updates are one click; the app also checks once at startup
-and shows a banner when a newer version exists.
+Every `v*` release attaches a ready-to-run, single-file **`EigenCore.exe`**
+(built on a Windows runner with `flet pack --onefile`). The README Download
+button and the in-app sidebar **Download** button both point at the direct
+asset URL (`releases/latest/download/EigenCore.exe`), so one click downloads
+the exe — no release-page hop, no zip. The app also checks once at startup and
+shows a banner when a newer version exists.
 
 ```powershell
 # Windows (PowerShell), with the prebuilt CPU backend wheel:
@@ -37,14 +38,15 @@ On the Windows machine:
 
 ```powershell
 pip install "flet>=1.0,<2" pyinstaller
-flet pack (python -c "import eigencore.desktop.app as a; print(a.__file__)") `
+flet pack src/eigencore/desktop/app.py `
+  --onefile `
   --name EigenCore --icon src/eigencore/desktop/assets/eigencore.ico `
   --product-version 0.4.3 --file-version 0.4.3.0 --add-data "src/eigencore/desktop/assets;assets"
 ```
 
-Output lands in `dist/` as a single-folder app; zip `dist/EigenCore` for
-distribution. Inference still needs `llama-cpp-python` — bundle it by adding
-the wheel from the CPU index to the build environment.
+Output is a single `dist/EigenCore.exe`. Inference still needs
+`llama-cpp-python` — bundle it by installing the prebuilt CPU wheel in the
+build environment (the release workflow does exactly this).
 
 ## Layout
 

@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from eigencore.desktop import theme as T
 from eigencore.desktop.backend import (
+    EXE_URL,
     RELEASES_URL,
     DesktopBackend,
     ModelRow,
@@ -301,3 +302,5 @@ def test_latest_release_returns_none_on_error():
 
 def test_releases_url_points_at_repo():
     assert "Khubaib7-del/EigenCore" in RELEASES_URL and "releases/latest" in RELEASES_URL
+    # direct-asset URL: one click downloads the exe, no release-page hop
+    assert EXE_URL.endswith("/releases/latest/download/EigenCore.exe")
