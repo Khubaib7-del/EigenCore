@@ -32,6 +32,8 @@ jobs:
           # Requires the GitHub OIDC publisher configured once at
           # https://pypi.org/manage/project/eigencore/publishing/ (owner action).
           print-hash: true
+          # idempotent re-tags: skip files PyPI already has for this version
+          skip-existing: true
 
   windows-exe:
     name: Build Windows desktop app (.exe)
@@ -59,7 +61,6 @@ jobs:
           VER=$(python -c "import eigencore; print(eigencore.__version__)")
           flet pack src/eigencore/desktop/app.py \
             --name EigenCore \
-            --onefile \
             --icon src/eigencore/desktop/assets/eigencore.ico \
             --product-version "$VER" --file-version "$VER.0" \
             --add-data "src/eigencore/desktop/assets;assets" \
