@@ -4,6 +4,9 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Changed
+- Windows download is now one click on the `.exe` itself: the release workflow builds a single-file `EigenCore.exe` (`flet pack --onefile`) and attaches it directly; the README **Download** button and the app's sidebar **Download** button link to `releases/latest/download/EigenCore.exe` instead of the release page / zip.
+
 ## [0.4.4] - 2026-11-13
 
 ### Added

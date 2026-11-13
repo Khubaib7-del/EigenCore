@@ -14,7 +14,7 @@ import flet as ft
 
 from eigencore import __version__
 from eigencore.desktop import theme as T
-from eigencore.desktop.backend import RELEASES_URL, DesktopBackend, is_newer, latest_release
+from eigencore.desktop.backend import EXE_URL, DesktopBackend, is_newer, latest_release
 from eigencore.desktop.views import ChatView, ModelsView, ProfileView
 
 ASSETS = Path(__file__).parent / "assets"
@@ -48,7 +48,7 @@ async def main(page: ft.Page) -> None:
             [
                 ft.Icon(ft.Icons.NEW_RELEASES_OUTLINED, color=T.CAUTION),
                 ft.Text("", size=12, expand=True),
-                ft.TextButton("Download update", on_click=lambda e: page.launch_url(RELEASES_URL)),
+                ft.TextButton("Download update", on_click=lambda e: page.launch_url(EXE_URL)),
             ]
         ),
         bgcolor=T.PANEL,
@@ -69,8 +69,8 @@ async def main(page: ft.Page) -> None:
                 ft.FilledButton(
                     "Download",
                     icon=ft.Icons.DOWNLOAD,
-                    on_click=lambda e: page.launch_url(RELEASES_URL),
-                    tooltip="Get the latest Windows build from GitHub Releases",
+                    on_click=lambda e: page.launch_url(EXE_URL),
+                    tooltip="Download the latest EigenCore.exe directly",
                     width=160,
                 ),
             ],
@@ -121,7 +121,9 @@ async def main(page: ft.Page) -> None:
         rel = latest_release()
         if rel and rel.get("tag") and is_newer(rel["tag"], __version__):
             row = update_banner.content
-            row.controls[1].value = f"v{rel['tag'].lstrip('v')} is available — grab the new .exe"
+            row.controls[
+                1
+            ].value = f"v{rel['tag'].lstrip('v')} is available — the Download button below grabs the new .exe"
             update_banner.visible = True
             try:
                 update_banner.update()
