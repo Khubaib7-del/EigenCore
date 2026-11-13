@@ -59,7 +59,11 @@ async def main(page: ft.Page) -> None:
 
     def show(i: int) -> None:
         content.content = views[i].build()
-        content.update()
+        try:
+            if content.page is not None:  # page property raises RuntimeError pre-add
+                content.update()
+        except RuntimeError:
+            pass  # not mounted yet — the initial show() runs before page.add
 
     sidebar_footer = ft.Container(
         content=ft.Column(
@@ -104,7 +108,6 @@ async def main(page: ft.Page) -> None:
         on_change=lambda e: show(rail.selected_index),
     )
 
-    show(0)
     page.add(
         ft.Column(
             [update_banner, ft.Row([rail, ft.VerticalDivider(width=1), content], expand=True)],
@@ -112,6 +115,7 @@ async def main(page: ft.Page) -> None:
             spacing=0,
         )
     )
+    show(0)
 
     # auto-select the first downloaded model so chat is ready
     backend.ensure_active()
@@ -126,8 +130,9 @@ async def main(page: ft.Page) -> None:
             ].value = f"v{rel['tag'].lstrip('v')} is available — the Download button below grabs the new .exe"
             update_banner.visible = True
             try:
-                update_banner.update()
-            except Exception:
+                if update_banner.page is not None:
+                    update_banner.update()
+            except RuntimeError:
                 pass
 
     threading.Thread(target=check_update, daemon=True).start()

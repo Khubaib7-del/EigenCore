@@ -6,6 +6,7 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ### Fixed
 - Desktop app crash on startup (`'ProfileView' object has no attribute 'attach'` in the packaged exe): all views now share a `View` base class implementing `attach`/`build`/`handle_event`; regression test runs the same polymorphic loop as `app.main`.
+- Desktop app crash on startup (`Container(...) Control must be added to the page first`): `main()` called `content.update()` before `page.add(...)`; layout is now added to the page before the first `show()`, and all control updates guard the unmounted `RuntimeError` (Flet 1.x raises it from the `page` property). Regression test drives `main()` with a mock page and reproduces the exact error on the old code.
 
 ### Changed
 - Windows download is now one click on the `.exe` itself: the release workflow builds a single-file `EigenCore.exe` (`flet pack --onefile`) and attaches it directly; the README **Download** button and the app's sidebar **Download** button link to `releases/latest/download/EigenCore.exe` instead of the release page / zip.
