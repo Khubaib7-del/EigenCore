@@ -33,12 +33,57 @@ jobs:
           # https://pypi.org/manage/project/eigencore/publishing/ (owner action).
           print-hash: true
 
+  windows-exe:
+    name: Build Windows desktop app (.exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build deps
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install "flet>=1.0,<2" pyinstaller
+          # prebuilt CPU wheel for the bundled inference backend
+          python -m pip install "llama-cpp-python>=0.3.0" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+      - name: Pack EigenCore.exe with flet
+        shell: bash
+        run: |
+          VER=$(python -c "import eigencore; print(eigencore.__version__)")
+          flet pack src/eigencore/desktop/app.py \
+            --name EigenCore \
+            --icon src/eigencore/desktop/assets/eigencore.ico \
+            --product-version "$VER" --file-version "$VER.0" \
+            --add-data "src/eigencore/desktop/assets;assets" \
+            --distpath dist
+          cd dist && zip -r -q EigenCore-win-x64.zip EigenCore && cd ..
+          ls -la dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eigencore-windows-exe
+          path: dist/EigenCore-win-x64.zip
+
   release:
     runs-on: ubuntu-latest
+    needs: [pypi, windows-exe]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Download Windows exe artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: eigencore-windows-exe
+          path: dist-exe
 
       - name: Generate changelog
         id: changelog
@@ -57,6 +102,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: false
+          files: dist-exe/EigenCore-win-x64.zip
           body: |
             ## What's Changed
             ${{ steps.changelog.outputs.changes }}
+            
+            ## Download
+            - **Windows app:** [EigenCore-win-x64.zip](https://github.com/Khubaib7-del/EigenCore/releases/latest) (unzip, run EigenCore.exe)
+            - PyPI: `pip install eigencore` — see README

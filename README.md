@@ -7,8 +7,19 @@
 
 <p align="center">
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white">
-  <img alt="Version 0.3.0" src="https://img.shields.io/badge/version-0.3.0-56A9F5">
+  <img alt="Version" src="https://img.shields.io/github/v/release/Khubaib7-del/EigenCore?color=5B6CF0">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-72B7A8">
+  <img alt="Windows app" src="https://img.shields.io/badge/Windows%20app-.exe-5B6CF0?logo=windows&logoColor=white">
+</p>
+
+<p align="center">
+  <a href="https://github.com/Khubaib7-del/EigenCore/releases/latest">
+    <img alt="Download for Windows" src="https://img.shields.io/badge/Download%20for%20Windows-.exe-5B6CF0?style=for-the-badge&logo=windows&logoColor=white">
+  </a>
+  &nbsp;
+  <a href="https://pypi.org/project/eigencore/">
+    <img alt="PyPI" src="https://img.shields.io/pypi/v/eigencore?logo=pypi&logoColor=white&color=3776AB&style=for-the-badge">
+  </a>
 </p>
 
 EigenCore profiles a machine, estimates whether a local model fits, and runs inference through `llama-cpp-python` (llama.cpp). It also ships a benchmark harness, a terminal chat, and agent building blocks with a tool policy layer. The transformer math is llama.cpp's; EigenCore owns the judgement around it.
@@ -17,27 +28,47 @@ EigenCore profiles a machine, estimates whether a local model fits, and runs inf
 
 ## Quick start
 
-Install from PyPI:
+**No install needed on Windows:** download `EigenCore-win-x64.zip` from the
+[latest release](https://github.com/Khubaib7-del/EigenCore/releases/latest),
+unzip, run `EigenCore.exe`. Models download in-app from the Models tab. The
+app's sidebar **Download** button re-opens the latest release, so updates are
+one click, not a re-download hunt.
+
+**Prefer the terminal / other OS:** install from PyPI.
 
 ```bash
-# core CLI (no compiler needed):
+# core CLI (no compiler needed)
 python -m pip install eigencore
-# + the native inference backend (llama.cpp has no Windows wheel on PyPI,
-#   so use the prebuilt index; on GPU machines use the CUDA index instead):
+# + native inference backend (llama.cpp has no Windows wheel on PyPI — use the prebuilt CPU index)
 python -m pip install "eigencore[inference]" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
-# pipx alternative: pipx install "eigencore[inference]"
-# from source (development): git clone ... && python -m pip install -e ".[dev,inference]"
 
 eigencore profile
 eigencore models
 eigencore download tinyllama-1.1b
 eigencore run --prompt "Explain binary search in one paragraph"
-eigencore chat            # add --plain for scripts or minimal terminals
+eigencore chat            # full-screen TUI on a terminal; add --plain for scripts
 ```
 
-Windows desktop app: `pip install "eigencore[desktop,inference]" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu` then `eigencore-gui` (pack a .exe with `flet pack` — see [docs/desktop.md](docs/desktop.md)).
+Desktop app without the .exe: `python -m pip install "eigencore[desktop,inference]" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu` then `eigencore-gui` (see [docs/desktop.md](docs/desktop.md)).
 
-Use `eigencore --help` for every command. `llama-cpp-python` may need a backend-specific install; see its documentation before assuming GPU acceleration (EigenCore currently loads models CPU-only).
+<details><summary>All CLI commands</summary>
+
+```bash
+eigencore                  # interactive menu on a terminal
+eigencore profile          # hardware + recommended model
+eigencore models           # registry with fit estimates
+eigencore download NAME    # pre-download a model
+eigencore delete NAME      # remove a model from disk
+eigencore run -p "..."     # one-shot inference
+eigencore chat             # full-screen chat TUI
+eigencore analyze -p "..." # output sparsity report
+eigencore benchmark        # measured tok/s harness
+eigencore train -d data.jsonl   # QLoRA on CPU
+```
+
+`eigencore --help` lists everything. EigenCore currently loads models CPU-only; see the backend docs before assuming GPU acceleration.
+
+</details>
 
 ## Status
 
