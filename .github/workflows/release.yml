@@ -63,7 +63,10 @@ jobs:
             --product-version "$VER" --file-version "$VER.0" \
             --add-data "src/eigencore/desktop/assets;assets" \
             --distpath dist
-          cd dist && zip -r -q EigenCore-win-x64.zip EigenCore && cd ..
+      - name: Zip the app (PowerShell — no zip.exe on windows runners)
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/EigenCore -DestinationPath dist/EigenCore-win-x64.zip -Force
           ls -la dist/
 
       - uses: actions/upload-artifact@v4
