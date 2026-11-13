@@ -1,0 +1,76 @@
+name: Desktop build
+
+# Builds the Windows app exactly as release.yml does (web UI + PyInstaller,
+# one-folder and portable) and runs the packaged exe's --self-test, so
+# packaging breaks show up on the PR instead of at release time.
+# Nothing is uploaded: no artifacts, no release.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "ui/**"
+      - "src/eigencore/desktop/**"
+      - "packaging/**"
+      - "pyproject.toml"
+      - ".github/workflows/desktop-build.yml"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build web UI (ui/dist)
+        shell: bash
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install build deps
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[desktop]"
+          python -m pip install "flet-cli>=1.0,<2" "flet-desktop>=1.0,<2" pyinstaller
+          python -m pip install "llama-cpp-python>=0.3.0" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+      - name: Build app folder
+        shell: bash
+        run: |
+          pyinstaller packaging/windows/EigenCore.spec --noconfirm --clean \
+            --distpath dist --workpath build/onedir
+          test -f dist/EigenCore/_internal/ui/index.html
+
+      - name: Build portable exe
+        shell: bash
+        env:
+          EIGENCORE_ONEFILE: "1"
+        run: |
+          pyinstaller packaging/windows/EigenCore.spec --noconfirm --clean \
+            --distpath dist-portable --workpath build/onefile
+          ls -la dist-portable/
+
+      - name: Self-test packaged builds
+        shell: pwsh
+        run: |
+          $fail = 0
+          foreach ($exe in @("dist\EigenCore\EigenCore.exe", "dist-portable\EigenCore.exe")) {
+            $report = Join-Path $env:RUNNER_TEMP ("selftest-" + (Split-Path (Split-Path $exe) -Leaf) + ".json")
+            $p = Start-Process -FilePath $exe -ArgumentList @("--self-test", $report) -Wait -PassThru
+            Write-Host "== $exe (exit $($p.ExitCode))"
+            if (Test-Path $report) { Get-Content $report } else { Write-Host "no report written" }
+            if ($p.ExitCode -ne 0) { $fail = 1 }
+          }
+          exit $fail
