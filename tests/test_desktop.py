@@ -333,7 +333,7 @@ def test_app_main_runs_without_page_update_crash(monkeypatch, tmp_path):
         engine_factory=lambda s: FakeEngine(),
     )
     monkeypatch.setattr(app_mod, "DesktopBackend", lambda: be)
-    monkeypatch.setattr(app_mod, "latest_release", lambda *a, **k: None)  # no network
+    monkeypatch.setattr(app_mod.updater, "check", lambda *a, **k: None)  # no network
     # the event pump loops forever; don't let it hang asyncio.run's shutdown
     monkeypatch.setattr(app_mod.asyncio, "create_task", lambda coro: coro.close())
 
@@ -383,3 +383,140 @@ def test_releases_url_points_at_repo():
     assert "Khubaib7-del/EigenCore" in RELEASES_URL and "releases/latest" in RELEASES_URL
     # direct-asset URL: one click downloads the exe, no release-page hop
     assert EXE_URL.endswith("/releases/latest/download/EigenCore.exe")
+
+
+# ----- installer / in-app updater ----------------------------------------------
+
+
+def _release_json(tag="v0.4.5", with_installer=True):
+    assets = [
+        {"name": "EigenCore.exe", "browser_download_url": "https://x/EigenCore.exe", "size": 5}
+    ]
+    if with_installer:
+        assets.append(
+            {
+                "name": "EigenCore-Setup.exe",
+                "browser_download_url": "https://x/Setup.exe",
+                "size": 9,
+            }
+        )
+    return {"tag_name": tag, "html_url": "https://x/rel", "assets": assets}
+
+
+def test_updater_parses_installer_asset():
+    import json
+
+    from eigencore.desktop import updater
+
+    rel = updater.check(lambda url: json.dumps(_release_json()))
+    assert rel.version == "0.4.5"
+    assert rel.installer_url == "https://x/Setup.exe"
+    assert rel.installer_size == 9
+    assert updater.is_newer(rel.version, "0.4.4")
+    assert not updater.is_newer("v0.4.4", "0.4.4")
+
+
+def test_updater_without_installer_or_offline():
+    import json
+
+    from eigencore.desktop import updater
+
+    rel = updater.check(lambda url: json.dumps(_release_json(with_installer=False)))
+    assert rel.installer_url is None  # older release: app falls back to the release page
+
+    def offline(url):
+        raise OSError("no network")
+
+    assert updater.check(offline) is None
+
+
+def test_updater_download_reports_progress_and_is_atomic(tmp_path):
+    import io
+
+    from eigencore.desktop import updater
+
+    payload = b"x" * 1000
+
+    class Resp(io.BytesIO):
+        headers = {"Content-Length": str(len(payload))}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    seen = []
+    path = updater.download(
+        "https://x/Setup.exe",
+        tmp_path,
+        seen.append,
+        opener=lambda req, timeout: Resp(payload),
+        chunk=300,
+    )
+    assert path.read_bytes() == payload
+    assert seen[-1] == 100.0 and seen == sorted(seen)
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_updater_install_is_silent_inplace_update(tmp_path):
+    from eigencore.desktop import updater
+
+    calls = []
+    updater.install(tmp_path / "EigenCore-Setup.exe", popen=lambda cmd, **kw: calls.append(cmd))
+    cmd = calls[0]
+    assert cmd[0].endswith("EigenCore-Setup.exe")
+    assert "/SILENT" in cmd and "/CLOSEAPPLICATIONS" in cmd
+
+
+def test_updater_detects_installed_folder(tmp_path):
+    from eigencore.desktop import updater
+
+    exe = tmp_path / "EigenCore.exe"
+    exe.write_bytes(b"")
+    assert not updater.is_installed(str(exe))  # portable copy
+    (tmp_path / "unins000.exe").write_bytes(b"")
+    assert updater.is_installed(str(exe))  # Inno Setup install folder
+
+
+def test_close_button_awaits_window_close(monkeypatch, tmp_path):
+    """Regression: Flet 1.x window.close() is a coroutine; calling it from a
+    plain lambda never ran it, so the title-bar X did nothing."""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    import flet as ft
+
+    import eigencore.desktop.app as app_mod
+
+    registry = ModelRegistry(cache_dir=tmp_path / "models")
+    be = DesktopBackend(
+        registry=registry, profile=_profile(), engine_factory=lambda s: FakeEngine()
+    )
+    monkeypatch.setattr(app_mod, "DesktopBackend", lambda: be)
+    monkeypatch.setattr(app_mod.updater, "check", lambda *a, **k: None)
+    monkeypatch.setattr(app_mod.asyncio, "create_task", lambda coro: coro.close())
+
+    page = MagicMock()
+    page.window = MagicMock()
+    page.window.close = AsyncMock()
+    added = []
+    page.add = lambda *c, **k: added.extend(c)
+    asyncio.run(app_mod.main(page))
+
+    def find_close(ctrl):
+        if isinstance(ctrl, ft.IconButton) and ctrl.icon == ft.Icons.CLOSE:
+            return ctrl
+        for attr in ("controls", "content"):
+            kids = getattr(ctrl, attr, None)
+            for kid in kids if isinstance(kids, list) else [kids]:
+                if kid is not None and hasattr(kid, "__dict__"):
+                    hit = find_close(kid)
+                    if hit:
+                        return hit
+        return None
+
+    btn = find_close(added[0])
+    assert btn is not None
+    asyncio.run(btn.on_click(None))
+    page.window.close.assert_awaited_once()

@@ -4,6 +4,24 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-11-13
+
+### Added
+- Windows installer `EigenCore-Setup.exe` (Inno Setup, `packaging/windows/EigenCore.iss`). Per-user install into `%LOCALAPPDATA%\Programs\EigenCore` with no admin prompt, Start menu entry (desktop shortcut optional), and an entry in Settings > Apps > Installed apps with a normal uninstaller. Models in `~/.eigencore` are never touched by install, update or uninstall.
+- In-app updates: the sidebar button checks GitHub (**Check for updates**, then **Update to vX**), downloads the new installer with progress and runs it silently. It closes the app, updates in place (fixed AppId) and reopens EigenCore. Portable and pip installs open the release page instead. Logic lives in `desktop/updater.py` and is unit-tested.
+
+### Fixed
+- Title-bar close (X) did nothing: Flet 1.x `page.window.close()` is a coroutine and was called from a plain lambda, so it never ran. It is now awaited (falling back to `destroy()`). Regression test added.
+- Sidebar **Download** and the update banner did nothing: `page.launch_url` does not exist in Flet 1.x. Replaced by the updater flow above.
+- Model **Delete** confirmation never opened: `page.open()` and `page.close_dialog()` were removed in Flet 1.x. Now uses `page.show_dialog()` and `page.pop_dialog()`.
+- Double-clicking the title bar now maximizes or restores the window.
+
+### Changed
+- Release workflow: one Windows job builds the installer and the portable `EigenCore.exe` and publishes the GitHub Release directly. It no longer uses `actions/upload-artifact`/`download-artifact`, so it consumes no Actions artifact storage. The Windows release no longer waits on the PyPI job.
+- README rewritten for first-time users: one download button for the installer, five numbered steps, plain-language sections on updating, uninstalling and what to expect. Terminal install follows. Developer material (build, speed arithmetic, status table, architecture) is grouped under "For developers", with the long tables folded.
+
+## [0.4.4] fixes (re-tagged 2026-11-13)
+
 ### Fixed
 - Packaged exe could not load any model (`cannot find ... llama_cpp\\lib`): the release workflow now passes `--pyinstaller-build-args "--collect-all" "llama_cpp"` to `flet pack`, so PyInstaller bundles the native DLL.
 - Desktop app crash on startup (`'ProfileView' object has no attribute 'attach'` in the packaged exe): all views now share a `View` base class implementing `attach`/`build`/`handle_event`; regression test runs the same polymorphic loop as `app.main`.
