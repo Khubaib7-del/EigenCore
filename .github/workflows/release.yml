@@ -36,9 +36,10 @@ jobs:
           skip-existing: true
 
   windows-app:
-    # Builds the Windows installer + portable exe and publishes the GitHub
-    # Release from this one job. No actions/upload-artifact: files go straight
-    # to the release (Actions artifact storage is not used).
+    # Builds the web UI, the Windows installer + portable exe (PyInstaller,
+    # packaging/windows/EigenCore.spec) and publishes the GitHub Release from
+    # this one job. No actions/upload-artifact: files go straight to the
+    # release (Actions artifact storage is not used).
     name: Build Windows app and publish release
     runs-on: windows-latest
     steps:
@@ -51,12 +52,27 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build web UI (ui/dist)
+        shell: bash
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+          ls -la dist
+
       - name: Install build deps
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e .
-          python -m pip install "flet>=1.0,<2" "flet-cli>=1.0,<2" pyinstaller
+          # desktop extra: pywebview (+ pythonnet on Windows) and Flet (fallback)
+          python -m pip install -e ".[desktop]"
+          # flet-cli + flet-desktop: PyInstaller hooks that bundle the Flet client
+          python -m pip install "flet-cli>=1.0,<2" "flet-desktop>=1.0,<2" pyinstaller
           # prebuilt CPU wheel for the bundled inference backend
           python -m pip install "llama-cpp-python>=0.3.0" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 
@@ -65,15 +81,10 @@ jobs:
         run: |
           VER=$(python -c "import eigencore; print(eigencore.__version__)")
           echo "VER=$VER" >> "$GITHUB_ENV"
-          flet pack src/eigencore/desktop/app.py --onedir -y \
-            --name EigenCore \
-            --icon src/eigencore/desktop/assets/eigencore.ico \
-            --product-name EigenCore --file-description "EigenCore" \
-            --product-version "$VER" --file-version "$VER.0" \
-            --add-data "src/eigencore/desktop/assets;assets" \
-            --pyinstaller-build-args=--collect-all=llama_cpp \
-            --distpath dist
+          pyinstaller packaging/windows/EigenCore.spec --noconfirm --clean \
+            --distpath dist --workpath build/onedir
           ls -la dist/EigenCore
+          test -f dist/EigenCore/_internal/ui/index.html
 
       - name: Build installer (EigenCore-Setup.exe)
         shell: pwsh
@@ -88,15 +99,11 @@ jobs:
 
       - name: Build portable exe (EigenCore.exe, no install)
         shell: bash
+        env:
+          EIGENCORE_ONEFILE: "1"
         run: |
-          flet pack src/eigencore/desktop/app.py -y \
-            --name EigenCore \
-            --icon src/eigencore/desktop/assets/eigencore.ico \
-            --product-name EigenCore --file-description "EigenCore (portable)" \
-            --product-version "$VER" --file-version "$VER.0" \
-            --add-data "src/eigencore/desktop/assets;assets" \
-            --pyinstaller-build-args=--collect-all=llama_cpp \
-            --distpath dist-portable
+          pyinstaller packaging/windows/EigenCore.spec --noconfirm --clean \
+            --distpath dist-portable --workpath build/onefile
           ls -la dist-portable/
 
       - name: Generate changelog

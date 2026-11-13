@@ -1,9 +1,10 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, type Dispatch, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from "react";
 import { api } from "../api";
 import type {
   ApprovalDecision,
   ApprovalRequest,
   BackendEvent,
+  ChatTurn,
   GenerationStats,
   HardwareProfile,
   ModelRow,
@@ -11,6 +12,7 @@ import type {
   UpdateState,
 } from "../api";
 import { CURRENT_VERSION, DEFAULT_SETTINGS, MOCK_MODELS, MOCK_PROFILE } from "../api/mockData";
+import { splitThinking } from "../components/Markdown";
 import { SEED_CHATS, SEED_TPS, SEED_TURNS } from "./seed";
 
 export type Screen = "chat" | "models" | "monitor" | "profile" | "settings";
@@ -43,6 +45,8 @@ export interface Chat {
   group: string;
   model: string;
   messages: Message[];
+  /** ms since epoch; the sidebar group (Today, Yesterday...) is derived from it. */
+  createdAt?: number;
 }
 
 export interface Turn {
@@ -52,6 +56,8 @@ export interface Turn {
   prompt_tokens: number | null;
   tokens: number;
   tok_per_sec: number;
+  /** Output rate after the first token (desktop backend); null when not measured. */
+  decode_tok_per_sec?: number | null;
   first_token_s: number | null;
   seconds: number;
   status: "done" | "stopped" | "error";
@@ -127,10 +133,13 @@ function onEvent(s: State, e: BackendEvent): State {
         ...s,
         toast: { id: Date.now(), text: e.ok ? `Deleted ${e.name}` : `Could not delete ${e.name}`, tone: e.ok ? "ok" : "err" },
       };
-    case "engine":
+    case "engine": {
       if (e.state === "loading") return { ...s, engine: { phase: "loading", message: e.message } };
       if (e.state === "ready") return { ...s, engine: { phase: "idle", message: e.message } };
-      return { ...s, engine: { phase: "error", message: e.message }, toast: { id: Date.now(), text: e.message, tone: "err" } };
+      const err = { ...s, engine: { phase: "error" as const, message: e.message }, toast: { id: Date.now(), text: e.message, tone: "err" as const } };
+      // A send that never started (no model loaded) must not spin forever.
+      return patchLastAssistant(err, (m) => (m.status === "reading" && !m.content ? { ...m, status: "error", error: e.message } : m));
+    }
     case "switched":
       return {
         ...s,
@@ -159,11 +168,13 @@ function onEvent(s: State, e: BackendEvent): State {
         prompt_tokens: st.prompt_tokens ?? null,
         tokens: st.tokens,
         tok_per_sec: st.tok_per_sec,
+        decode_tok_per_sec: st.decode_tok_per_sec ?? null,
         first_token_s: st.first_token_s ?? null,
         seconds: st.seconds,
         status: st.error ? "error" : st.interrupted ? "stopped" : "done",
       };
-      return { ...next, turns: [turn, ...s.turns].slice(0, 20), tps: [...s.tps, st.tok_per_sec].slice(-48) };
+      const rate = st.decode_tok_per_sec ?? st.tok_per_sec;
+      return { ...next, turns: [turn, ...s.turns].slice(0, 20), tps: [...s.tps, rate].slice(-48) };
     }
     case "approval_request":
       return patchLastAssistant(s, (m) => ({ ...m, status: "awaiting_approval", approval: e.request }));
@@ -187,7 +198,7 @@ function reducer(s: State, a: Action): State {
     case "systemDark":
       return { ...s, systemDark: a.dark };
     case "newChat": {
-      const c: Chat = { id: uid(), title: "New chat", group: "Today", model: s.activeModel ?? "", messages: [] };
+      const c: Chat = { id: uid(), title: "New chat", group: "Today", model: s.activeModel ?? "", messages: [], createdAt: Date.now() };
       return { ...s, chats: [c, ...s.chats], activeChatId: c.id, screen: "chat", paletteOpen: false };
     }
     case "openChat":
@@ -223,11 +234,93 @@ function reducer(s: State, a: Action): State {
   }
 }
 
+/** Real data the desktop app loads before the first render (see main.tsx). */
+export interface Boot {
+  models: ModelRow[];
+  profile: HardwareProfile;
+  version: string;
+  settings: Settings;
+  chats: Chat[];
+}
+
+const THEME_KEY = "eigencore.theme";
+function storedTheme(): Settings["theme"] | null {
+  try {
+    const t = localStorage.getItem(THEME_KEY);
+    return t === "dark" || t === "light" || t === "system" ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+function groupFor(createdAt: number | undefined): string {
+  if (!createdAt) return "Earlier";
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diff = Math.round((day(new Date()) - day(new Date(createdAt))) / 86400000);
+  return diff <= 0 ? "Today" : diff === 1 ? "Yesterday" : diff < 7 ? "This week" : "Earlier";
+}
+
+/** Saved chats come back settled: nothing is streaming after a restart. */
+export function restoreChats(raw: unknown[]): Chat[] {
+  const out: Chat[] = [];
+  for (const c of raw) {
+    if (!c || typeof c !== "object") continue;
+    const chat = c as Chat;
+    if (typeof chat.id !== "string" || !Array.isArray(chat.messages)) continue;
+    out.push({
+      ...chat,
+      group: groupFor(chat.createdAt),
+      messages: chat.messages.map((m) =>
+        m.status === "reading" || m.status === "streaming" || m.status === "awaiting_approval" ? { ...m, status: "stopped" } : m,
+      ),
+    });
+  }
+  return out;
+}
+
+/** Earlier turns of a chat as the engine should see them (reasoning stripped). */
+export function historyOf(chat: Chat | undefined): ChatTurn[] {
+  if (!chat) return [];
+  const turns: ChatTurn[] = [];
+  for (const m of chat.messages) {
+    if (m.role === "user") turns.push({ role: "user", content: m.content });
+    else if (m.status !== "error") {
+      const answer = splitThinking(m.content).answer.trim();
+      if (answer) turns.push({ role: "assistant", content: answer });
+    }
+  }
+  return turns;
+}
+
+function desktopState(boot: Boot): State {
+  return {
+    screen: "chat",
+    sidebarCollapsed: false,
+    settings: boot.settings,
+    systemDark: window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true,
+    models: boot.models,
+    downloads: {},
+    profile: boot.profile,
+    version: boot.version,
+    engine: { phase: "idle", message: "" },
+    activeModel: boot.models.find((m) => m.is_active)?.name ?? null,
+    chats: boot.chats,
+    activeChatId: null,
+    turns: [],
+    tps: [],
+    sampleTelemetry: false,
+    update: { kind: "idle" },
+    toast: null,
+    paletteOpen: false,
+  };
+}
+
 /** Preview switches read from the URL, e.g. ?screen=models&theme=light&chat=empty */
-function initialState(): State {
+function initialState(boot?: Boot): State {
+  if (boot) return desktopState(boot);
   const q = new URLSearchParams(location.search);
   const screen = (q.get("screen") as Screen) || "chat";
-  const theme = (q.get("theme") as Settings["theme"]) || DEFAULT_SETTINGS.theme;
+  const theme = (q.get("theme") as Settings["theme"]) || storedTheme() || DEFAULT_SETTINGS.theme;
   const chats = SEED_CHATS.map((c) => ({ ...c, messages: c.messages.slice() }));
   const empty = q.get("chat") === "empty";
   const s: State = {
@@ -271,13 +364,46 @@ interface Ctx {
     approve(msgId: string, reqId: string, d: ApprovalDecision): void;
     checkUpdate(): void;
     installUpdate(): void;
+    rescanProfile(): void;
   };
 }
 
 const StoreCtx = createContext<Ctx | null>(null);
 
-export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, initialState);
+export function StoreProvider({ children, boot }: { children: ReactNode; boot?: Boot }) {
+  const [state, dispatch] = useReducer(reducer, boot, initialState);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const desktop = api.kind === "pywebview";
+
+  // Desktop: look for an update once at start (like the previous app did).
+  useEffect(() => {
+    if (desktop) api.checkForUpdate();
+  }, [desktop]);
+
+  // Theme is remembered: localStorage, and the desktop host's settings file.
+  const theme = state.settings.theme;
+  const firstTheme = useRef(true);
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* storage disabled */
+    }
+    if (firstTheme.current) {
+      firstTheme.current = false;
+      return;
+    }
+    if (desktop) api.saveSettings({ theme }).catch(() => {});
+  }, [theme, desktop]);
+
+  // Desktop: chats are saved locally, a moment after they stop changing.
+  const busy = state.engine.phase === "reading" || state.engine.phase === "writing";
+  useEffect(() => {
+    if (!desktop || busy) return;
+    const t = setTimeout(() => api.saveChats(stateRef.current.chats.filter((c) => c.messages.length > 0)), 600);
+    return () => clearTimeout(t);
+  }, [state.chats, busy, desktop]);
 
   useEffect(
     () =>
@@ -305,8 +431,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const actions = useMemo<Ctx["actions"]>(
     () => ({
       send(text) {
+        const s = stateRef.current;
+        const history = historyOf(s.chats.find((c) => c.id === s.activeChatId));
         dispatch({ type: "userSend", text });
-        api.send(text);
+        api.send(text, { history });
       },
       stop: () => api.stop(),
       download: (n) => {
@@ -321,6 +449,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       checkUpdate: () => api.checkForUpdate(),
       installUpdate: () => api.installUpdate(),
+      rescanProfile() {
+        api
+          .hardwareProfile(true)
+          .then((profile) => {
+            dispatch({ type: "seed", patch: { profile } });
+            dispatch({ type: "toast", text: "Hardware profile updated", tone: "ok" });
+          })
+          .catch(() => dispatch({ type: "toast", text: "Could not re-scan this machine", tone: "err" }));
+      },
     }),
     [],
   );

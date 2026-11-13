@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { api } from "../api";
 import { useStore, type Screen } from "../state/store";
 import { Icon, type IconName } from "./Icon";
 import { GlideMenu, IconButton, Kbd, PixelLoader } from "./primitives";
@@ -9,16 +10,15 @@ import { GlideMenu, IconButton, Kbd, PixelLoader } from "./primitives";
  */
 export function TitleBar() {
   const { state } = useStore();
-  const win = (op: "minimize" | "toggle_maximize" | "close") => {
-    // Wired later: window.pywebview.api.window(op)
-    const pw = (window as unknown as { pywebview?: { api?: Record<string, (o: string) => void> } }).pywebview;
-    pw?.api?.window?.(op);
+  const win = (op: "minimize" | "toggle_maximize" | "close") => api.windowControl(op);
+  const onDouble = (e: ReactMouseEvent) => {
+    if (!(e.target as HTMLElement).closest("button")) win("toggle_maximize");
   };
   const engine = state.engine;
   const status =
     engine.phase === "loading" ? "Loading model" : engine.phase === "reading" ? "Reading prompt" : engine.phase === "writing" ? "Writing" : engine.phase === "error" ? "Engine error" : state.activeModel ? "Ready" : "No model";
   return (
-    <header className="titlebar pywebview-drag-region">
+    <header className="titlebar pywebview-drag-region" onDoubleClick={onDouble}>
       <div className="titlebar-brand">
         <span className="wordmark">EigenCore</span>
         <span className="titlebar-sep" />
@@ -26,11 +26,13 @@ export function TitleBar() {
         <span className="titlebar-status">{status}</span>
         {state.activeModel && <span className="mono titlebar-model">{state.activeModel}</span>}
       </div>
-      <div className="titlebar-center">
-        <span className="chip sample" title="Preview build: every value comes from the mock API">
-          Preview · mock data
-        </span>
-      </div>
+      {api.kind === "mock" && (
+        <div className="titlebar-center">
+          <span className="chip sample" title="Preview build: every value comes from the mock API">
+            Preview · mock data
+          </span>
+        </div>
+      )}
       <div className="titlebar-controls no-drag">
         <button aria-label="Minimize" onClick={() => win("minimize")}>
           <Icon name="minus" size={14} />
@@ -71,8 +73,11 @@ export function UpdateButton({ compact }: { compact?: boolean }) {
     progress = u.pct;
     onClick = undefined;
   } else if (u.kind === "ready_to_install") {
-    label = "Restart to install";
+    label = "Installing…";
     onClick = undefined;
+  } else if (u.kind === "manual") {
+    label = `Get ${u.tag}`;
+    onClick = () => api.openUrl(u.url);
   } else if (u.kind === "up_to_date") label = "Up to date";
   else if (u.kind === "error") label = "Retry update check";
   if (compact)
@@ -262,5 +267,40 @@ export function Toast() {
       <Icon name={state.toast.tone === "err" ? "alert" : "check"} size={14} />
       <span>{state.toast.text}</span>
     </div>
+  );
+}
+
+/* ── Resize grips for the frameless desktop window ─────────────────────── */
+export function ResizeGrips() {
+  if (api.kind !== "pywebview") return null;
+  const start = (edge: "e" | "s" | "se") => (e: ReactMouseEvent) => {
+    e.preventDefault();
+    const x0 = e.screenX;
+    const y0 = e.screenY;
+    const w0 = window.outerWidth;
+    const h0 = window.outerHeight;
+    let frame = 0;
+    let last: [number, number] = [w0, h0];
+    const move = (ev: MouseEvent) => {
+      last = [edge === "s" ? w0 : w0 + ev.screenX - x0, edge === "e" ? h0 : h0 + ev.screenY - y0];
+      if (!frame)
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          api.windowControl("resize", Math.round(last[0]), Math.round(last[1]));
+        });
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
+  return (
+    <>
+      <div className="resize-grip e" onMouseDown={start("e")} aria-hidden />
+      <div className="resize-grip s" onMouseDown={start("s")} aria-hidden />
+      <div className="resize-grip se" onMouseDown={start("se")} aria-hidden />
+    </>
   );
 }

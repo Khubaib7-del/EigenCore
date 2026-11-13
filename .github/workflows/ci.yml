@@ -33,6 +33,22 @@ jobs:
       - name: Test
         run: pytest tests/ -v --tb=short
 
+  ui:
+    # type-check + production build of the desktop web UI (no artifacts kept)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+
   lint:
     runs-on: ubuntu-latest
     steps:

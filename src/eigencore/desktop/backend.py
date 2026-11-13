@@ -8,9 +8,12 @@ tested without a display. Event tuples:
     ("dl_progress", name, pct)       download progress 0..100
     ("dl_done", name, ok, message)   download finished/failed
     ("engine", state, message)       "loading" / "ready" / "error"
+    ("prompt_eval", started)         True when generation starts (prompt is
+                                     being read), False at the first token
     ("tok", text)                    streamed token
     ("done", stats)                  generation finished (tokens, seconds,
-                                     tok_per_sec, interrupted, error)
+                                     tok_per_sec, first_token_s,
+                                     decode_tok_per_sec, interrupted, error)
     ("deleted", name, ok)
     ("switched", name)
 """
@@ -275,7 +278,18 @@ class DesktopBackend:
     def gen_active(self) -> bool:
         return self._gen_active
 
-    def send(self, text: str, max_tokens: int = 512, temperature: float = 0.7) -> None:
+    def send(
+        self,
+        text: str,
+        max_tokens: int = 512,
+        temperature: float = 0.7,
+        history: Optional[list[dict[str, str]]] = None,
+    ) -> None:
+        """Stream a reply to ``text`` on a worker thread.
+
+        ``history`` (earlier user/assistant turns) replaces the backend's own
+        conversation, so a UI with several chats keeps each one's context.
+        """
         text = text.strip()
         if not text:
             return
@@ -289,17 +303,28 @@ class DesktopBackend:
                 return
             self._gen_active = True
         self._cancel.clear()
+        if history is not None:
+            self.messages = [
+                {"role": m["role"], "content": m["content"]}
+                for m in history
+                if m.get("role") in ("user", "assistant") and m.get("content")
+            ]
         self.messages.append({"role": "user", "content": text})
         msgs = list(self.messages)
         engine = self.engine
         cancel = self._cancel
         events = self.events
 
+        history_ref = self.messages
+
         def worker() -> None:
             start = time.perf_counter()
+            first_at: Optional[float] = None
             count = 0
             err = None
             gen = None
+            parts: list[str] = []
+            events.put(("prompt_eval", True))
             try:
                 gen = engine.stream_messages(
                     msgs,
@@ -308,7 +333,11 @@ class DesktopBackend:
                 for tok in gen:
                     if cancel.is_set():
                         break
+                    if first_at is None:
+                        first_at = time.perf_counter()
+                        events.put(("prompt_eval", False))
                     events.put(("tok", tok))
+                    parts.append(tok)
                     count += 1
             except Exception as e:
                 err = f"{type(e).__name__}: {e}"
@@ -316,7 +345,13 @@ class DesktopBackend:
                 if gen is not None and hasattr(gen, "close"):
                     with contextlib.suppress(Exception):
                         gen.close()
-            elapsed = time.perf_counter() - start
+            end = time.perf_counter()
+            elapsed = end - start
+            # decode rate: pieces after the first one, over the time after it
+            decode_s = (end - first_at) if first_at is not None else 0.0
+            if parts:
+                # keep the reply so the next turn has the whole conversation
+                history_ref.append({"role": "assistant", "content": "".join(parts)})
             events.put(
                 (
                     "done",
@@ -324,6 +359,10 @@ class DesktopBackend:
                         "tokens": count,
                         "seconds": elapsed,
                         "tok_per_sec": (count / elapsed) if elapsed > 0 else 0.0,
+                        "first_token_s": (first_at - start) if first_at is not None else None,
+                        "decode_tok_per_sec": (
+                            (count - 1) / decode_s if count > 1 and decode_s > 0 else None
+                        ),
                         "interrupted": cancel.is_set(),
                         "error": err,
                     },

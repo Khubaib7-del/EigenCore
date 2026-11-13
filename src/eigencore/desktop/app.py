@@ -1,7 +1,7 @@
-"""EigenCore desktop app entry point (Flet 1.x).
+"""EigenCore desktop app, Flet 1.x version (fallback: `eigencore-gui --flet`).
 
-Run with `eigencore-gui` or `python -m eigencore.desktop`. Pack for Windows
-with: flet pack <this file> --name EigenCore --icon <assets/eigencore.ico>
+The default desktop UI is the web UI (eigencore.desktop.web); this app opens
+with `eigencore-gui --flet`, or automatically when the web UI cannot start.
 """
 
 from __future__ import annotations

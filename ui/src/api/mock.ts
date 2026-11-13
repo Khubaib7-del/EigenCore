@@ -67,8 +67,16 @@ export class MockApi implements EigenCoreApi {
   async listModels() {
     return this.models.map((m) => ({ ...m }));
   }
-  async hardwareProfile(): Promise<HardwareProfile> {
+  async hardwareProfile(_rescan?: boolean): Promise<HardwareProfile> {
     return { ...MOCK_PROFILE };
+  }
+  async loadChats(): Promise<unknown[]> {
+    return [];
+  }
+  saveChats(_chats: unknown[]) {}
+  windowControl() {}
+  openUrl(url: string) {
+    window.open(url, "_blank", "noopener");
   }
   async getSettings() {
     return { ...this.settings };

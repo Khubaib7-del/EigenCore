@@ -23,7 +23,8 @@ function Stats({ m }: { m: Message }) {
   const st = m.stats;
   if (!st || m.status === "reading" || m.status === "streaming" || m.status === "awaiting_approval") return null;
   const measured = m.statsKind !== "placeholder";
-  const tps = measured ? `${st.tok_per_sec.toFixed(1)} tok/s` : "— tok/s";
+  const rate = st.decode_tok_per_sec ?? st.tok_per_sec;
+  const tps = measured ? `${rate.toFixed(1)} tok/s` : "— tok/s";
   const ft = measured && st.first_token_s != null ? `first token ${st.first_token_s.toFixed(2)} s` : "first token —";
   return (
     <div className="msg-stats">
@@ -64,6 +65,7 @@ function AssistantMessage({ m, onApprove }: { m: Message; onApprove: (d: "once" 
         </div>
       )}
       {answer && <Markdown text={answer} streaming={m.status === "streaming" && !thinkingOpen} />}
+      {m.status === "error" && m.error && !answer && <div className="muted waiting">{m.error}</div>}
       {m.status === "streaming" && !answer && !thinkingOpen && <LoadingState label="Writing" since={m.startedAt} />}
       <Stats m={m} />
     </article>
@@ -140,7 +142,7 @@ export function ChatScreen() {
             <span className="mono">{active.name}</span>
           </span>
         )}
-        <IconButton icon="dots" label="Chat options" />
+        <IconButton icon="dots" label="Chat options (coming later)" disabled />
       </div>
       <div className="chat-scroll" ref={scroller}>
         <div className="thread">

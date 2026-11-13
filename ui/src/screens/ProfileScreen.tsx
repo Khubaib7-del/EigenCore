@@ -1,13 +1,21 @@
+import { api } from "../api";
 import { Icon } from "../components/Icon";
 import { Button, Chip } from "../components/primitives";
 import { ProviderLogo } from "../components/ProviderLogo";
 import { useStore } from "../state/store";
 
 export function ProfileScreen() {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, actions } = useStore();
   const p = state.profile;
-  const usedPct = ((p.total_ram_gb - p.available_ram_gb) / p.total_ram_gb) * 100;
-  const suggested = state.models.find((m) => m.name === "qwen2.5-3b");
+  const usedPct = p.total_ram_gb > 0 ? ((p.total_ram_gb - p.available_ram_gb) / p.total_ram_gb) * 100 : 0;
+  const desktop = api.kind === "pywebview";
+  // Desktop: the largest registry model within the profiler's size limit that
+  // is not on disk yet (a rule of thumb from the estimate, not a benchmark).
+  const suggested = desktop
+    ? state.models
+        .filter((m) => !m.downloaded && m.params_b <= p.max_model_params_b && m.size_gb < p.available_ram_gb)
+        .sort((a, b) => b.params_b - a.params_b)[0]
+    : state.models.find((m) => m.name === "qwen2.5-3b");
   return (
     <div className="page">
       <header className="page-head">
@@ -15,7 +23,7 @@ export function ProfileScreen() {
           <h1>Profile</h1>
           <p className="muted">What EigenCore found on this machine, and what it can run.</p>
         </div>
-        <Button icon="refresh" size="sm">
+        <Button icon="refresh" size="sm" onClick={actions.rescanProfile}>
           Re-scan
         </Button>
       </header>
@@ -30,6 +38,7 @@ export function ProfileScreen() {
             {p.physical_cores} cores / {p.logical_cores} threads · {p.arch}
           </div>
           <div className="isa">
+            {p.instruction_sets.length === 0 && <span className="muted">No SIMD extensions detected</span>}
             {p.instruction_sets.map((s) => (
               <span key={s} className="chip mono">
                 {s}
@@ -79,7 +88,7 @@ export function ProfileScreen() {
           </span>
           <div>
             <div className="reco-title">
-              Up to {p.max_model_params_b}B models at {p.optimal_quantization}
+              Up to {Number(p.max_model_params_b.toFixed(1))}B models at {p.optimal_quantization}
             </div>
             <div className="muted">
               Based on {p.available_ram_gb.toFixed(1)} GB free RAM and the profiler’s estimates. Context {p.recommended_context_length.toLocaleString()} tokens,{" "}
@@ -113,9 +122,15 @@ export function ProfileScreen() {
         <div className="reco-actions">
           <span className="muted mono">eigencore benchmark</span>
           <span className="grow" />
-          <Button size="sm" variant="primary" icon="bolt">
-            Run benchmark
-          </Button>
+          {desktop ? (
+            <Button size="sm" icon="bolt" disabled title="Coming soon in the app. Run `eigencore benchmark` in a terminal for now.">
+              Run benchmark · coming soon
+            </Button>
+          ) : (
+            <Button size="sm" variant="primary" icon="bolt">
+              Run benchmark
+            </Button>
+          )}
         </div>
       </div>
     </div>

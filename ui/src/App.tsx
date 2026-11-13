@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { CommandPalette, Sidebar, TitleBar, Toast } from "./components/Shell";
+import { CommandPalette, ResizeGrips, Sidebar, TitleBar, Toast } from "./components/Shell";
 import { ChatScreen } from "./screens/ChatScreen";
 import { ModelsScreen } from "./screens/ModelsScreen";
 import { MonitorScreen } from "./screens/MonitorScreen";
@@ -29,6 +29,7 @@ export function App() {
       </div>
       <CommandPalette />
       <Toast />
+      <ResizeGrips />
     </div>
   );
 }

@@ -1875,3 +1875,96 @@
   text-align: center;
   padding: 28px 16px !important;
 }
+
+/* ── Desktop host (pywebview) ───────────────────────────────────────────── */
+.boot-splash {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  user-select: none;
+}
+.boot-dots {
+  display: flex;
+  gap: 5px;
+}
+.boot-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--ink-3);
+  animation: boot-dot 1.1s ease-in-out infinite;
+}
+.boot-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.boot-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes boot-dot {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boot-dots i {
+    animation: none;
+  }
+}
+.boot-error {
+  max-width: 560px;
+  margin: 12vh auto 0;
+  padding: 0 24px;
+}
+.boot-error h1 {
+  font-size: var(--text-lg);
+}
+.boot-error pre {
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  color: var(--ink-2);
+}
+.titlebar {
+  user-select: none;
+}
+/* Frameless windows have no OS resize border: thin grips on the right and
+ * bottom edges and the corner resize through the bridge. */
+.resize-grip {
+  position: fixed;
+  z-index: 100;
+}
+.resize-grip.e {
+  top: var(--titlebar-h);
+  right: 0;
+  bottom: 12px;
+  width: 5px;
+  cursor: ew-resize;
+}
+.resize-grip.s {
+  left: 0;
+  right: 12px;
+  bottom: 0;
+  height: 5px;
+  cursor: ns-resize;
+}
+.resize-grip.se {
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+.segmented.disabled,
+.set-row.disabled .set-control {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.soon {
+  margin-left: 8px;
+  vertical-align: 1px;
+}
