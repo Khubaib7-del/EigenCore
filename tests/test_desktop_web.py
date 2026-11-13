@@ -573,3 +573,16 @@ def test_launcher_ignores_unknown_args():
 def test_version_is_package_version(tmp_path):
     br = WebBridge(backend=SimpleNamespace(events=queue.Queue()))
     assert br.version() == __version__
+
+
+def test_self_test_report(tmp_path, monkeypatch):
+    d = tmp_path / "dist"
+    d.mkdir()
+    (d / "index.html").write_text("<html></html>")
+    monkeypatch.setenv("EIGENCORE_UI_DIST", str(d))
+    out = tmp_path / "report.json"
+    which = launcher.main(["--self-test", str(out)])
+    report = json.loads(out.read_text())
+    assert report["version"] == __version__
+    assert report["ui_dist"] == str(d)
+    assert which == ("self-test-ok" if report["ok"] else "self-test-failed")
