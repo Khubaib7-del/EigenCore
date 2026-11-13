@@ -3,3 +3,4 @@ dist/
 *.png
 *.zip
 .DS_Store
+*.tsbuildinfo
