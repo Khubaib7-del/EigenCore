@@ -4,6 +4,9 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Fixed
+- Desktop app crash on startup (`'ProfileView' object has no attribute 'attach'` in the packaged exe): all views now share a `View` base class implementing `attach`/`build`/`handle_event`; regression test runs the same polymorphic loop as `app.main`.
+
 ### Changed
 - Windows download is now one click on the `.exe` itself: the release workflow builds a single-file `EigenCore.exe` (`flet pack --onefile`) and attaches it directly; the README **Download** button and the app's sidebar **Download** button link to `releases/latest/download/EigenCore.exe` instead of the release page / zip.
 

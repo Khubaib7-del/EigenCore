@@ -22,6 +22,11 @@ eigencore-gui            # or: python -m eigencore.desktop
 
 ## Screens
 
+- **Shared storage with the CLI:** the app uses the same `~/.eigencore/`
+  folder as `eigencore` CLI — models live in `~/.eigencore/models`, settings
+  in `~/.eigencore/config.json`. Models downloaded via the CLI appear in the
+  app (and vice versa); deleting in the app frees the same disk the CLI uses.
+
 - **Chat** — model dropdown (downloaded models), streaming replies rendered as
   Markdown, stop button, status line with *measured* tok/s per turn. Enter
   sends, Shift+Enter newline.

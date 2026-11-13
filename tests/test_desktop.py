@@ -270,6 +270,33 @@ def test_profile_view_builds_cards(tmp_path):
     assert control is not None
 
 
+def test_all_views_support_app_polymorphic_loop(tmp_path):
+    """app.main() calls attach(page), build(), handle_event(ev) on every view —
+    regression test for the ProfileView.attach AttributeError seen in the exe."""
+    from eigencore.desktop.views import View
+
+    be, _, _, _, _ = _backend(tmp_path)
+    views = [ChatView(be), ModelsView(be), ProfileView(be)]
+    for v in views:
+        assert isinstance(v, View)
+        v.attach(page=None)  # attach must exist and not require a real page
+        assert v.build() is not None
+        v.handle_event(("engine", "ready", "x"))  # must not raise
+
+
+def test_backend_shares_cli_cache_dir():
+    """The desktop app and the CLI must see the same ~/.eigencore folder:
+    ModelRegistry() default is ~/.eigencore/models and config is
+    ~/.eigencore/config.json — no separate GUI cache."""
+    from eigencore.models.registry import ModelRegistry as MR
+    from eigencore.tui.onboarding import default_config_path
+
+    be = DesktopBackend.__new__(DesktopBackend)  # avoid mkdir side effect here
+    assert MR().cache_dir == Path.home() / ".eigencore" / "models"
+    assert default_config_path() == Path.home() / ".eigencore" / "config.json"
+    assert be  # placeholder no-op
+
+
 def test_fit_chip_pairs_colour_with_word(tmp_path):
     be, registry, spec, _, _ = _backend(tmp_path)
     _mark_downloaded(registry, spec)

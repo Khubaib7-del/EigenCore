@@ -24,9 +24,28 @@ def fit_chip(fit: str) -> ft.Control:
     return T.chip(word, color)
 
 
-class ChatView:
+class View:
+    """Common view protocol: build a control tree, attach to a Page, consume
+    backend events. App.py iterates views polymorphically, so every view must
+    implement both."""
+
     def __init__(self, backend: DesktopBackend) -> None:
         self.backend = backend
+        self._page = None
+
+    def attach(self, page) -> None:
+        self._page = page
+
+    def build(self) -> ft.Control:
+        raise NotImplementedError
+
+    def handle_event(self, ev) -> None:
+        pass
+
+
+class ChatView(View):
+    def __init__(self, backend: DesktopBackend) -> None:
+        super().__init__(backend)
         self.model_dropdown = ft.Dropdown(
             label="model",
             options=[ft.DropdownOption(n) for n in backend.downloaded_names()],
@@ -53,9 +72,6 @@ class ChatView:
         )
         self._assistant_md: ft.Markdown | None = None
         self._page = None
-
-    def attach(self, page) -> None:
-        self._page = page
 
     def refresh_models(self) -> None:
         names = self.backend.downloaded_names()
@@ -163,15 +179,11 @@ class ChatView:
                 self.refresh_models()
 
 
-class ModelsView:
+class ModelsView(View):
     def __init__(self, backend: DesktopBackend) -> None:
-        self.backend = backend
+        super().__init__(backend)
         self.rows_host = ft.Column(spacing=6, scroll=ft.ScrollMode.AUTO)
         self.status = ft.Text("", size=12, color=T.MUTED_DARK)
-        self._page = None
-
-    def attach(self, page) -> None:
-        self._page = page
 
     def build(self) -> ft.Control:
         self.rebuild()
@@ -305,9 +317,9 @@ class ModelsView:
             self.rebuild()
 
 
-class ProfileView:
+class ProfileView(View):
     def __init__(self, backend: DesktopBackend) -> None:
-        self.backend = backend
+        super().__init__(backend)
 
     def build(self) -> ft.Control:
         p = self.backend.profile
