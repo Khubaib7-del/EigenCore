@@ -4,6 +4,8 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-11-13
+
 ### Added
 - Windows-first desktop app (`eigencore-gui` / `python -m eigencore.desktop`), new optional extra `eigencore[desktop]` (Flet 1.x, no new hard dependency). Dark theme from the design handbook; three screens — Chat (model dropdown, Markdown streaming, stop button, measured tok/s per turn), Models (fit chips, live download progress, delete-from-disk with confirm, active model protected), Profile (hardware + recommendation card, speeds labeled estimate). Logic lives in a UI-agnostic, headlessly-tested backend (`src/eigencore/desktop/backend.py`); 12 tests in `tests/test_desktop.py`. Packaging: `flet pack` on Windows — see `docs/desktop.md`.
 

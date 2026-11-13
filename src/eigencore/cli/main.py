@@ -104,7 +104,7 @@ def _fit_for_spec(spec, hw, registry, kv_quant: str = "fp16"):
 
 
 @click.group(invoke_without_command=True)
-@click.version_option(version="0.4.3", prog_name="eigencore")
+@click.version_option(version="0.4.4", prog_name="eigencore")
 @click.pass_context
 def cli(ctx):
     """EigenCore — CPU-first LLM intelligence runtime."""
