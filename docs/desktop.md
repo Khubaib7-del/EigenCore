@@ -119,6 +119,28 @@ the web UI can't start: pywebview missing, no WebView2 runtime, `ui/dist`
 missing, or the page doesn't call back within 25 seconds. The reason is
 written to `~/.eigencore/logs/desktop.log`.
 
+## Always the new screens (v0.4.8)
+
+- `desktop/instance.py` keeps a single EigenCore running (named mutex
+  `Local\EigenCore-Desktop` on Windows, `~/.eigencore/desktop.lock`
+  elsewhere; `--self-test` skips it) and picks the UI server port before
+  `webview.start`: EigenCore's own 47613 if nothing holds it (exclusive bind on
+  Windows), else 47614-47622, else a random free port. Never pywebview's
+  shared default 42001.
+- `web.py` opens `index.html?v=<version>` and, when the version changes,
+  clears WebView2's Cache, Code Cache, GPUCache and Service Worker folders in
+  `~/.eigencore/webview` (marker file `eigencore-ui-version`), keeping Local
+  Storage and IndexedDB.
+- Chats, theme and reply options are saved by the app in
+  `~/.eigencore/desktop-ui.json`, so a new port (page origin) loses nothing.
+- The launcher ends the process 3 seconds after the window closes if something
+  is still running.
+- The UI build embeds its version (`__APP_VERSION__` in `ui/vite.config.ts`)
+  and shows a warning bar when the app reports a different one.
+
+If the app ever shows an old screen, close every EigenCore window (or end
+EigenCore in Task Manager) and reopen.
+
 ## How it fits together
 
 ```
@@ -178,7 +200,7 @@ pip install "llama-cpp-python>=0.3.0" --extra-index-url https://abetlen.github.i
 pyinstaller packaging/windows/EigenCore.spec --noconfirm --distpath dist
 
 # 2. installer -> dist\EigenCore-Setup.exe (Inno Setup 6)
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=0.4.7 "/DSourceDir=$PWD\dist\EigenCore" packaging\windows\EigenCore.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=0.4.8 "/DSourceDir=$PWD\dist\EigenCore" packaging\windows\EigenCore.iss
 
 # 3. portable single file -> dist-portable\EigenCore.exe
 $env:EIGENCORE_ONEFILE = "1"; pyinstaller packaging/windows/EigenCore.spec --noconfirm --distpath dist-portable

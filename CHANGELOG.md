@@ -4,6 +4,23 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-11-15
+
+A fix for the desktop app showing the old screens after an update.
+
+### Fixed
+- Desktop app (Windows): after updating to 0.4.7 the sidebar said v0.4.7 but the 0.4.6 screens appeared. The version comes from the app itself; the screens come from a small local web server inside WebView2. The exact cause on the affected PC is not confirmed (no old EigenCore process was running), so 0.4.8 removes every way old screens could be shown:
+  - **Its own port.** The screens were served on `127.0.0.1:42001`, pywebview's default, which every pywebview app shares, and that server lets a second program bind the same port on Windows. EigenCore now uses its own port, 47613, only after checking that nothing else holds it (an exclusive bind on Windows); otherwise 47614 to 47622, otherwise any free port. The port used is written to `~/.eigencore/logs/desktop.log`.
+  - **No cached screens.** The page is opened as `index.html?v=<version>`, and when the app version changes EigenCore clears WebView2's caches in `~/.eigencore/webview` (Cache, Code Cache, GPUCache, Service Worker) before the window opens. Local Storage and IndexedDB are kept.
+  - **Your data stays.** Chats and the theme were already saved by the app in `~/.eigencore/desktop-ui.json`, so the new port does not lose them. Reply options (temperature, longest reply) were only kept by the page, per port; they are now saved by the app too. Because the port changed, they go back to their defaults once after this update.
+  - **One copy at a time.** Opening EigenCore while it is already running brings the open window to the front (or says it is already running) instead of starting a second copy. Windows uses a named mutex; macOS and Linux use a lock file in `~/.eigencore`.
+  - **The process ends when the window closes.** Closing the window (the X in the title bar, Alt+F4, or an update) stops any running reply, and if the process is still alive 3 seconds later it is ended, so no windowless EigenCore is left behind.
+  - **Smoother installer.** Updating no longer asks "the folder already exists" (`DirExistsWarning=no`), a running EigenCore is closed before files are copied, even if it does not answer (`CloseApplications=force`), and the old `_internal` folder is still removed first. The PR build now compiles the installer and checks the silent in-app update end to end: install the last release, run the new installer the way the app does, and confirm the new screens are installed and served after it reopens.
+  - **A warning if they ever differ.** The UI now carries the version it was built for and shows a bar if the app reports another one: "UI build X does not match app Y. Close all EigenCore windows and restart." This only works from 0.4.8 on.
+
+### Changed
+- Version 0.4.8 (pyproject, `eigencore.__version__`, CLI, installer script). The browser preview's mock updater now demos `v0.4.9`; `?mismatch=<version>` previews the warning bar.
+
 ## [0.4.7] - 2026-11-15
 
 New desktop chat and a new terminal chat. In short:

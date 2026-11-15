@@ -176,7 +176,7 @@ def _bridge(tmp_path, engine=None, updater=None, opened=None, downloaded=True):
         updater=updater or FakeUpdater(),
         state_path=tmp_path / "ui.json",
         open_url=opened.append,
-        version="0.4.7",
+        version="0.4.8",
         profiler=lambda: _profile("Rescanned CPU"),
     )
     br.ready()
@@ -379,7 +379,7 @@ def test_backend_factory_failure_is_reported(tmp_path):
 # ----- updates ------------------------------------------------------------------------
 
 
-def _rel(version="0.4.8", installer=True):
+def _rel(version="0.4.9", installer=True):
     return Release(
         version=version,
         page_url="https://github.com/Khubaib7-del/EigenCore/releases/tag/v" + version,
@@ -393,20 +393,20 @@ def _updates(col):
 
 
 def test_check_for_update_states(tmp_path):
-    br, *_, col = _bridge(tmp_path, updater=FakeUpdater(_rel("0.4.8")))
+    br, *_, col = _bridge(tmp_path, updater=FakeUpdater(_rel("0.4.9")))
     try:
         br.check_for_update()
         e = col.wait_for(lambda e: e[0] == "update" and e[1]["kind"] == "available")
-        assert e[1]["tag"] == "v0.4.8"
+        assert e[1]["tag"] == "v0.4.9"
         assert _updates(col)[0] == {"kind": "checking"}
     finally:
         _stop(br)
 
-    br, *_, col = _bridge(tmp_path, updater=FakeUpdater(_rel("0.4.7")))
+    br, *_, col = _bridge(tmp_path, updater=FakeUpdater(_rel("0.4.8")))
     try:
         br.check_for_update()
         e = col.wait_for(lambda e: e[0] == "update" and e[1]["kind"] == "up_to_date")
-        assert e[1]["current"] == "0.4.7"
+        assert e[1]["current"] == "0.4.8"
     finally:
         _stop(br)
 
@@ -419,7 +419,7 @@ def test_check_for_update_states(tmp_path):
 
 
 def test_install_update_downloads_runs_installer_and_closes(tmp_path):
-    up = FakeUpdater(_rel("0.4.8"))
+    up = FakeUpdater(_rel("0.4.9"))
     br, *_, col = _bridge(tmp_path, updater=up)
     win = FakeWindow()
     br._attach(win)
@@ -440,7 +440,7 @@ def test_install_update_downloads_runs_installer_and_closes(tmp_path):
 
 def test_install_update_portable_opens_page(tmp_path):
     opened = []
-    up = FakeUpdater(_rel("0.4.8"), installed=False)
+    up = FakeUpdater(_rel("0.4.9"), installed=False)
     br, *_, col = _bridge(tmp_path, updater=up, opened=opened)
     try:
         br.install_update()
@@ -452,7 +452,7 @@ def test_install_update_portable_opens_page(tmp_path):
 
 
 def test_install_update_failure_is_reported(tmp_path):
-    up = FakeUpdater(_rel("0.4.8"), fail_download=True)
+    up = FakeUpdater(_rel("0.4.9"), fail_download=True)
     br, *_, col = _bridge(tmp_path, updater=up)
     try:
         br.install_update()
@@ -538,6 +538,7 @@ def test_run_without_pywebview_raises(monkeypatch):
 
 def test_launcher_prefers_web(monkeypatch, tmp_path):
     monkeypatch.setattr(launcher, "log_path", lambda: tmp_path / "desktop.log")
+    monkeypatch.setattr(launcher, "lock_dir", lambda: tmp_path)
     ran = []
     which = launcher.main(
         [], run_web=lambda d: ran.append(("web", d)), run_flet=lambda: ran.append("flet")
@@ -547,6 +548,7 @@ def test_launcher_prefers_web(monkeypatch, tmp_path):
 
 def test_launcher_flet_flag(monkeypatch, tmp_path):
     monkeypatch.setattr(launcher, "log_path", lambda: tmp_path / "desktop.log")
+    monkeypatch.setattr(launcher, "lock_dir", lambda: tmp_path)
     ran = []
     which = launcher.main(
         ["--flet"], run_web=lambda d: ran.append("web"), run_flet=lambda: ran.append("flet")
@@ -556,6 +558,7 @@ def test_launcher_flet_flag(monkeypatch, tmp_path):
 
 def test_launcher_falls_back_to_flet(monkeypatch, tmp_path):
     monkeypatch.setattr(launcher, "log_path", lambda: tmp_path / "desktop.log")
+    monkeypatch.setattr(launcher, "lock_dir", lambda: tmp_path)
     ran = []
 
     def broken(debug):

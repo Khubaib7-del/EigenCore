@@ -25,7 +25,7 @@
 4. Go to **Models**, pick one and click **Download**, then **Use**. `tinyllama-1.1b` (0.7 GB) is a good first try.
 5. Go back to **Chat** and start typing. You can switch models from the picker under the message box.
 
-**Updating:** click **Update** at the bottom of the sidebar when a new version is out. EigenCore downloads it, installs it over the old one and reopens. Your downloaded models stay where they are.
+**Updating:** click **Update** at the bottom of the sidebar when a new version is out. EigenCore downloads it, installs it over the old one and reopens. Your downloaded models stay where they are. If the app shows an old screen after updating, close every EigenCore window (or end EigenCore in Task Manager) and reopen.
 
 **Uninstalling:** Settings, then Apps, then Installed apps, then EigenCore, then Uninstall. Models are kept in `C:\Users\<you>\.eigencore\models`; delete that folder too if you want the disk space back.
 
@@ -85,7 +85,7 @@ Both terminal shots use a stand-in demo engine and an example hardware profile, 
 
 - **Which models will run?** Open the **Profile** tab. It reads your CPU and memory, tells you the largest model size it recommends, and the Models tab marks each model as fits, tight or does not fit.
 - **How fast?** Small models (1–3B) are the quickest. Bigger models get slower on a normal CPU, because every word needs the whole model read from memory. The speed under each reply (and in **Monitor**) is measured on your machine; the numbers in **Profile** are estimates.
-- **What's new in 0.4.7?** A redesigned chat (a small 3D computer on the empty chat, a live status while the model writes, code blocks that stay tidy while streaming), a working tokens-per-second chart in **Monitor**, and a new full-screen look for `eigencore chat` in the terminal. Attaching files, Agent and Plan modes, and Tools are shown as **Soon**: they aren't in the app yet. See the [changelog](CHANGELOG.md).
+- **What's new in 0.4.8?** A fix for the app showing its old screens after an update: EigenCore now uses its own local port, clears old cached screens when it updates, runs one copy at a time and closes fully when you close the window. Your chats and theme carry over. 0.4.7 brought a redesigned chat (a small 3D computer on the empty chat, a live status while the model writes, code blocks that stay tidy while streaming), a working tokens-per-second chart in **Monitor**, and a new full-screen look for `eigencore chat` in the terminal. Attaching files, Agent and Plan modes, and Tools are shown as **Soon**: they aren't in the app yet. See the [changelog](CHANGELOG.md).
 - **Needs WebView2.** The desktop app uses Microsoft Edge WebView2, which comes with Windows 11 and most Windows 10 PCs. If it's missing, EigenCore opens in its previous design instead, and everything still works.
 - **Privacy:** prompts and replies never leave your computer. The internet is only used to download models and check for updates.
 
