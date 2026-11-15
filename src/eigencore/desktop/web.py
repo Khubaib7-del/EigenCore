@@ -24,6 +24,7 @@ import logging
 import os
 import queue
 import re
+import shutil
 import sys
 import threading
 import time
@@ -32,8 +33,6 @@ from dataclasses import asdict
 from enum import Flag
 from pathlib import Path
 from typing import Any, Callable, Optional
-
-import shutil
 from urllib.parse import quote
 
 from eigencore import __version__

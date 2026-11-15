@@ -93,17 +93,21 @@ jobs:
       # serve the new UI on its own port.
       - name: Upgrade check (last release -> this build, silent)
         shell: pwsh
+        timeout-minutes: 10
         run: |
           $ver = python -c "import eigencore; print(eigencore.__version__)"
           $silent = python -c "from eigencore.desktop.updater import SILENT_ARGS; print(' '.join(SILENT_ARGS))"
           $app = Join-Path $env:LOCALAPPDATA "Programs\EigenCore"
           $old = Join-Path $env:RUNNER_TEMP "old-setup.exe"
           Invoke-WebRequest "https://github.com/${{ github.repository }}/releases/latest/download/EigenCore-Setup.exe" -OutFile $old
-          Start-Process $old -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
+          # WaitForExit, not Start-Process -Wait: -Wait also waits for the app
+          # the installer starts at the end, which never exits by itself.
+          (Start-Process $old -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -PassThru).WaitForExit()
           Start-Sleep -Seconds 8
           Write-Host "== running before the update"
           Get-Process EigenCore -ErrorAction SilentlyContinue | Format-Table Id, Path
-          $p = Start-Process dist\EigenCore-Setup.exe -ArgumentList $silent -Wait -PassThru
+          $p = Start-Process dist\EigenCore-Setup.exe -ArgumentList $silent -PassThru
+          $p.WaitForExit()
           Write-Host "== installer exit $($p.ExitCode)"
           $fail = 0
           $js = Get-ChildItem "$app\_internal\ui\assets\index-*.js"
