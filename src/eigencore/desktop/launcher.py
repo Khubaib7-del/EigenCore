@@ -8,6 +8,10 @@ previous Flet app is kept as a fallback:
 - If the web UI cannot start (pywebview missing, no WebView2 runtime, the
   built UI missing, or the page never loads) the Flet app opens instead and
   the reason is written to ``~/.eigencore/logs/desktop.log``.
+
+Only one copy runs at a time (:mod:`eigencore.desktop.instance`); a second
+launch brings the open window to the front, or explains, and exits. When the
+window closes the process ends, even if a library left a thread behind.
 """
 
 from __future__ import annotations
@@ -17,6 +21,7 @@ import json
 import logging
 import os
 import sys
+import threading
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Callable, Optional
@@ -28,6 +33,16 @@ log = logging.getLogger("eigencore.desktop")
 
 def log_path() -> Path:
     return Path.home() / ".eigencore" / "logs" / "desktop.log"
+
+
+def lock_dir() -> Path:
+    return Path.home() / ".eigencore"
+
+
+# After the window closes, give normal interpreter shutdown this long, then
+# end the process anyway: a stuck thread must never leave a windowless
+# EigenCore behind (it would keep serving its old UI files).
+EXIT_GRACE_S = 3.0
 
 
 def setup_logging(path: Optional[Path] = None) -> None:
@@ -102,6 +117,13 @@ def self_test() -> dict:
         except Exception as e:
             report["webview2"] = str(e)
     try:
+        from eigencore.desktop import instance
+
+        report["single_instance"] = "mutex" if sys.platform == "win32" else "lockfile"
+        report["ui_port"] = instance.pick_port()
+    except Exception as e:
+        report["single_instance"] = f"{type(e).__name__}: {e}"
+    try:
         import llama_cpp
 
         report["llama_cpp"] = getattr(llama_cpp, "__version__", True)
@@ -146,20 +168,58 @@ def main(
         Path(args.self_test).write_text(json.dumps(report, indent=2), encoding="utf-8")
         return "self-test-ok" if report["ok"] else "self-test-failed"
     setup_logging()
-    log.info("EigenCore %s starting (%s)", __version__, "flet" if args.flet else "web")
-    if not args.flet:
-        try:
-            run_web(args.debug)
-            return "web"
-        except Exception as e:  # WebUIUnavailable or anything unexpected
-            log.warning("web UI unavailable, opening the Flet app instead: %s", e, exc_info=True)
-    run_flet()
-    return "flet"
+    from eigencore.desktop import instance
+
+    guard = instance.SingleInstance(lock_dir())
+    if not guard.acquire():
+        if not instance.focus_existing_window():
+            instance.tell_already_running()
+        else:
+            log.info("EigenCore is already running; brought its window to the front")
+        return "already-running"
+    try:
+        log.info("EigenCore %s starting (%s)", __version__, "flet" if args.flet else "web")
+        if not args.flet:
+            try:
+                run_web(args.debug)
+                return "web"
+            except Exception as e:  # WebUIUnavailable or anything unexpected
+                log.warning(
+                    "web UI unavailable, opening the Flet app instead: %s", e, exc_info=True
+                )
+        run_flet()
+        return "flet"
+    finally:
+        guard.release()
+
+
+def exit_soon(
+    grace_s: float = EXIT_GRACE_S, hard_exit: Callable[[int], None] = os._exit
+) -> threading.Timer:
+    """End the process after ``grace_s`` unless it has exited by then."""
+
+    def force() -> None:
+        log.warning("process still alive %.0fs after the window closed; forcing exit", grace_s)
+        for h in log.handlers:
+            try:
+                h.flush()
+            except Exception:
+                pass
+        hard_exit(0)
+
+    t = threading.Timer(grace_s, force)
+    t.daemon = True
+    t.start()
+    return t
 
 
 def cli() -> None:
-    if main() == "self-test-failed":
+    which = main()
+    if which == "self-test-failed":
         sys.exit(1)
+    if which in ("web", "flet"):
+        log.info("window closed; exiting")
+        exit_soon()
 
 
 if __name__ == "__main__":

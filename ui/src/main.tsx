@@ -13,14 +13,15 @@ import { restoreChats, StoreProvider, type Boot } from "./state/store";
 /** Desktop: load the real models, profile, settings and saved chats first. */
 async function loadBoot(): Promise<Boot | undefined> {
   if (api.kind !== "pywebview") return undefined;
-  const [version, models, profile, settings, chats] = await Promise.all([
+  const [version, models, profile, settings, chats, prefs] = await Promise.all([
     api.version(),
     api.listModels(),
     api.hardwareProfile(),
     api.getSettings(),
     api.loadChats(),
+    api.loadUiPrefs().catch(() => ({})),
   ]);
-  return { version, models, profile, settings, chats: restoreChats(chats) };
+  return { version, models, profile, settings, chats: restoreChats(chats), prefs };
 }
 
 function showBootError(err: unknown) {

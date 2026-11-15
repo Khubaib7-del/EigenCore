@@ -53,6 +53,18 @@ jobs:
             --distpath dist --workpath build/onedir
           test -f dist/EigenCore/_internal/ui/index.html
 
+      - name: Build installer (EigenCore-Setup.exe)
+        shell: pwsh
+        run: |
+          $ver = python -c "import eigencore; print(eigencore.__version__)"
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          & $iscc "/DAppVersion=$ver" "/DSourceDir=$PWD\dist\EigenCore" packaging\windows\EigenCore.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Item dist\EigenCore-Setup.exe
+
       - name: Build portable exe
         shell: bash
         env:
@@ -73,4 +85,47 @@ jobs:
             if (Test-Path $report) { Get-Content $report } else { Write-Host "no report written" }
             if ($p.ExitCode -ne 0) { $fail = 1 }
           }
+          exit $fail
+
+      # The in-app update, end to end: install the last release, then run this
+      # build's installer with the updater's silent arguments while the old app
+      # is open. The files must be replaced and the new app must reopen and
+      # serve the new UI on its own port.
+      - name: Upgrade check (last release -> this build, silent)
+        shell: pwsh
+        run: |
+          $ver = python -c "import eigencore; print(eigencore.__version__)"
+          $silent = python -c "from eigencore.desktop.updater import SILENT_ARGS; print(' '.join(SILENT_ARGS))"
+          $app = Join-Path $env:LOCALAPPDATA "Programs\EigenCore"
+          $old = Join-Path $env:RUNNER_TEMP "old-setup.exe"
+          Invoke-WebRequest "https://github.com/${{ github.repository }}/releases/latest/download/EigenCore-Setup.exe" -OutFile $old
+          Start-Process $old -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
+          Start-Sleep -Seconds 8
+          Write-Host "== running before the update"
+          Get-Process EigenCore -ErrorAction SilentlyContinue | Format-Table Id, Path
+          $p = Start-Process dist\EigenCore-Setup.exe -ArgumentList $silent -Wait -PassThru
+          Write-Host "== installer exit $($p.ExitCode)"
+          $fail = 0
+          $js = Get-ChildItem "$app\_internal\ui\assets\index-*.js"
+          $text = ($js | Get-Content -Raw) -join ""
+          if ($text.Contains("does not match app") -and $text.Contains($ver)) {
+            Write-Host "installed UI is the new build ($ver)"
+          } else { Write-Host "installed UI is NOT the new build"; $fail = 1 }
+          $served = $null
+          foreach ($i in 1..30) {
+            try {
+              $html = (Invoke-WebRequest "http://127.0.0.1:47613/index.html?v=$ver" -UseBasicParsing -TimeoutSec 3).Content
+              $src = [regex]::Match($html, 'src="\./(assets/index-[^"]+\.js)"').Groups[1].Value
+              $served = (Invoke-WebRequest "http://127.0.0.1:47613/$src" -UseBasicParsing -TimeoutSec 3).Content
+              break
+            } catch { Start-Sleep -Seconds 2 }
+          }
+          if ($served -and $served.Contains("does not match app") -and $served.Contains($ver)) {
+            Write-Host "reopened app serves the new UI on 127.0.0.1:47613"
+          } else { Write-Host "new UI not served on 127.0.0.1:47613"; $fail = 1 }
+          Write-Host "== running after the update"
+          Get-Process EigenCore -ErrorAction SilentlyContinue | Format-Table Id, Path
+          $log = Join-Path $env:USERPROFILE ".eigencore\logs\desktop.log"
+          if (Test-Path $log) { Get-Content $log -Tail 40 }
+          Get-Process EigenCore -ErrorAction SilentlyContinue | Stop-Process -Force
           exit $fail

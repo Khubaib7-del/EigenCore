@@ -33,6 +33,9 @@ from enum import Flag
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+import shutil
+from urllib.parse import quote
+
 from eigencore import __version__
 from eigencore.desktop import updater as _updater
 
@@ -58,6 +61,63 @@ class WebUIUnavailable(RuntimeError):
 
 def state_dir() -> Path:
     return Path.home() / ".eigencore"
+
+
+# WebView2 keeps its profile in state_dir()/webview (it outlives updates and
+# uninstalls). These caches are dropped whenever the app version changes;
+# Local Storage, IndexedDB and cookies are kept.
+WEBVIEW_CACHE_DIRS = (
+    ("EBWebView", "Default", "Cache"),
+    ("EBWebView", "Default", "Code Cache"),
+    ("EBWebView", "Default", "GPUCache"),
+    ("EBWebView", "Default", "Service Worker"),
+)
+VERSION_MARKER = "eigencore-ui-version"
+
+
+def webview_dir() -> Path:
+    return state_dir() / "webview"
+
+
+def clear_stale_webview_cache(store: Path, version: str = __version__) -> bool:
+    """Drop WebView2's HTTP/code caches when ``version`` differs from the last run.
+
+    Returns True if caches were cleared. The marker is only written once every
+    folder is gone, so a locked folder is retried on the next start.
+    """
+    marker = store / VERSION_MARKER
+    try:
+        if marker.read_text(encoding="utf-8").strip() == version:
+            return False
+    except OSError:
+        pass
+    ok = True
+    for parts in WEBVIEW_CACHE_DIRS:
+        d = store.joinpath(*parts)
+        if d.exists():
+            shutil.rmtree(d, ignore_errors=True)
+            if d.exists():
+                ok = False
+                log.warning("could not clear the WebView cache folder %s", d)
+    if ok:
+        try:
+            store.mkdir(parents=True, exist_ok=True)
+            marker.write_text(version, encoding="utf-8")
+        except OSError as e:
+            log.warning("could not write %s: %s", marker, e)
+    if ok:
+        log.info("app version is now %s: cleared the WebView cache", version)
+    return True
+
+
+def ui_start_url(dist: Path, version: str = __version__) -> str:
+    """Local path pywebview serves, with ``?v=<version>`` so no cache answers it.
+
+    pywebview strips the query when it picks the folder to serve (its common
+    path is the dirname of a path that is not a folder) and keeps it in the
+    page URL: ``http://127.0.0.1:<port>/index.html?v=<version>``.
+    """
+    return f"{dist / 'index.html'}?v={quote(version, safe='')}"
 
 
 def ui_dist_dir() -> Optional[Path]:
@@ -310,6 +370,24 @@ class WebBridge:
         chats = self._read_state().get("chats")
         return chats if isinstance(chats, list) else []
 
+    def load_ui_prefs(self) -> dict:
+        """Small UI preferences (reply options), kept by the app, not the page."""
+        prefs = self._read_state().get("prefs")
+        return prefs if isinstance(prefs, dict) else {}
+
+    def save_ui_prefs(self, patch: Optional[dict] = None) -> bool:
+        if not isinstance(patch, dict):
+            return False
+        try:
+            if len(json.dumps(patch)) > 16_384:
+                return False
+        except (TypeError, ValueError):
+            return False
+        prefs = self.load_ui_prefs()
+        prefs.update({str(k): v for k, v in patch.items()})
+        self._write_state({"prefs": prefs})
+        return True
+
     def save_chats(self, chats: Optional[list] = None) -> bool:
         if not isinstance(chats, list):
             return False
@@ -437,12 +515,22 @@ class WebBridge:
                 self._maximized = True
         elif op == "close":
             self._closed.set()
+            log.info("window close requested by the UI")
             w.destroy()
         elif op == "resize" and len(args) >= 2:
             w.resize(max(860, int(args[0])), max(560, int(args[1])))
         else:
             return False
         return True
+
+    def _shutdown(self) -> None:
+        """The window is gone: stop the event pump and any running generation."""
+        self._closed.set()
+        if self._backend is not None:
+            try:
+                self._backend.stop()
+            except Exception:
+                log.debug("backend stop on close failed", exc_info=True)
 
     def is_maximized(self) -> bool:
         return self._maximized
@@ -508,7 +596,7 @@ def run(debug: bool = False) -> None:
         dist = ui_dist_dir()
         if dist is None:
             raise WebUIUnavailable("built UI not found (run `npm run build` in ui/)")
-        url = str(dist / "index.html")
+        url = ui_start_url(dist)
     _require_webview2()
 
     from eigencore.desktop.backend import DesktopBackend
@@ -545,17 +633,30 @@ def run(debug: bool = False) -> None:
 
     threading.Thread(target=watchdog, daemon=True, name="eigencore-watchdog").start()
 
-    store = state_dir() / "webview"
+    # Pick the UI server port ourselves: pywebview would take its shared
+    # default 42001 even when something else answers there (see instance.py).
+    http_port = None
+    if not dev_url:
+        from eigencore.desktop.instance import pick_port
+
+        http_port = pick_port()
+        log.info("serving the UI from %s on http://127.0.0.1:%d", url, http_port)
+
+    store = webview_dir()
     store.mkdir(parents=True, exist_ok=True)
+    clear_stale_webview_cache(store)
     icon = Path(__file__).parent / "assets" / "eigencore.ico"
     webview.start(
         gui="edgechromium" if sys.platform == "win32" else None,
         debug=debug or bool(os.environ.get("EIGENCORE_UI_DEBUG")),
         http_server=not dev_url,
+        http_port=http_port,
         private_mode=False,
         storage_path=str(store),
         user_agent=f"Mozilla/5.0 (EigenCore) {USER_AGENT_MARK}/{__version__}",
         icon=str(icon) if icon.exists() else None,
     )
+    bridge._shutdown()
+    log.info("web UI window closed")
     if timed_out.is_set():
         raise WebUIUnavailable(f"the web UI did not load within {LOAD_TIMEOUT_S:.0f}s")

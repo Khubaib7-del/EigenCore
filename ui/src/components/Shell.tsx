@@ -381,6 +381,29 @@ export function CommandPalette() {
   );
 }
 
+/** Version this UI was built for (vite.config.ts). */
+export const UI_VERSION = __APP_VERSION__;
+
+/**
+ * Shown when the desktop app (Python) and this UI build disagree, e.g. an old
+ * EigenCore process still serving its files after an update. Never in the
+ * browser preview unless asked for with ?mismatch=<app version>.
+ */
+export function VersionBanner() {
+  const { state } = useStore();
+  const preview = api.kind !== "pywebview" ? new URLSearchParams(location.search).get("mismatch") : null;
+  const appVersion = preview || state.version;
+  if (!preview && (api.kind !== "pywebview" || !appVersion || appVersion === UI_VERSION)) return null;
+  return (
+    <div className="version-banner" role="alert">
+      <Icon name="alert" size={14} />
+      <span>
+        UI build <span className="mono">{UI_VERSION}</span> does not match app <span className="mono">{appVersion}</span>. Close all EigenCore windows and restart.
+      </span>
+    </div>
+  );
+}
+
 export function Toast() {
   const { state } = useStore();
   if (!state.toast) return null;

@@ -287,13 +287,22 @@ export interface Boot {
   version: string;
   settings: Settings;
   chats: Chat[];
+  /** Reply options etc. saved by the app (absent in older saves). */
+  prefs?: Record<string, unknown>;
 }
 
 const THEME_KEY = "eigencore.theme";
 const GEN_KEY = "eigencore.gen";
 function storedGen(): GenOptions {
   try {
-    const g = JSON.parse(localStorage.getItem(GEN_KEY) ?? "null");
+    return parseGen(JSON.parse(localStorage.getItem(GEN_KEY) ?? "null"));
+  } catch {
+    return { ...DEFAULT_GEN };
+  }
+}
+function parseGen(raw: unknown): GenOptions {
+  try {
+    const g = raw as { temperature?: unknown; max_tokens?: unknown } | null;
     const temperature = Number(g?.temperature);
     const max_tokens = Number(g?.max_tokens);
     return {
@@ -379,7 +388,8 @@ function desktopState(boot: Boot): State {
     turns: [],
     tps: [],
     liveTps: [],
-    genOptions: storedGen(),
+    // Saved by the app since 0.4.8; before that only in localStorage (per page origin).
+    genOptions: boot.prefs?.gen ? parseGen(boot.prefs.gen) : storedGen(),
     sampleTelemetry: false,
     update: { kind: "idle" },
     toast: null,
@@ -423,8 +433,8 @@ function initialState(boot?: Boot): State {
     paletteOpen: q.get("palette") === "1",
   };
   const up = q.get("update");
-  if (up === "available") s.update = { kind: "available", tag: "v0.4.8", url: "" };
-  if (up === "downloading") s.update = { kind: "downloading", tag: "v0.4.8", pct: 64 };
+  if (up === "available") s.update = { kind: "available", tag: "v0.4.9", url: "" };
+  if (up === "downloading") s.update = { kind: "downloading", tag: "v0.4.9", pct: 64 };
   if (up === "checking") s.update = { kind: "checking" };
   if (q.get("engine") === "writing" || mode === "streaming") s.engine = { phase: "writing", message: "Writing" };
   if (mode === "thinking") s.engine = { phase: "reading", message: "Reading prompt" };
@@ -483,7 +493,8 @@ export function StoreProvider({ children, boot }: { children: ReactNode; boot?: 
     } catch {
       /* storage disabled */
     }
-  }, [gen]);
+    if (desktop) api.saveUiPrefs({ gen });
+  }, [gen, desktop]);
 
   // Desktop: chats are saved locally, a moment after they stop changing.
   const busy = state.engine.phase === "reading" || state.engine.phase === "writing";

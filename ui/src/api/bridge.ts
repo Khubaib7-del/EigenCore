@@ -21,6 +21,8 @@ export interface PyApi {
   save_settings(patch: Partial<Settings>): Promise<Settings>;
   load_chats(): Promise<unknown[]>;
   save_chats(chats: unknown[]): Promise<boolean>;
+  load_ui_prefs(): Promise<Record<string, unknown>>;
+  save_ui_prefs(patch: Record<string, unknown>): Promise<boolean>;
   download(name: string): Promise<void>;
   delete(name: string): Promise<boolean>;
   switch_model(name: string): Promise<void>;
@@ -113,6 +115,12 @@ export class BridgeApi implements EigenCoreApi {
   }
   saveChats(chats: unknown[]) {
     this.py.save_chats(chats).catch(report);
+  }
+  loadUiPrefs() {
+    return this.py.load_ui_prefs();
+  }
+  saveUiPrefs(patch: Record<string, unknown>) {
+    this.py.save_ui_prefs(patch).catch(report);
   }
   download(name: string) {
     this.py.download(name).catch(report);
