@@ -51,9 +51,9 @@ checkout with the UI built (see Develop below).
 
 ## What you see
 
-- **Chat**: an interactive retro computer when the chat is empty (it shows
-  the version, CPU, threads and the loaded model; its suggestions and keys
-  fill the message box). Each reply has a thinking orb and a status word
+- **Chat**: when the chat is empty, an "EIGEN [computer] CORE" wordmark
+  whose little computer has a live screen (it echoes what you type; click it
+  for the version, CPU, threads, model, context and the model's fit). Each reply has a thinking orb and a status word
   (Thinking… / Analyzing… / Reading prompt… before the first token,
   Writing… or Writing code… while streaming). Streaming Markdown keeps code
   blocks intact while the fence is still open (language, line numbers,

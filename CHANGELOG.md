@@ -5,6 +5,7 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 ## [Unreleased]
 
 ### Added
+- Desktop chat: the empty chat's retro computer is now a small computer inside an "EIGEN [computer] CORE" wordmark, with a live, clickable screen (boot line, echo of the message box, pages for version / CPU / threads / model / context and the model's fit verdict, real loading and no-model states; CSS-only animation, paused when hidden, off under reduced motion).
 - Desktop chat: an interactive retro computer on the empty chat (real version, CPU, threads and model on its screen; its keys and suggestions fill the message box), a thinking orb and rolling status word on each reply (Thinking / Analyzing / Reading prompt before the first token, Writing / Writing code while streaming), per-reply stats as small bars, code blocks that render correctly while the fence is still open (language, file icon, line numbers, copy), and path lists shown as a git-style file tree.
 - Composer: reply options (temperature and longest reply, sent to the engine), `/` commands (`/new`, `/models`, `/monitor`, `/profile`, `/settings`, `/theme`), mode menu and attach menu.
 - Sidebar: rename and delete chats (saved), a bar loader on a chat while it is generating, Profile and Settings at the foot.

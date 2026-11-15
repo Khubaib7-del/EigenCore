@@ -5,7 +5,7 @@ import { Markdown, openFence, splitThinking } from "../components/Markdown";
 import { Chip, IconButton, useElapsed } from "../components/primitives";
 import { ContextMeter, ModelPicker, PromptBar, type SlashCommand } from "../components/PromptBar";
 import { ProviderLogo } from "../components/ProviderLogo";
-import { RetroComputer } from "../components/RetroComputer";
+import { Wordmark } from "../components/RetroComputer";
 import { useStore, type Message } from "../state/store";
 
 function greeting() {
@@ -155,6 +155,7 @@ export function ChatScreen() {
   const scroller = useRef<HTMLDivElement>(null);
   const last = chat?.messages[chat.messages.length - 1];
   const [fill, setFill] = useState<{ text: string; n: number } | null>(null);
+  const [draft, setDraft] = useState("");
   const putInComposer = (text: string) => setFill((f) => ({ text, n: (f?.n ?? 0) + 1 }));
   useEffect(() => {
     const el = scroller.current;
@@ -203,6 +204,7 @@ export function ChatScreen() {
       contextLength={active?.context_length}
       commands={commands}
       fill={fill}
+      onTextChange={setDraft}
       autoFocus
     />
   );
@@ -212,14 +214,13 @@ export function ChatScreen() {
     return (
       <div className="chat-empty">
         <div className="chat-empty-inner">
-          <RetroComputer
+          <Wordmark
             version={state.version}
-            model={active ? { name: active.name, quant: active.quant, context: active.context_length } : null}
+            model={active ? { name: active.name, quant: active.quant, context: active.context_length, fit: active.fit } : null}
             loading={state.engine.phase === "loading"}
-            cpu={p.cpu_name.replace(/\(R\)|\(TM\)|CPU|@.*$/gi, "").replace(/\s+/g, " ").trim().slice(0, 26)}
-            threads={`${p.recommended_threads} of ${p.logical_cores} threads`}
-            suggestions={SUGGESTIONS.slice(0, 3)}
-            onFill={putInComposer}
+            cpu={p.cpu_name.replace(/\(R\)|\(TM\)|CPU|@.*$/gi, "").replace(/\s+/g, " ").replace(/^(Intel|AMD)\s+(Core\s+)?/i, "").trim().slice(0, 13)}
+            threads={`${p.recommended_threads}/${p.logical_cores} threads`}
+            typed={draft}
           />
           <h1 className="greeting">
             {greeting()}. <span>What should we work on?</span>

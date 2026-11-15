@@ -172,6 +172,7 @@ export function PromptBar({
   contextLength,
   commands = [],
   fill,
+  onTextChange,
 }: {
   onSend: (t: string) => void;
   onStop: () => void;
@@ -187,12 +188,17 @@ export function PromptBar({
   commands?: SlashCommand[];
   /** Put this text in the box (n changes on every fill, so the same text can be put twice). */
   fill?: { text: string; n: number } | null;
+  /** Told about every change to the box (the empty chat's screen echoes it). */
+  onTextChange?: (t: string) => void;
 }) {
   const preview = useRef(previewOpen()).current;
   const [text, setText] = useState(preview === "slash" ? "/" : "");
   const [menu, setMenu] = useState<Menu>(preview && preview !== "slash" ? preview : null);
   const [sel, setSel] = useState(0);
   const ta = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    onTextChange?.(text);
+  }, [text, onTextChange]);
   useLayoutEffect(() => {
     const el = ta.current;
     if (!el) return;

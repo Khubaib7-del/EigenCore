@@ -1,26 +1,35 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useState } from "react";
+import type { FitVerdict } from "../api/types";
 
 /*
- * The empty-chat centrepiece: a small beige/grey computer with a CRT that
- * boots into EigenCore. Original CSS art (no images). Interactive:
- *  - hover tilts it towards the pointer and brightens the phosphor;
- *  - clicking the screen reboots it (replays the boot text);
- *  - clicking keys types on the screen's prompt; ↵ puts that text in the composer;
- *  - the suggestions on the screen put their prompt in the composer.
- * Everything on screen is real: version, CPU, threads, the loaded model.
- * Under prefers-reduced-motion there is no tilt, no typing and no flicker.
+ * The empty-chat wordmark: "EIGEN [computer] CORE". A small desktop computer
+ * (CRT on a base, keyboard in front) sits between the two words, standing on
+ * their baseline. Original CSS art, no images.
+ *
+ * The CRT is a button with a live screen. Everything on it is real state:
+ *  - boot: a short typed boot line the first time it shows;
+ *  - idle: the EigenCore mark and a prompt with a blinking cursor, or what
+ *    the engine is doing (loading a model, no model yet);
+ *  - typing: echoes the last characters in the message box;
+ *  - click / Enter / Space: cycles mark → system (version, CPU, threads,
+ *    model, context) → fit verdict for the active model (when known).
+ * Timers run only while booting; everything else is CSS. Animations pause
+ * while the window is hidden and are off under prefers-reduced-motion.
  */
-
-export interface RetroSuggestion {
-  short: string;
-  text: string;
-}
-
-const ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 
 function reducedMotion() {
   return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+
+const FIT_WORD: Record<Exclude<FitVerdict, "unknown">, [string, string]> = {
+  fits_with_margin: ["FITS", "with margin"],
+  tight: ["TIGHT", "fits, little spare"],
+  does_not_fit: ["NO FIT", "too big for RAM"],
+};
+
+type Page = "mark" | "system" | "fit";
+
+let bootedOnce = false;
 
 export function RetroComputer({
   version,
@@ -28,181 +37,144 @@ export function RetroComputer({
   cpu,
   threads,
   loading,
-  suggestions,
-  onFill,
+  typed,
 }: {
   version: string;
-  model: { name: string; quant: string; context: number } | null;
+  model: { name: string; quant: string; context: number; fit: FitVerdict } | null;
   cpu: string;
   threads: string;
   loading: boolean;
-  suggestions: RetroSuggestion[];
-  onFill: (text: string) => void;
+  /** What is in the message box right now (echoed on the screen). */
+  typed: string;
 }) {
-  const script = useMemo(
-    () => [
-      `EIGENCORE v${version}  local runtime`,
-      `CPU   ${cpu}`,
-      `      ${threads}`,
-      loading ? "MODEL loading…" : model ? `MODEL ${model.name} ${model.quant}` : "MODEL none loaded: open Models",
-      model && !loading ? `CTX   ${model.context.toLocaleString()} tokens` : "",
-      model && !loading ? "READY." : "WAITING FOR A MODEL.",
-    ].filter(Boolean),
-    [version, cpu, threads, model, loading],
-  );
-  const total = script.reduce((n, l) => n + l.length + 1, 0);
-  const [shown, setShown] = useState(() => (reducedMotion() ? total : 0));
-  const [typed, setTyped] = useState("");
-  const [tilt, setTilt] = useState({ x: 0, y: 0, on: false });
-  const [pressed, setPressed] = useState<string | null>(null);
-  const boot = useRef(0);
+  const bootLine = `EIGENCORE v${version}`;
+  const [boot, setBoot] = useState(() => (bootedOnce || reducedMotion() ? bootLine.length + 1 : 0));
+  const [page, setPage] = useState<Page>("mark");
+  const [hidden, setHidden] = useState(typeof document !== "undefined" && document.hidden);
 
-  // Type the boot text out, a few characters per frame.
+  // Boot: type one line, then hold "OK" briefly. Runs once per app session.
   useEffect(() => {
-    if (reducedMotion()) {
-      setShown(total);
+    if (boot > bootLine.length) {
+      bootedOnce = true;
       return;
     }
-    if (shown >= total) return;
-    const t = setTimeout(() => setShown((n) => Math.min(total, n + 3)), 16);
+    const t = setTimeout(() => setBoot((n) => n + 1), boot === bootLine.length ? 420 : 38);
     return () => clearTimeout(t);
-  }, [shown, total]);
-  // Re-type when what the screen says changes (model loaded, switched...).
+  }, [boot, bootLine.length]);
+
   useEffect(() => {
-    if (!reducedMotion()) setShown((n) => Math.min(n, script[0].length + 1));
-  }, [script]);
+    const on = () => setHidden(document.hidden);
+    document.addEventListener("visibilitychange", on);
+    return () => document.removeEventListener("visibilitychange", on);
+  }, []);
 
-  const reboot = () => {
-    boot.current += 1;
-    setTyped("");
-    setShown(reducedMotion() ? total : 0);
-  };
-  const press = (k: string) => {
-    setPressed(k);
-    setTimeout(() => setPressed((p) => (p === k ? null : p)), 140);
-    if (k === "↵") {
-      if (typed.trim()) onFill(typed.trim().toLowerCase());
-      setTyped("");
-    } else if (k === "⌫") setTyped((t) => t.slice(0, -1));
-    else if (k === "space") setTyped((t) => (t.length < 26 ? t + " " : t));
-    else setTyped((t) => (t.length < 26 ? t + k.toLowerCase() : t));
-  };
-  const onMove = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (reducedMotion()) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width - 0.5;
-    const y = (e.clientY - r.top) / r.height - 0.5;
-    setTilt({ x: x * 10, y: -y * 8, on: true });
-  };
+  // Typing always brings the echo back into view.
+  useEffect(() => {
+    if (typed) setPage("mark");
+  }, [typed]);
 
-  // Lay the revealed characters over the script lines.
-  let left = shown;
-  const lines = script.map((l) => {
-    const part = l.slice(0, Math.max(0, left));
-    left -= l.length + 1;
-    return part;
-  });
-  const booted = shown >= total;
-  const style = { "--rx": `${tilt.x.toFixed(2)}deg`, "--ry": `${tilt.y.toFixed(2)}deg` } as CSSProperties;
+  const hasFit = !!model && !loading && model.fit !== "unknown";
+  const pages: Page[] = hasFit ? ["mark", "system", "fit"] : ["mark", "system"];
+  const cur = pages.includes(page) ? page : "mark";
+  const next = () => setPage(pages[(pages.indexOf(cur) + 1) % pages.length]);
 
-  return (
-    <div
-      className={`retro ${tilt.on ? "hover" : ""}`}
-      style={style}
-      onMouseMove={onMove}
-      onMouseLeave={() => setTilt({ x: 0, y: 0, on: false })}
-    >
-      <div className="retro-unit">
-        <div className="retro-monitor">
-          <div className="retro-bezel">
-            <div
-              className="retro-screen"
-              role="button"
-              tabIndex={0}
-              aria-label="EigenCore screen. Click to restart it."
-              onClick={reboot}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  reboot();
-                }
-              }}
-            >
-              <div className="retro-text mono">
-                {lines.map((l, i) =>
-                  l ? (
-                    <div key={`${boot.current}-${i}`} className={i === 0 ? "retro-title" : script[i].startsWith("READY") || script[i].startsWith("WAITING") ? "retro-ready" : ""}>
-                      {l}
-                    </div>
-                  ) : null,
-                )}
-                {booted && (
-                  <>
-                    <div className="retro-prompt">
-                      <span>&gt; {typed}</span>
-                      <span className="retro-cursor" aria-hidden />
-                    </div>
-                    <div className="retro-sugs">
-                      {suggestions.map((s, i) => (
-                        <button
-                          key={s.text}
-                          className="retro-sug"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onFill(s.text);
-                          }}
-                          title={s.text}
-                        >
-                          [{i + 1}] {s.short}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-              <span className="retro-scan" aria-hidden />
-              <span className="retro-glare" aria-hidden />
-            </div>
-          </div>
-          <div className="retro-chin">
-            <span className="retro-badge">EIGENCORE</span>
-            <span className="grow" />
-            <span className="retro-vents" aria-hidden>
-              <i />
-              <i />
-              <i />
-              <i />
-            </span>
-            <span className={`retro-led ${loading ? "busy" : model ? "on" : ""}`} aria-hidden />
-          </div>
-        </div>
-        <div className="retro-neck" aria-hidden />
-        <div className="retro-keyboard" role="group" aria-label="Keyboard: type on the screen, Enter puts it in the message box">
-          {ROWS.map((row, r) => (
-            <div key={row} className={`retro-row r${r}`}>
-              {row.split("").map((k) => (
-                <button key={k} className={`retro-key ${pressed === k ? "down" : ""}`} onClick={() => press(k)} tabIndex={-1}>
-                  {k}
-                </button>
-              ))}
-              {r === 1 && (
-                <button className={`retro-key wide ${pressed === "↵" ? "down" : ""}`} onClick={() => press("↵")} aria-label="Enter: put the typed text in the message box">
-                  ↵
-                </button>
-              )}
-              {r === 2 && (
-                <button className={`retro-key wide ${pressed === "⌫" ? "down" : ""}`} onClick={() => press("⌫")} aria-label="Backspace" tabIndex={-1}>
-                  ⌫
-                </button>
-              )}
-            </div>
-          ))}
-          <div className="retro-row r3">
-            <button className={`retro-key space ${pressed === "space" ? "down" : ""}`} onClick={() => press("space")} aria-label="Space" tabIndex={-1} />
-          </div>
-        </div>
+  const booting = boot <= bootLine.length;
+  const echo = typed.replace(/\s+/g, " ");
+  const status = loading ? "loading model" : model ? "ready" : "no model";
+
+  let body;
+  if (booting) {
+    body = (
+      <div className="rc-lines">
+        <div className="rc-hi">{bootLine.slice(0, boot)}</div>
+        {boot >= bootLine.length && <div>boot ok</div>}
       </div>
-      <div className="retro-shadow" aria-hidden />
+    );
+  } else if (cur === "system") {
+    body = (
+      <div className="rc-lines">
+        <div className="rc-hi">v{version}</div>
+        <div>{cpu}</div>
+        <div>{threads}</div>
+        <div className={loading || !model ? "rc-hi" : ""}>{loading ? "loading…" : model ? model.name : "no model"}</div>
+        {model && !loading && <div>ctx {model.context.toLocaleString()}</div>}
+      </div>
+    );
+  } else if (cur === "fit" && model && model.fit !== "unknown") {
+    const [word, sub] = FIT_WORD[model.fit];
+    body = (
+      <div className="rc-lines rc-fit">
+        <div>fit on this pc</div>
+        <div className="rc-big">{word}</div>
+        <div>{sub}</div>
+      </div>
+    );
+  } else {
+    body = (
+      <div className="rc-lines rc-markpage">
+        <div className="rc-mark" aria-hidden>
+          EC
+        </div>
+        {echo ? (
+          <div className="rc-prompt">
+            &gt;{echo.length > 11 ? "…" + echo.slice(-10) : echo}
+            <i className="rc-cursor" />
+          </div>
+        ) : loading || !model ? (
+          <div className="rc-prompt rc-hi">{loading ? "loading…" : "no model"}</div>
+        ) : (
+          <div className="rc-prompt">
+            &gt;<i className="rc-cursor" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const where = booting ? "booting" : cur === "system" ? "system details" : cur === "fit" ? "model fit" : "EigenCore mark";
+  return (
+    <span className={`rc ${hidden ? "paused" : ""}`}>
+      <span className="rc-monitor">
+        <button
+          type="button"
+          className="rc-screen"
+          onClick={next}
+          aria-label={`EigenCore screen, showing ${where}. Model: ${status}. Press to show the next page.`}
+          title="Click for system details"
+        >
+          <span className="rc-glass mono" aria-live="off">
+            {body}
+          </span>
+          <span className="rc-scan" aria-hidden />
+        </button>
+        <span className="rc-chin" aria-hidden>
+          <span className="rc-dots">
+            {pages.map((p) => (
+              <i key={p} className={!booting && p === cur ? "on" : ""} />
+            ))}
+          </span>
+          <span className={`rc-led ${loading ? "busy" : model ? "on" : ""}`} />
+        </span>
+      </span>
+      <span className="rc-base" aria-hidden>
+        <span className="rc-slot" />
+      </span>
+      <span className="rc-keys" aria-hidden />
+    </span>
+  );
+}
+
+/** "EIGEN [computer] CORE": the empty-chat heading. */
+export function Wordmark(props: Parameters<typeof RetroComputer>[0]) {
+  return (
+    <div className="ec-wordmark" role="group" aria-label="EigenCore">
+      <span className="wm-word" aria-hidden>
+        EIGEN
+      </span>
+      <RetroComputer {...props} />
+      <span className="wm-word" aria-hidden>
+        CORE
+      </span>
     </div>
   );
 }

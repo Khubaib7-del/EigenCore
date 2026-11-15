@@ -37,7 +37,7 @@ and screenshots):
 | --- | --- |
 | `screen=chat\|models\|monitor\|profile\|settings` | open that screen |
 | `theme=dark\|light\|system` | theme on load |
-| `chat=empty` | empty chat with the retro computer |
+| `chat=empty` | empty chat with the EIGEN [computer] CORE wordmark |
 | `chat=thinking\|streaming\|done` | a seeded chat: before the first token (orb + rolling status), mid code block, finished with stat bars and a file tree |
 | `composer=options\|mode\|attach\|slash` | open that composer menu |
 | `confirm=<model>` | Models: open the delete dialog for that model |
@@ -49,10 +49,13 @@ and screenshots):
 
 ## Screens
 
-- **Chat**: when empty, an interactive retro computer (CSS art): it boots
-  with the real version, CPU, threads and loaded model; hover tilts it,
-  clicking the screen reboots it, its keys type on the screen (↵ puts the
-  text in the message box) and its suggestions fill the message box. Each
+- **Chat**: when empty, an "EIGEN [computer] CORE" wordmark with a small
+  CSS-art computer between the words. Its screen is a button: it types a
+  short boot line once, then shows the EigenCore mark and a prompt (or that a
+  model is loading / not loaded); it echoes the last characters typed in the
+  message box; click, Enter or Space cycles mark → system (version, CPU,
+  threads, model, context) → the active model's fit verdict. CSS animations
+  only, paused while the window is hidden, none under reduced motion. Each
   reply has an agent line: a thinking orb (thinking / writing / waiting /
   done / stopped / error) and a rolling status word (Thinking… Analyzing…
   Reading prompt… before the first token, Writing… or Writing code… while
