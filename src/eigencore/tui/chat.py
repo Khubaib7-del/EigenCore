@@ -29,9 +29,8 @@ from eigencore.engine.inference import GenerationConfig, InferenceEngine
 from eigencore.fit import ModelGeometry, estimate_fit
 from eigencore.hal.profiler import HardwareProfile
 from eigencore.models.registry import ModelSpec
-from eigencore.tui.theme import TerminalCaps, probe_terminal
-
 from eigencore.tui.sanitize import sanitize
+from eigencore.tui.theme import TerminalCaps, probe_terminal
 
 SLASH_COMMANDS = ("/help", "/model", "/context", "/clear", "/exit")
 

@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import pytest
 from rich.console import Console
+from test_tui_app import FakeEngine, _drain, _make_app, _mark_downloaded, _profile, _spec
 
 from eigencore import __version__
 from eigencore.agent.policy import default_policy
@@ -41,7 +42,6 @@ from eigencore.tui.render import (
     tree_from_paths,
 )
 from eigencore.tui.sanitize import sanitize
-from test_tui_app import FakeEngine, _drain, _make_app, _mark_downloaded, _profile, _spec
 
 GEO = ModelGeometry(num_layers=28, hidden_size=3584, num_attention_heads=28, num_kv_heads=4)
 NASTY = [

@@ -23,7 +23,6 @@ from eigencore.tui import keys as K
 from eigencore.tui import theme as T
 from eigencore.tui.sanitize import sanitize
 
-
 # ----- header tools label -------------------------------------------------------
 
 
