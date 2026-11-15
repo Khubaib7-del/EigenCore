@@ -74,13 +74,27 @@ def _unicode_app(tmp_path, **kw):
 
 
 def _text(renderable, width=100, height=None) -> str:
-    con = Console(width=width, height=height, record=True, file=io.StringIO(), color_system=None)
+    con = Console(
+        width=width,
+        height=height,
+        record=True,
+        file=io.StringIO(),
+        color_system=None,
+        legacy_windows=False,
+    )
     con.print(renderable)
     return con.export_text()
 
 
 def _frame(app, width, height=30) -> str:
-    con = Console(width=width, height=height, record=True, file=io.StringIO(), color_system=None)
+    con = Console(
+        width=width,
+        height=height,
+        record=True,
+        file=io.StringIO(),
+        color_system=None,
+        legacy_windows=False,
+    )
     app.console = con
     con.print(app._frame())
     return con.export_text()
