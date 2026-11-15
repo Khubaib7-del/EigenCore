@@ -74,6 +74,10 @@ export class MockApi implements EigenCoreApi {
     return [];
   }
   saveChats(_chats: unknown[]) {}
+  async loadUiPrefs(): Promise<Record<string, unknown>> {
+    return {};
+  }
+  saveUiPrefs(_patch: Record<string, unknown>) {}
   windowControl() {}
   openUrl(url: string) {
     window.open(url, "_blank", "noopener");

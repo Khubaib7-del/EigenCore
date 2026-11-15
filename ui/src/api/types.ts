@@ -169,6 +169,9 @@ export interface EigenCoreApi {
   /** Saved chats (desktop: ~/.eigencore/desktop-ui.json; preview: none). */
   loadChats(): Promise<unknown[]>;
   saveChats(chats: unknown[]): void;
+  /** Small UI preferences (reply options). Desktop: saved by the app, so they survive a new page origin. */
+  loadUiPrefs(): Promise<Record<string, unknown>>;
+  saveUiPrefs(patch: Record<string, unknown>): void;
   windowControl(op: WindowOp, ...args: number[]): void;
   openUrl(url: string): void;
   getSettings(): Promise<Settings>;

@@ -1,7 +1,7 @@
 ; EigenCore Windows installer (Inno Setup 6).
 ;
 ; Built by .github/workflows/release.yml from the one-folder app build:
-;   iscc /DAppVersion=0.4.7 /DSourceDir=dist\EigenCore packaging\windows\EigenCore.iss
+;   iscc /DAppVersion=0.4.8 /DSourceDir=dist\EigenCore packaging\windows\EigenCore.iss
 ;
 ; What it does:
 ; - Installs for the current user only (no admin prompt) into
@@ -10,7 +10,8 @@
 ;   (so it can be uninstalled like any other program).
 ; - Running a newer EigenCore-Setup.exe updates the same install in place
 ;   (same AppId). The in-app "Update" button runs it with /SILENT.
-; - Never touches models or settings in %USERPROFILE%\.eigencore.
+; - Never touches models or settings in %USERPROFILE%\.eigencore. (The app
+;   itself clears WebView2's caches there when its version changes.)
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -50,7 +51,12 @@ UninstallDisplayName={#AppName}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
-CloseApplications=yes
+; Upgrades go into the same AppId folder: no "folder already exists" prompt.
+DirExistsWarning=no
+; Close a running EigenCore before copying files, forcing it if it does not
+; answer. Not restarted by Restart Manager: [Run] reopens the new version
+; (and the app itself refuses to run twice).
+CloseApplications=force
 RestartApplications=no
 LicenseFile=..\..\LICENSE
 
