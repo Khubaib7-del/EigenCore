@@ -4,6 +4,18 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Fixed
+- Desktop Monitor: the tokens-per-second graph stayed empty. It only got one value per finished reply and drew nothing until there were two (so after the first reply it still said "No turns yet", and it never moved while a reply was being written). The backend now emits a live `("tps", {tok_per_sec, tokens, t})` sample about every 0.5 s while writing, measured over that interval; the chart plots those live (**This reply**) and one point per finished reply (**Per reply**), and draws from the first point. Replies that produced no tokens no longer add a 0.
+
+### Added
+- Desktop chat: an interactive retro computer on the empty chat (real version, CPU, threads and model on its screen; its keys and suggestions fill the message box), a thinking orb and rolling status word on each reply (Thinking / Analyzing / Reading prompt before the first token, Writing / Writing code while streaming), per-reply stats as small bars, code blocks that render correctly while the fence is still open (language, file icon, line numbers, copy), and path lists shown as a git-style file tree.
+- Composer: reply options (temperature and longest reply, sent to the engine), `/` commands (`/new`, `/models`, `/monitor`, `/profile`, `/settings`, `/theme`), mode menu and attach menu.
+- Sidebar: rename and delete chats (saved), a bar loader on a chat while it is generating, Profile and Settings at the foot.
+- More inline icons (folder-open, file-code, git-branch, tree, sparkles, shield-check, sliders and more), all on one 1.5 px stroke.
+
+### Not yet in the desktop UI
+- Shown as **Soon** and not clickable: Agents and Files in the sidebar, attach files / folder, Agent and Plan modes, Tools, and changing the context window. Tool steps and the approval card (Deny / Allow for session / Allow once, focus on Deny) appear only in the browser preview's mock data.
+
 ## [0.4.6] - 2026-11-13
 
 ### Added

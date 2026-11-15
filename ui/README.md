@@ -37,7 +37,9 @@ and screenshots):
 | --- | --- |
 | `screen=chat\|models\|monitor\|profile\|settings` | open that screen |
 | `theme=dark\|light\|system` | theme on load |
-| `chat=empty` | empty chat with the greeting |
+| `chat=empty` | empty chat with the retro computer |
+| `chat=thinking\|streaming\|done` | a seeded chat: before the first token (orb + rolling status), mid code block, finished with stat bars and a file tree |
+| `composer=options\|mode\|attach\|slash` | open that composer menu |
 | `confirm=<model>` | Models: open the delete dialog for that model |
 | `sample=1` | Monitor: show labelled sample telemetry |
 | `update=checking\|available\|downloading` | updater state |
@@ -47,27 +49,54 @@ and screenshots):
 
 ## Screens
 
-- **Chat**: greeting and suggestions when empty; model picker (downloaded
-  models with provider mark and fit); streaming markdown with code blocks;
-  a fold for reasoning (`<think>…</think>`, e.g. Qwen3); tool-call chips; an
-  approval card for agent tools; per-message stats; Stop; Enter sends,
-  Shift+Enter adds a new line; context meter.
+- **Chat**: when empty, an interactive retro computer (CSS art): it boots
+  with the real version, CPU, threads and loaded model; hover tilts it,
+  clicking the screen reboots it, its keys type on the screen (↵ puts the
+  text in the message box) and its suggestions fill the message box. Each
+  reply has an agent line: a thinking orb (thinking / writing / waiting /
+  done / stopped / error) and a rolling status word (Thinking… Analyzing…
+  Reading prompt… before the first token, Writing… or Writing code… while
+  streaming). Markdown streams with real code blocks even while the fence
+  is still open (language, file icon, line count, line numbers, horizontal
+  scroll, copy when finished); lists of paths render as a git-style file
+  tree (├─ └─). Reasoning fold (`<think>…</think>`). Stats as small bars:
+  speed (against the fastest reply this session), tokens (against the
+  reply's max tokens) and time to first token (share of the total).
+  Tool steps render as a tree and the approval card offers Deny / Allow for
+  session / Allow once with focus on Deny (mock only: the desktop chat has
+  no tools yet).
+- **Composer**: attach menu (files, folder: **Soon**), mode (Chat; Agent
+  and Plan **Soon**), model picker, Tools (**Soon**), reply options
+  (temperature and longest reply, sent to the engine; context window
+  read-only, **Soon**), context ring, `/` commands (`/new`, `/models`,
+  `/monitor`, `/profile`, `/settings`, `/theme`), send / Stop. Enter
+  sends, Shift+Enter adds a new line.
 - **Models**: the registry list with provider marks, size, quant, context,
   Hugging Face repo, fit chip (Fits / Tight / Does not fit / Unknown, always
   shown as a word), Download with progress, Use, Delete with a confirm
   dialog, active state.
 - **Monitor**: engine state (Idle / Loading / Reading prompt / Writing),
-  speed, tokens, first token, engine RAM (estimate), tok/s sparkline,
-  context gauge, CPU threads, recent turns.
+  speed, tokens, first token, engine RAM (estimate), a tokens-per-second
+  chart (grid, area line, average line; current / average / peak) with two
+  views: **This reply** (live samples the backend measures every ~0.5 s)
+  and **Per reply**; labelled measured, mock stream or sample. Context
+  gauge, CPU threads, recent turns.
 - **Profile**: CPU, RAM, bandwidth (estimate), GPU, and a recommendation
   marked "estimate until benchmarked".
 - **Settings**: theme (dark / light / system), models folder, threads,
   context length, KV cache type (fp16 / q8_0), tool approvals, updates
   (Check for updates → Update to vX → Downloading → Restart to install),
   provider-mark credits.
-- **Shell**: frameless title bar (drag area, minimise, maximise, close),
-  collapsible sidebar with nav, chat history, version and update button,
+- **Shell**: frameless title bar (drag area, minimise, maximise, close);
+  sidebar like an agent app: New chat, Search, Chat, Agents (**Soon**),
+  Files (**Soon**), Models, Monitor, chat history grouped by date (a bar
+  loader on a chat while it is generating, a shield while it waits for an
+  approval; hover to rename or delete, double-click to rename), Profile and
+  Settings at the foot, version and update button. Collapses to icons.
   Ctrl K search, Ctrl N new chat.
+
+**Soon** items are visible, muted, carry a hatched "Soon" pill and a
+tooltip, and do nothing yet.
 
 ## Desktop (real) vs browser preview (mock)
 
@@ -104,6 +133,7 @@ as `CustomEvent("eigencore", { detail: [[...], ...] })`:
 ("engine", state, message)      → { type: "engine", state, message }   // loading | ready | error
 ("prompt_eval", started)        → { type: "prompt_eval", started }
 ("tok", text)                   → { type: "tok", text }
+("tps", sample)                 → { type: "tps", sample }             // live speed: tok_per_sec, tokens, t (~every 0.5 s)
 ("done", stats)                 → { type: "done", stats }              // tokens, seconds, tok_per_sec, first_token_s, decode_tok_per_sec, interrupted, error
 ("deleted", name, ok)           → { type: "deleted", name, ok }
 ("switched", name)              → { type: "switched", name }

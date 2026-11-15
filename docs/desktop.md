@@ -51,18 +51,29 @@ checkout with the UI built (see Develop below).
 
 ## What you see
 
-- **Chat**: greeting and suggestions when empty, model picker under the
-  message box, streaming Markdown with code blocks, a fold for reasoning
-  (`<think>…</think>`), Stop, and per-reply stats measured by the backend:
-  output speed after the first token, number of streamed pieces (one per
-  token in practice) and time to first token. Chats start empty and are
-  saved locally to `~/.eigencore/desktop-ui.json`, with the theme.
+- **Chat**: an interactive retro computer when the chat is empty (it shows
+  the version, CPU, threads and the loaded model; its suggestions and keys
+  fill the message box). Each reply has a thinking orb and a status word
+  (Thinking… / Analyzing… / Reading prompt… before the first token,
+  Writing… or Writing code… while streaming). Streaming Markdown keeps code
+  blocks intact while the fence is still open (language, line numbers,
+  copy); path lists show as a file tree. A fold for reasoning
+  (`<think>…</think>`), Stop, and per-reply stats as small bars, measured
+  by the backend: output speed after the first token, number of streamed
+  pieces (one per token in practice) and time to first token. Chats start
+  empty and are saved locally to `~/.eigencore/desktop-ui.json`, with the
+  theme; rename and delete them from the sidebar.
+- **Composer**: model picker, reply options (temperature and longest reply
+  are sent to the engine), context ring, `/` commands, Stop. Attach, the
+  Agent and Plan modes and Tools are shown as **Soon**.
 - **Models**: every registry model with size, quant, context, Hugging Face
   repo and fit chip (Fits / Tight / Does not fit / Unknown; Unknown until the
   file is on disk). Download with live progress, Use, Delete (confirm dialog;
   the active model is protected).
 - **Monitor**: engine state (Idle, Loading, Reading prompt, Writing), the
-  last reply's speed and first-token time, session tokens, a speed sparkline,
+  last reply's speed and first-token time, session tokens, a tokens-per-second
+  chart (This reply: live samples the backend measures every ~0.5 s while
+  writing; Per reply: one point per finished reply),
   an approximate context gauge, threads in use and recent turns. Nothing is
   shown before the first reply. Engine RAM is an estimate (model file size).
 - **Profile**: CPU, instruction sets, RAM, GPU, and the profiler's memory
@@ -83,7 +94,10 @@ way round.
 - **Run benchmark** in Profile is "coming soon"; run `eigencore benchmark` in
   a terminal.
 - The desktop chat has no tool calls, so there are no approval prompts or
-  tool chips. Regenerate and chat options are disabled.
+  tool steps. Regenerate and chat options are disabled.
+- Marked **Soon** (visible, muted, not clickable): Agents and Files in the
+  sidebar; attach files / folder, Agent and Plan modes and Tools in the
+  composer; changing the context window.
 
 ## The previous app (`--flet`)
 
