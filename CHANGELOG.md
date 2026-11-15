@@ -4,6 +4,24 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Changed
+- `eigencore chat` full-screen TUI redone to the v2 design (`docs/design/TUI.md` §3.1). Header: `◩ EigenCore <version> · chat` with `local · ready / thinking / writing` on the right, and a second row with model + quant, context (`≈used / set tok`), fit verdict with headroom (`est.`) and the tools state. Conversation uses `you` / `eigencore` labels with indented bodies; replies render as Markdown with framed, syntax-highlighted code blocks that stay correct while a code fence is still streaming. Footer: `›` prompt with placeholder, command hints, live `/command` suggestions, `ctrl-c stops`, and a context bar that turns amber at 85 %. Narrow terminals (< 100 columns) get the collapsed header and footer; PgUp / PgDn scroll the conversation.
+- While a reply streams, an animated state line shows what is happening (`Thinking…` before the first token, `Writing…` / `Writing code…` after) and the elapsed seconds; `EIGENCORE_REDUCED_MOTION=1` makes it static. When the reply ends it becomes the measured stats line: `decode <n> tok/s · prefill <t> s · <n> tokens · measured this turn`.
+- Speed is now counted in tokens, not stream chunks: `InferenceEngine.stream_messages` records `last_stream_stats` (token count from the model's tokenizer, time to first token, decode time) and there is a new `InferenceEngine.count_tokens()`. Decode tok/s excludes the first token's wait. Without a token count the UI says `chunks/s (stream chunks, not tokens)`.
+- `--plain` / non-TTY output follows §3.2: `EigenCore <ver> | <model> <quant> | ctx <n> | fit: <verdict> (<±h> GB est.) | tools: off`, `you>` / `eigencore>` prompts, `[decode … tok/s measured | prefill … s | … tokens]`, `[stopped]` on Ctrl-C.
+- The tools field shows what is attached (`tools off` in chat, which has no tools) instead of the hard-coded "read-only (policy engine attached in P4)". The approval prompt is no longer wired into plain chat.
+- Before loading a model whose file is larger than free RAM, `eigencore chat` asks first (default: don't load); in the full-screen app, switching to such a model from `/models` shows the SSD-paging warning with `[c] continue  [q] pick another model  [x] cancel`.
+
+### Added
+- `tui/sanitize.py`: one sanitiser for all model text. Strips CSI, OSC, DCS / SOS / PM / APC in 7-bit and 8-bit (C1) forms and every other control character except newline and tab (the old one let `\x9b`, BEL and carriage returns through).
+- `tui/render.py` (Markdown with framed code blocks, git-style tree renderer, turn-stats formatter) and `tui/components.py` (tools label, SSD-paging warning, tool approval card per §3.5 with default-deny focus and a plain `[y/N]` prompt). The approval card is a tested component only; nothing in chat shows it.
+- ASCII glyph fallback (`[#]`, `>`, ASCII boxes and spinner) when the terminal encoding is not UTF-8, on the legacy Windows console without Windows Terminal, or with `EIGENCORE_ASCII=1`.
+- `tests/test_tui_v2.py`: header snapshots at 80 / 100 / 120 columns and plain, sanitiser acceptance strings in both modes, streaming code fences, state line and stats, Ctrl-C, no regenerate on error, scrolling, SSD warning, approval card, tree, capability probe.
+
+### Fixed
+- Plain mode: an engine error mid-stream could re-run the prompt through the single-prompt fallback (double reply). The fallback is now chosen before streaming starts.
+- Arrow keys split across reads (slow ptys, SSH) were taken as Esc plus typed text; the key reader now waits up to 100 ms for the rest of an escape sequence.
+
 ## [0.4.6] - 2026-11-13
 
 ### Added
