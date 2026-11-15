@@ -6,6 +6,14 @@ which uses Microsoft Edge **WebView2** on Windows. It runs on the same
 engine, model registry and fit estimator as the CLI. The previous Flet app is
 still included as a fallback.
 
+v0.4.7 redesigned the chat (agent-style replies, the 3D computer on the
+empty chat) and fixed the Monitor's tokens-per-second chart.
+
+![The desktop app's empty chat (browser preview, mock data)](screenshots/gui-dark-empty.png)
+
+More screenshots are in the [README](../README.md#screenshots). They come from
+the browser preview on mock data, so the numbers in them are sample values.
+
 ## Install it (Windows)
 
 Every `v*` release attaches two files:
@@ -52,7 +60,7 @@ checkout with the UI built (see Develop below).
 ## What you see
 
 - **Chat**: when the chat is empty, an "EIGEN [computer] CORE" wordmark
-  whose little computer has a live screen (it echoes what you type; click it
+  whose little 3D computer (CSS 3D, tilts toward the pointer) has a live screen (it echoes what you type; click it
   for the version, CPU, threads, model, context and the model's fit). Each reply has a thinking orb and a status word
   (Thinking… / Analyzing… / Reading prompt… before the first token,
   Writing… or Writing code… while streaming). Streaming Markdown keeps code
@@ -170,7 +178,7 @@ pip install "llama-cpp-python>=0.3.0" --extra-index-url https://abetlen.github.i
 pyinstaller packaging/windows/EigenCore.spec --noconfirm --distpath dist
 
 # 2. installer -> dist\EigenCore-Setup.exe (Inno Setup 6)
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=0.4.6 "/DSourceDir=$PWD\dist\EigenCore" packaging\windows\EigenCore.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=0.4.7 "/DSourceDir=$PWD\dist\EigenCore" packaging\windows\EigenCore.iss
 
 # 3. portable single file -> dist-portable\EigenCore.exe
 $env:EIGENCORE_ONEFILE = "1"; pyinstaller packaging/windows/EigenCore.spec --noconfirm --distpath dist-portable

@@ -9,7 +9,7 @@
 > non-TTY keeps the line-mode `tui/chat.py` UI, and the safety rules below
 > (sanitiser, markup off, Ctrl-C, no regenerate, labeled numbers) all still apply.
 
-**Status as of 2026-11-15 (branch `feat/tui-v2`).** SHIPPED means it runs in `eigencore chat` today and has tests; PLANNED means it does not exist yet.
+**Status as of 2026-11-15 (v0.4.7).** SHIPPED means it runs in `eigencore chat` today and has tests; PLANNED means it does not exist yet.
 
 | Piece | Status | Evidence / known problem |
 | --- | --- | --- |
