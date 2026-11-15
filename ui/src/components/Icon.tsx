@@ -2,7 +2,8 @@ import type { ReactNode, SVGProps } from "react";
 
 /**
  * In-house 24px stroke icons (drawn for EigenCore, MIT with this repo).
- * They inherit currentColor so they follow the theme.
+ * One 1.5 px stroke throughout; they inherit currentColor so they follow
+ * the theme.
  */
 const P = {
   chat: <path d="M5 18.5 3.5 21l.9-4.1A8 8 0 1 1 8 20.2 8 8 0 0 1 5 18.5Z" />,
@@ -98,6 +99,108 @@ const P = {
       <path d="M12 11v5.5M12 7.8v.1" />
     </>
   ),
+  folderOpen: (
+    <>
+      <path d="M3.5 17.5V6.5A1.5 1.5 0 0 1 5 5h4l2 2.5h7a1.5 1.5 0 0 1 1.5 1.5v1.5" />
+      <path d="M3.5 17.5 6 11.5a1.5 1.5 0 0 1 1.4-1h12.4a1 1 0 0 1 .9 1.4l-2.3 5.8a1.5 1.5 0 0 1-1.4.8H5a1.5 1.5 0 0 1-1.5-1Z" />
+    </>
+  ),
+  fileCode: (
+    <>
+      <path d="M14 3.5H7A1.5 1.5 0 0 0 5.5 5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8Z" />
+      <path d="M14 3.5V8h4.5M10 12.5 8.5 14.5 10 16.5M14 12.5l1.5 2-1.5 2" />
+    </>
+  ),
+  gitBranch: (
+    <>
+      <circle cx="6.5" cy="5.5" r="2" />
+      <circle cx="6.5" cy="18.5" r="2" />
+      <circle cx="17.5" cy="7.5" r="2" />
+      <path d="M6.5 7.5v9M17.5 9.5c0 4-5 3.5-9.6 7.4" />
+    </>
+  ),
+  tree: <path d="M5 4.5v13a1.5 1.5 0 0 0 1.5 1.5H10M5 10.5h5M13 5.5h6M13 10.5h6M13 18.5h6" />,
+  orb: (
+    <>
+      <circle cx="12" cy="12" r="7.5" />
+      <path d="M8.5 9.5a4.5 4.5 0 0 1 4-2.5" />
+    </>
+  ),
+  sparkles: (
+    <>
+      <path d="M10 4.5 11.5 9l4.5 1.5-4.5 1.5L10 16.5 8.5 12 4 10.5 8.5 9Z" />
+      <path d="M17.5 14v5M15 16.5h5M17 3.5v3M15.5 5h3" />
+    </>
+  ),
+  shieldCheck: (
+    <>
+      <path d="M12 3.5 5 6v5.5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6Z" />
+      <path d="m9 12 2.2 2.2L15.5 10" />
+    </>
+  ),
+  pencil: <path d="M15.5 5.5 18.5 8.5M4.5 19.5l1-4L16 5a2.1 2.1 0 0 1 3 3L8.5 18.5Z" />,
+  slash: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="3" />
+      <path d="m14.5 8-5 8" />
+    </>
+  ),
+  bot: (
+    <>
+      <rect x="4.5" y="8" width="15" height="11" rx="3" />
+      <path d="M12 4.5V8M9.5 13v1M14.5 13v1M2.5 13v2M21.5 13v2" />
+      <circle cx="12" cy="4" r=".6" />
+    </>
+  ),
+  layers: (
+    <>
+      <path d="m12 4 8.5 4.5L12 13 3.5 8.5Z" />
+      <path d="m3.5 12.5 8.5 4.5 8.5-4.5M3.5 16.5 12 21l8.5-4.5" />
+    </>
+  ),
+  wrench: <path d="M14.5 6.5a4 4 0 0 0 5 5L12 19a2.1 2.1 0 0 1-3-3l7.5-7.5a4 4 0 0 1-2-2ZM14.5 6.5l2-2a4 4 0 0 1 3 7" />,
+  sliders: <path d="M5 4.5v15M12 4.5v15M19 4.5v15M3 14h4M10 9h4M17 15.5h4" />,
+  thermometer: (
+    <>
+      <path d="M10 14.5V5a2 2 0 1 1 4 0v9.5a4 4 0 1 1-4 0Z" />
+      <path d="M12 9v7" />
+    </>
+  ),
+  user: (
+    <>
+      <circle cx="12" cy="8.5" r="3.5" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </>
+  ),
+  history: (
+    <>
+      <path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5M4 4v4.5h4.5" />
+      <path d="M12 8v4l3 2" />
+    </>
+  ),
+  activity: <path d="M3 12h4l2.5-6 5 12 2.5-6h4" />,
+  keyboard: (
+    <>
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6.5 14.5h11" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect x="5" y="10.5" width="14" height="10" rx="2" />
+      <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
+    </>
+  ),
+  chevronUp: <path d="m6 15 6-6 6 6" />,
+  arrowRight: <path d="M5 12h14M13 6l6 6-6 6" />,
+  hash: <path d="M5 9h14M5 15h14M10 4 8.5 20M15.5 4 14 20" />,
+  ban: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m6 6 12 12" />
+    </>
+  ),
+  dot: <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />,
   dots: <path d="M6 12h.01M12 12h.01M18 12h.01" strokeWidth={3} />,
 } satisfies Record<string, ReactNode>;
 
@@ -111,7 +214,7 @@ export function Icon({ name, size = 16, ...rest }: { name: IconName; size?: numb
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.7}
+      strokeWidth={1.5}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden

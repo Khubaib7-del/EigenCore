@@ -8,6 +8,7 @@
  *   ("dl_done", name, ok, message)   download finished/failed
  *   ("engine", state, message)       "loading" / "ready" / "error"
  *   ("tok", text)                    streamed token
+ *   ("tps", sample)                  live speed while writing (measured, ~every 0.5 s)
  *   ("done", stats)                  tokens, seconds, tok_per_sec, interrupted, error
  *   ("deleted", name, ok)
  *   ("switched", name)
@@ -62,6 +63,16 @@ export interface GenerationStats {
   prompt_tokens?: number | null;
 }
 
+/**
+ * Payload of ("tps", sample): output speed measured by the backend over the
+ * last ~0.5 s while a reply streams. t = seconds since the first token.
+ */
+export interface TpsSample {
+  tok_per_sec: number;
+  tokens: number;
+  t: number;
+}
+
 /** Mirrors eigencore.agent.policy.ApprovalRequest (args already redacted). */
 export interface ApprovalRequest {
   id: string;
@@ -90,6 +101,7 @@ export type BackendEvent =
   | { type: "dl_done"; name: string; ok: boolean; message: string }
   | { type: "engine"; state: EngineBackendState; message: string }
   | { type: "tok"; text: string }
+  | { type: "tps"; sample: TpsSample }
   | { type: "done"; stats: GenerationStats }
   | { type: "deleted"; name: string; ok: boolean }
   | { type: "switched"; name: string }
@@ -184,6 +196,12 @@ export function fromTuple(t: unknown[]): BackendEvent | null {
       return { type: "engine", state: a as EngineBackendState, message: String(b ?? "") };
     case "tok":
       return { type: "tok", text: String(a) };
+    case "tps": {
+      const sm = (a ?? {}) as Partial<TpsSample>;
+      const rate = Number(sm.tok_per_sec);
+      if (!Number.isFinite(rate)) return null;
+      return { type: "tps", sample: { tok_per_sec: rate, tokens: Number(sm.tokens) || 0, t: Number(sm.t) || 0 } };
+    }
     case "done":
       return { type: "done", stats: a as GenerationStats };
     case "deleted":

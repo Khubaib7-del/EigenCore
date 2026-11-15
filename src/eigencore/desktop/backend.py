@@ -11,6 +11,9 @@ tested without a display. Event tuples:
     ("prompt_eval", started)         True when generation starts (prompt is
                                      being read), False at the first token
     ("tok", text)                    streamed token
+    ("tps", sample)                  live speed while writing, measured over
+                                     the last ~0.5 s: {"tok_per_sec", "tokens",
+                                     "t"} (t = seconds since the first token)
     ("done", stats)                  generation finished (tokens, seconds,
                                      tok_per_sec, first_token_s,
                                      decode_tok_per_sec, interrupted, error)
@@ -103,6 +106,9 @@ def fit_label(spec: ModelSpec, registry: ModelRegistry, profile: HardwareProfile
 
 class DesktopBackend:
     """Owns registry, profile, engine and all worker threads."""
+
+    #: Seconds between live ("tps", ...) speed samples while a reply streams.
+    sample_every_s: float = 0.5
 
     def __init__(
         self,
@@ -316,10 +322,14 @@ class DesktopBackend:
         events = self.events
 
         history_ref = self.messages
+        sample_every = max(0.05, float(self.sample_every_s))
 
         def worker() -> None:
             start = time.perf_counter()
             first_at: Optional[float] = None
+            # live speed samples: tokens since the last sample over its time
+            mark_t = 0.0
+            mark_n = 0
             count = 0
             err = None
             gen = None
@@ -333,12 +343,26 @@ class DesktopBackend:
                 for tok in gen:
                     if cancel.is_set():
                         break
+                    now = time.perf_counter()
                     if first_at is None:
-                        first_at = time.perf_counter()
+                        first_at = now
+                        mark_t, mark_n = now, 1
                         events.put(("prompt_eval", False))
                     events.put(("tok", tok))
                     parts.append(tok)
                     count += 1
+                    if now - mark_t >= sample_every and count > mark_n:
+                        events.put(
+                            (
+                                "tps",
+                                {
+                                    "tok_per_sec": (count - mark_n) / (now - mark_t),
+                                    "tokens": count,
+                                    "t": now - first_at,
+                                },
+                            )
+                        )
+                        mark_t, mark_n = now, count
             except Exception as e:
                 err = f"{type(e).__name__}: {e}"
             finally:

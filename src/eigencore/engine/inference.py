@@ -83,6 +83,7 @@ class InferenceEngine:
         self._sparsity_cache = SparsityCache()
         self._speculative_decoder = SpeculativeDecoder(adaptive=True)
         self.last_pld_copied_chars = 0
+        self.last_stream_stats: dict | None = None
 
     def load(self) -> None:
         """Load the model with hardware-optimized settings."""
@@ -224,7 +225,10 @@ class InferenceEngine:
         prompt_text = " ".join(m.get("content", "") for m in messages)
         generated = ""
         self.last_pld_copied_chars = 0
+        self.last_stream_stats = None  # set only when the stream completes
         pending_skip = 0  # backend chars to swallow (already copied from prompt)
+        t_start = time.perf_counter()
+        t_first: float | None = None
         for chunk in self._llm.create_chat_completion(
             messages=messages,
             max_tokens=config.max_tokens,
@@ -238,6 +242,8 @@ class InferenceEngine:
             delta = chunk["choices"][0].get("delta", {})
             token = delta.get("content", "")
             if token:
+                if t_first is None:
+                    t_first = time.perf_counter()
                 if pending_skip > 0:
                     # this backend token is part of a span we already copied
                     pending_skip -= len(token)
@@ -255,6 +261,28 @@ class InferenceEngine:
                         continue
                 generated += token
                 yield token
+        t_end = time.perf_counter()
+        # Measured stats for the UI. Token count comes from the model's own
+        # tokenizer over the generated text (stream chunks are not tokens:
+        # llama.cpp may merge several tokens into one chunk).
+        try:
+            n_tokens: int | None = self.count_tokens(generated)
+        except Exception:
+            n_tokens = None
+        self.last_stream_stats = {
+            "completion_tokens": n_tokens,
+            "prefill_s": (t_first - t_start) if t_first is not None else None,
+            "decode_s": (t_end - t_first) if t_first is not None else None,
+            "token_source": "tokenizer (re-tokenized output)",
+        }
+
+    def count_tokens(self, text: str) -> int:
+        """Number of tokens `text` encodes to with the loaded model's tokenizer."""
+        if self._llm is None:
+            raise RuntimeError("Model not loaded. Call .load() first.")
+        if not text:
+            return 0
+        return len(self._llm.tokenize(text.encode("utf-8"), add_bos=False, special=False))
 
     def chat(
         self,

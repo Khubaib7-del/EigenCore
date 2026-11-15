@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { api } from "../api";
 import { Icon, type IconName } from "../components/Icon";
-import { Chip, PixelLoader, Ring, SampleBadge, Sparkline } from "../components/primitives";
+import { Chip, PixelLoader, Ring, SampleBadge, Segmented, TpsChart } from "../components/primitives";
 import { useStore, type EnginePhase } from "../state/store";
 
 const PHASES: { id: EnginePhase; label: string }[] = [
@@ -26,6 +27,90 @@ function Stat({ icon, label, value, unit, foot }: { icon: IconName; label: strin
   );
 }
 
+/**
+ * Tokens per second. "This reply": live samples the backend measures every
+ * ~0.5 s while a reply is written ("tps" events). "Per reply": the output
+ * rate of each finished reply. Real numbers in the desktop app; the browser
+ * preview labels its numbers mock or sample.
+ */
+function SpeedCard() {
+  const { state } = useStore();
+  const live = state.liveTps;
+  const [view, setView] = useState<"live" | "replies">(live.length || !state.tps.length ? "live" : "replies");
+  const writing = state.engine.phase === "writing" || state.engine.phase === "reading";
+  const values = view === "live" ? live.map((p) => p.rate) : state.tps;
+  const xs = view === "live" ? live.map((p) => p.t) : state.tps.map((_, i) => i + 1);
+  const cur = values.length ? values[values.length - 1] : null;
+  const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+  const peak = values.length ? Math.max(...values) : null;
+  const kind = state.sampleTelemetry ? "sample" : api.kind === "mock" ? "mock stream" : "measured";
+  const empty =
+    view === "live"
+      ? writing
+        ? "Measuring… the first sample arrives after half a second of writing"
+        : "Send a message: speed is drawn live while the reply is written"
+      : "No replies yet: each finished reply adds a point";
+  const fmt = (v: number | null) => (v == null ? "—" : v.toFixed(1));
+  return (
+    <div className="card chart-card">
+      <div className="card-head chart-head">
+        <span className="chart-title">
+          <Icon name="activity" size={14} />
+          Tokens per second
+        </span>
+        <span className={`chip chart-kind ${kind === "measured" ? "chip-ok" : "sample"}`} title={kind === "measured" ? "Timed by the engine on this PC" : "Not a measurement of a model"}>
+          {kind === "measured" && <Icon name="check" size={11} />}
+          {kind}
+        </span>
+        <span className="grow" />
+        <Segmented
+          label="Speed view"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "live", label: "This reply" },
+            { value: "replies", label: "Per reply" },
+          ]}
+        />
+      </div>
+      <div className="chart-stats">
+        <div>
+          <span className="muted">{view === "live" ? (writing ? "Now" : "Last sample") : "Last reply"}</span>
+          <b className="mono tnum">
+            {fmt(cur)}
+            <small> tok/s</small>
+          </b>
+        </div>
+        <div>
+          <span className="muted">Average</span>
+          <b className="mono tnum">
+            {fmt(avg)}
+            <small> tok/s</small>
+          </b>
+        </div>
+        <div>
+          <span className="muted">Peak</span>
+          <b className="mono tnum">
+            {fmt(peak)}
+            <small> tok/s</small>
+          </b>
+        </div>
+        {view === "live" && writing && (
+          <span className="chart-live">
+            <PixelLoader /> live
+          </span>
+        )}
+      </div>
+      <TpsChart
+        values={values}
+        xs={xs}
+        xLabel={view === "live" ? (x) => `${x.toFixed(1)} s` : (x) => `#${x}`}
+        label={values.length ? `Tokens per second, ${view === "live" ? "this reply" : "per reply"}` : empty}
+      />
+    </div>
+  );
+}
+
 export function MonitorScreen() {
   const { state } = useStore();
   const phase = state.engine.phase;
@@ -36,8 +121,9 @@ export function MonitorScreen() {
   const ctxTotal = model?.context_length ?? 0;
   const tag = state.sampleTelemetry ? "Sample · " : api.kind === "mock" ? "Mock stream · " : "";
   const desktop = api.kind === "pywebview";
-  const speed = last ? (last.decode_tok_per_sec ?? last.tok_per_sec) : null;
-  const speedFoot = !last ? "Shown after the first reply" : last.decode_tok_per_sec != null ? `${tag}last turn, output after first token` : `${tag}last turn, end to end`;
+  const liveNow = phase === "writing" && state.liveTps.length > 0 ? state.liveTps[state.liveTps.length - 1].rate : null;
+  const speed = liveNow ?? (last ? (last.decode_tok_per_sec ?? last.tok_per_sec) : null);
+  const speedFoot = liveNow != null ? `${tag}now, over the last half second` : !last ? "Shown after the first reply" : last.decode_tok_per_sec != null ? `${tag}last turn, output after first token` : `${tag}last turn, end to end`;
   const sessionTokens = state.turns.reduce((n, t) => n + t.tokens, 0);
   return (
     <div className="page">
@@ -69,7 +155,7 @@ export function MonitorScreen() {
 
       <div className="stat-grid">
         <Stat icon="bolt" label="Speed" value={speed != null ? speed.toFixed(1) : "—"} unit="tok/s" foot={speedFoot} />
-        <Stat icon="sparkle" label="Tokens" value={sessionTokens.toLocaleString()} foot={`${tag}${state.turns.length} turns this session`} />
+        <Stat icon="sparkle" label="Tokens" value={sessionTokens.toLocaleString()} foot={`${tag}${state.turns.length} turn${state.turns.length === 1 ? "" : "s"} this session`} />
         <Stat icon="clock" label="First token" value={last?.first_token_s != null ? last.first_token_s.toFixed(2) : "—"} unit="s" foot={last ? `${tag}last turn` : "Shown after the first reply"} />
         <Stat
           icon="memory"
@@ -81,13 +167,7 @@ export function MonitorScreen() {
       </div>
 
       <div className="monitor-row">
-        <div className="card chart-card">
-          <div className="card-head">
-            <span>Tokens per second</span>
-            <span className="muted mono">{state.tps.length ? `last ${state.tps.length} replies` : "no replies yet"}</span>
-          </div>
-          <Sparkline data={state.tps} height={96} />
-        </div>
+        <SpeedCard />
         <div className="card gauge-card">
           <div className="card-head">
             <span>Context</span>

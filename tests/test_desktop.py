@@ -162,6 +162,48 @@ def test_send_streams_tokens_and_reports_measured_tps(tmp_path):
     assert be.messages[0] == {"role": "user", "content": "hi"}
 
 
+class SlowEngine(FakeEngine):
+    """Yields `n` pieces, `delay` seconds apart (a model writing in real time)."""
+
+    def __init__(self, n=24, delay=0.02):
+        super().__init__(reply=tuple(f"t{i} " for i in range(n)))
+        self._delay = delay
+
+    def stream_messages(self, messages, config):
+        for piece in self._reply:
+            time.sleep(self._delay)
+            yield piece
+
+
+def test_send_emits_live_tps_samples_while_streaming(tmp_path):
+    """Monitor's speed graph is fed by ("tps", sample) events during a reply."""
+    be, registry, spec, _, events = _backend(tmp_path, engine=SlowEngine())
+    be.sample_every_s = 0.1
+    be.switch_model(spec.name)
+    _drain_events(events, lambda ev: ev[0] == "switched")
+    be.send("go")
+    got = _drain_events(events, lambda ev: ev[0] == "done")
+    samples = [ev[1] for ev in got if ev[0] == "tps"]
+    assert len(samples) >= 2
+    assert all(s["tok_per_sec"] > 0 for s in samples)
+    assert [s["tokens"] for s in samples] == sorted(s["tokens"] for s in samples)
+    assert all(0 < s["t"] for s in samples)
+    # every sample arrives after the first token and before "done"
+    kinds = [ev[0] for ev in got]
+    assert kinds.index("tok") < kinds.index("tps") < kinds.index("done")
+    # sane: ~50 pieces/s from a 20 ms delay (generous bounds for slow CI)
+    assert all(s["tok_per_sec"] < 200 for s in samples)
+
+
+def test_short_reply_emits_no_tps_sample(tmp_path):
+    be, registry, spec, _, events = _backend(tmp_path)
+    be.switch_model(spec.name)
+    _drain_events(events, lambda ev: ev[0] == "switched")
+    be.send("hi")
+    got = _drain_events(events, lambda ev: ev[0] == "done")
+    assert not any(ev[0] == "tps" for ev in got)
+
+
 def test_stop_interrupts_infinite_stream(tmp_path):
     engine = FakeEngine(infinite=True)
     be, registry, spec, _, events = _backend(tmp_path, engine=engine)
