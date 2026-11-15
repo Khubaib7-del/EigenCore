@@ -1,4 +1,4 @@
-import type { Chat, Turn } from "./store";
+import type { Chat, TpsPoint, Turn } from "./store";
 
 /**
  * Seeded conversation used by the preview. Per-message speed stats are left
@@ -51,7 +51,10 @@ export const SEED_CHATS: Chat[] = [
           args: { path: "~/Documents/notes.txt", encoding: "utf-8", api_key: "***REDACTED***" },
           reason: "Read the file you mentioned to answer the question.",
         },
-        tools: [{ tool_name: "list_dir", summary: "~/Documents · 14 entries", ok: true }],
+        tools: [
+          { tool_name: "list_dir", summary: "~/Documents · 14 entries", ok: true },
+          { tool_name: "search_files", summary: "notes*.txt · 1 match", ok: true },
+        ],
       },
     ],
   },
@@ -79,3 +82,75 @@ export const SEED_TPS: number[] = [
   0, 6, 14, 19, 21, 22, 21.5, 22.4, 21.8, 22.6, 21.9, 22.2, 0, 0, 5, 12, 18, 19.8, 20.4, 19.9, 20.1, 19.2, 19.7, 0, 0, 9, 16,
   20.5, 21.6, 21.9, 22.3, 21.7, 21.2, 21.8,
 ];
+
+/** MOCK live samples for Monitor's "This reply" view (preview only, labelled). */
+export const SEED_LIVE_TPS: TpsPoint[] = [
+  2.1, 14.2, 19.8, 21.4, 22.6, 22.1, 23.0, 22.4, 21.7, 22.9, 23.3, 22.8, 21.9, 22.5, 23.1, 22.7, 22.2, 23.4,
+].map((rate, i) => ({ t: (i + 1) * 0.5, rate }));
+
+const STREAM_REPLY =
+  "Here is a small function that walks a folder and prints it as a tree, the way `tree` does on Linux:\n\n" +
+  "```python\nfrom pathlib import Path\n\n\ndef print_tree(root: Path, prefix: str = \"\") -> None:\n" +
+  "    entries = sorted(root.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))\n" +
+  "    for i, entry in enumerate(entries):\n        last = i == len(entries) - 1\n" +
+  "        print(prefix + (\"└── \" if last else \"├── \") + entry.name)\n        if entry.is_dir():\n" +
+  "            print_tree(entry, prefix + (\"    \" if last else \"│   \"))";
+
+const DONE_REPLY =
+  "The desktop UI lives in `ui/src`. The parts you will touch most:\n\n" +
+  "- ui/src/\n  - api/\n    - bridge.ts\n    - mock.ts\n  - components/\n    - CodeBlock.tsx\n    - PromptBar.tsx\n  - screens/\n    - ChatScreen.tsx\n    - MonitorScreen.tsx\n  - main.tsx\n\n" +
+  "Events from Python arrive as tuples and are turned into typed events in one place:\n\n" +
+  "```ts\nwindow.addEventListener(\"eigencore\", (ev) => {\n  for (const t of (ev as CustomEvent<unknown[][]>).detail) {\n    const e = fromTuple(t); // null for unknown kinds\n    if (e) listeners.forEach((l) => l(e));\n  }\n});\n```\n\n" +
+  "Start with **bridge.ts** if you add a new backend event.";
+
+/**
+ * Preview-only chats for `?chat=thinking|streaming|done` (screenshots and
+ * reviews). Every number here is MOCK and shown with a "mock stream" chip.
+ */
+export function seedChatFor(mode: string): Chat | null {
+  const now = Date.now();
+  const user = (id: string, content: string) => ({ id, role: "user" as const, content });
+  if (mode === "thinking")
+    return {
+      id: "demo-thinking",
+      title: "Refactor the event pump",
+      group: "Today",
+      model: "qwen2.5-1.5b",
+      messages: [
+        user("d1", "Refactor the event pump in web.py so batches never exceed 20 ms. Explain the change first."),
+        { id: "d2", role: "assistant", model: "qwen2.5-1.5b", content: "", status: "reading", startedAt: now - 2300, budget: 512 },
+      ],
+    };
+  if (mode === "streaming")
+    return {
+      id: "demo-stream",
+      title: "Print a folder as a tree",
+      group: "Today",
+      model: "qwen2.5-coder-1.5b",
+      messages: [
+        user("d1", "Write a Python function that prints a folder like the tree command."),
+        { id: "d2", role: "assistant", model: "qwen2.5-coder-1.5b", content: STREAM_REPLY, status: "streaming", startedAt: now - 6400, budget: 512 },
+      ],
+    };
+  if (mode === "done")
+    return {
+      id: "demo-done",
+      title: "Where does the UI live?",
+      group: "Today",
+      model: "qwen2.5-1.5b",
+      messages: [
+        user("d1", "Where does the desktop UI live, and where do backend events come in?"),
+        {
+          id: "d2",
+          role: "assistant",
+          model: "qwen2.5-1.5b",
+          content: DONE_REPLY,
+          status: "done",
+          statsKind: "mock",
+          budget: 512,
+          stats: { tokens: 214, seconds: 9.8, tok_per_sec: 21.8, decode_tok_per_sec: 23.4, first_token_s: 0.41, interrupted: false, error: null },
+        },
+      ],
+    };
+  return null;
+}

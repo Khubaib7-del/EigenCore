@@ -13,7 +13,7 @@ import type {
 } from "../api";
 import { CURRENT_VERSION, DEFAULT_SETTINGS, MOCK_MODELS, MOCK_PROFILE } from "../api/mockData";
 import { splitThinking } from "../components/Markdown";
-import { SEED_CHATS, SEED_TPS, SEED_TURNS } from "./seed";
+import { SEED_CHATS, SEED_LIVE_TPS, SEED_TPS, SEED_TURNS, seedChatFor } from "./seed";
 
 export type Screen = "chat" | "models" | "monitor" | "profile" | "settings";
 
@@ -37,6 +37,8 @@ export interface Message {
   tools?: ToolCall[];
   startedAt?: number;
   error?: string;
+  /** max_tokens this reply was sent with (the tokens bar is measured against it). */
+  budget?: number;
 }
 
 export interface Chat {
@@ -65,6 +67,19 @@ export interface Turn {
 
 export type EnginePhase = "idle" | "loading" | "reading" | "writing" | "error";
 
+/** One live speed sample: seconds since the first token, measured tok/s. */
+export interface TpsPoint {
+  t: number;
+  rate: number;
+}
+
+/** Options sent with each message (the desktop backend takes both). */
+export interface GenOptions {
+  temperature: number;
+  max_tokens: number;
+}
+export const DEFAULT_GEN: GenOptions = { temperature: 0.7, max_tokens: 512 };
+
 export interface State {
   screen: Screen;
   sidebarCollapsed: boolean;
@@ -79,7 +94,11 @@ export interface State {
   chats: Chat[];
   activeChatId: string | null;
   turns: Turn[];
+  /** One output rate per finished reply (Monitor, "Per reply"). */
   tps: number[];
+  /** Live samples of the reply being written, or of the last one (Monitor, "This reply"). */
+  liveTps: TpsPoint[];
+  genOptions: GenOptions;
   update: UpdateState;
   toast: { id: number; text: string; tone?: "ok" | "err" } | null;
   paletteOpen: boolean;
@@ -100,6 +119,9 @@ type Action =
   | { type: "toast"; text: string; tone?: "ok" | "err" }
   | { type: "clearToast" }
   | { type: "palette"; open: boolean }
+  | { type: "renameChat"; id: string; title: string }
+  | { type: "deleteChat"; id: string }
+  | { type: "genOptions"; patch: Partial<GenOptions> }
   | { type: "seed"; patch: Partial<State> };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -148,9 +170,11 @@ function onEvent(s: State, e: BackendEvent): State {
       };
     case "prompt_eval":
       if (e.started) {
-        return patchLastAssistant({ ...s, engine: { phase: "reading", message: "Reading prompt" } }, (m) => ({ ...m, status: "reading" }));
+        return patchLastAssistant({ ...s, liveTps: [], engine: { phase: "reading", message: "Reading prompt" } }, (m) => ({ ...m, status: "reading" }));
       }
       return patchLastAssistant({ ...s, engine: { phase: "writing", message: "Writing" } }, (m) => ({ ...m, status: "streaming" }));
+    case "tps":
+      return { ...s, liveTps: [...s.liveTps, { t: e.sample.t, rate: e.sample.tok_per_sec }].slice(-240) };
     case "tok":
       return patchLastAssistant(s, (m) => ({ ...m, content: m.content + e.text, status: "streaming" }));
     case "done": {
@@ -174,7 +198,9 @@ function onEvent(s: State, e: BackendEvent): State {
         status: st.error ? "error" : st.interrupted ? "stopped" : "done",
       };
       const rate = st.decode_tok_per_sec ?? st.tok_per_sec;
-      return { ...next, turns: [turn, ...s.turns].slice(0, 20), tps: [...s.tps, rate].slice(-48) };
+      // A reply that produced nothing (error before the first token) has no speed to plot.
+      const tps = st.tokens > 0 && Number.isFinite(rate) ? [...s.tps, rate].slice(-48) : s.tps;
+      return { ...next, turns: [turn, ...s.turns].slice(0, 20), tps };
     }
     case "approval_request":
       return patchLastAssistant(s, (m) => ({ ...m, status: "awaiting_approval", approval: e.request }));
@@ -212,7 +238,15 @@ function reducer(s: State, a: Action): State {
         messages: [
           ...c.messages,
           { id: uid(), role: "user", content: a.text },
-          { id: uid(), role: "assistant", content: "", model: st.activeModel ?? undefined, status: "reading", startedAt: Date.now() },
+          {
+            id: uid(),
+            role: "assistant",
+            content: "",
+            model: st.activeModel ?? undefined,
+            status: "reading",
+            startedAt: Date.now(),
+            budget: st.genOptions.max_tokens,
+          },
         ],
       }));
     }
@@ -229,6 +263,18 @@ function reducer(s: State, a: Action): State {
       return { ...s, toast: null };
     case "palette":
       return { ...s, paletteOpen: a.open };
+    case "renameChat": {
+      const title = a.title.trim().slice(0, 80);
+      if (!title) return s;
+      return { ...s, chats: s.chats.map((c) => (c.id === a.id ? { ...c, title } : c)) };
+    }
+    case "deleteChat": {
+      const chats = s.chats.filter((c) => c.id !== a.id);
+      const activeChatId = s.activeChatId === a.id ? (chats[0]?.id ?? null) : s.activeChatId;
+      return { ...s, chats, activeChatId, toast: { id: Date.now(), text: "Chat deleted", tone: "ok" } };
+    }
+    case "genOptions":
+      return { ...s, genOptions: { ...s.genOptions, ...a.patch } };
     case "seed":
       return { ...s, ...a.patch };
   }
@@ -244,6 +290,30 @@ export interface Boot {
 }
 
 const THEME_KEY = "eigencore.theme";
+const GEN_KEY = "eigencore.gen";
+function storedGen(): GenOptions {
+  try {
+    const g = JSON.parse(localStorage.getItem(GEN_KEY) ?? "null");
+    const temperature = Number(g?.temperature);
+    const max_tokens = Number(g?.max_tokens);
+    return {
+      temperature: Number.isFinite(temperature) && temperature >= 0 && temperature <= 2 ? temperature : DEFAULT_GEN.temperature,
+      max_tokens: Number.isFinite(max_tokens) && max_tokens >= 16 && max_tokens <= 8192 ? Math.round(max_tokens) : DEFAULT_GEN.max_tokens,
+    };
+  } catch {
+    return { ...DEFAULT_GEN };
+  }
+}
+
+/** True while this chat's last reply is being read or written (sidebar loader). */
+export function chatBusy(c: Chat): "reading" | "writing" | "approval" | null {
+  const m = c.messages[c.messages.length - 1];
+  if (!m || m.role !== "assistant") return null;
+  if (m.status === "reading") return "reading";
+  if (m.status === "streaming") return "writing";
+  if (m.status === "awaiting_approval" && !m.approval?.decision) return "approval";
+  return null;
+}
 function storedTheme(): Settings["theme"] | null {
   try {
     const t = localStorage.getItem(THEME_KEY);
@@ -308,6 +378,8 @@ function desktopState(boot: Boot): State {
     activeChatId: null,
     turns: [],
     tps: [],
+    liveTps: [],
+    genOptions: storedGen(),
     sampleTelemetry: false,
     update: { kind: "idle" },
     toast: null,
@@ -322,7 +394,11 @@ function initialState(boot?: Boot): State {
   const screen = (q.get("screen") as Screen) || "chat";
   const theme = (q.get("theme") as Settings["theme"]) || storedTheme() || DEFAULT_SETTINGS.theme;
   const chats = SEED_CHATS.map((c) => ({ ...c, messages: c.messages.slice() }));
-  const empty = q.get("chat") === "empty";
+  const mode = q.get("chat");
+  const empty = mode === "empty";
+  // ?chat=thinking|streaming|done|tree opens a seeded chat in that state (mock only).
+  const demo = mode && !empty ? seedChatFor(mode) : null;
+  if (demo) chats.unshift(demo);
   const s: State = {
     screen,
     sidebarCollapsed: q.get("collapsed") === "1",
@@ -335,10 +411,12 @@ function initialState(boot?: Boot): State {
     engine: { phase: "idle", message: "qwen2.5-1.5b ready" },
     activeModel: "qwen2.5-1.5b",
     chats: empty ? [{ id: "new", title: "New chat", group: "Today", model: "qwen2.5-1.5b", messages: [] }, ...chats] : chats,
-    activeChatId: empty ? "new" : "c1",
+    activeChatId: empty ? "new" : demo ? demo.id : "c1",
     // Sample telemetry only when asked for (?sample=1); otherwise Monitor starts empty.
     turns: q.get("sample") === "1" ? SEED_TURNS : [],
     tps: q.get("sample") === "1" ? SEED_TPS : [],
+    liveTps: q.get("sample") === "1" || mode === "streaming" ? SEED_LIVE_TPS : [],
+    genOptions: storedGen(),
     sampleTelemetry: q.get("sample") === "1",
     update: { kind: "idle" },
     toast: null,
@@ -348,7 +426,8 @@ function initialState(boot?: Boot): State {
   if (up === "available") s.update = { kind: "available", tag: "v0.4.6", url: "" };
   if (up === "downloading") s.update = { kind: "downloading", tag: "v0.4.6", pct: 64 };
   if (up === "checking") s.update = { kind: "checking" };
-  if (q.get("engine") === "writing") s.engine = { phase: "writing", message: "Writing" };
+  if (q.get("engine") === "writing" || mode === "streaming") s.engine = { phase: "writing", message: "Writing" };
+  if (mode === "thinking") s.engine = { phase: "reading", message: "Reading prompt" };
   return s;
 }
 
@@ -397,6 +476,15 @@ export function StoreProvider({ children, boot }: { children: ReactNode; boot?: 
     if (desktop) api.saveSettings({ theme }).catch(() => {});
   }, [theme, desktop]);
 
+  const gen = state.genOptions;
+  useEffect(() => {
+    try {
+      localStorage.setItem(GEN_KEY, JSON.stringify(gen));
+    } catch {
+      /* storage disabled */
+    }
+  }, [gen]);
+
   // Desktop: chats are saved locally, a moment after they stop changing.
   const busy = state.engine.phase === "reading" || state.engine.phase === "writing";
   useEffect(() => {
@@ -434,7 +522,7 @@ export function StoreProvider({ children, boot }: { children: ReactNode; boot?: 
         const s = stateRef.current;
         const history = historyOf(s.chats.find((c) => c.id === s.activeChatId));
         dispatch({ type: "userSend", text });
-        api.send(text, { history });
+        api.send(text, { history, temperature: s.genOptions.temperature, max_tokens: s.genOptions.max_tokens });
       },
       stop: () => api.stop(),
       download: (n) => {

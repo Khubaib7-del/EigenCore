@@ -169,6 +169,8 @@ export class MockApi implements EigenCoreApi {
     const toks = tokenize(reply);
     const start = performance.now();
     let firstAt: number | null = null;
+    let markT = 0;
+    let markN = 0;
     let i = 0;
     this.emit({ type: "prompt_eval", started: true });
     const step = () => {
@@ -185,15 +187,25 @@ export class MockApi implements EigenCoreApi {
             interrupted: this.cancelled,
             error: null,
             first_token_s: firstAt === null ? null : (firstAt - start) / 1000,
+            decode_tok_per_sec: firstAt !== null && i > 1 ? ((i - 1) * 1000) / (performance.now() - firstAt) : null,
           },
         });
         return;
       }
+      const now = performance.now();
       if (firstAt === null) {
-        firstAt = performance.now();
+        firstAt = now;
+        markT = now;
+        markN = 1;
         this.emit({ type: "prompt_eval", started: false });
       }
       this.emit({ type: "tok", text: toks[i++] });
+      // Live speed samples, like the backend's ("tps", …) events (mock emitter timing).
+      if (now - markT >= 500 && i > markN) {
+        this.emit({ type: "tps", sample: { tok_per_sec: ((i - markN) * 1000) / (now - markT), tokens: i, t: (now - firstAt) / 1000 } });
+        markT = now;
+        markN = i;
+      }
       this.genTimer = this.later(this.tokenMs * (0.6 + Math.random() * 0.8), step);
     };
     this.finish = step;

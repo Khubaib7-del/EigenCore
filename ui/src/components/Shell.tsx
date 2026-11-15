@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { api } from "../api";
-import { useStore, type Screen } from "../state/store";
+import { chatBusy, useStore, type Chat, type Screen } from "../state/store";
 import { Icon, type IconName } from "./Icon";
-import { GlideMenu, IconButton, Kbd, PixelLoader } from "./primitives";
+import { Button, Dialog, EqLoader, GlideMenu, IconButton, Kbd, PixelLoader, SoonPill } from "./primitives";
 
 /* ── Title bar for a frameless window ───────────────────────────────────
  * The whole bar is a drag region (pywebview: class "pywebview-drag-region";
@@ -48,13 +48,131 @@ export function TitleBar() {
   );
 }
 
-const NAV: { id: Screen; label: string; icon: IconName }[] = [
+type NavItem = { id: Screen; label: string; icon: IconName } | { id: null; label: string; icon: IconName; soon: string };
+
+/** Main nav. Items with `soon` are shown, muted, and do nothing yet. */
+const NAV_TOP: NavItem[] = [
   { id: "chat", label: "Chat", icon: "chat" },
+  { id: null, label: "Agents", icon: "bot", soon: "Agents: coming soon. Tool use with approvals is being wired up." },
+  { id: null, label: "Files", icon: "folder", soon: "Workspace files: coming soon. Attach a folder for the agent to work in." },
   { id: "models", label: "Models", icon: "models" },
-  { id: "monitor", label: "Monitor", icon: "monitor" },
+  { id: "monitor", label: "Monitor", icon: "activity" },
+];
+const NAV_FOOT: NavItem[] = [
   { id: "profile", label: "Profile", icon: "cpu" },
   { id: "settings", label: "Settings", icon: "settings" },
 ];
+const NAV = [...NAV_TOP, ...NAV_FOOT].filter((n): n is { id: Screen; label: string; icon: IconName } => n.id !== null);
+
+function NavButton({ n, collapsed, extra }: { n: NavItem; collapsed: boolean; extra?: ReactNode }) {
+  const { state, dispatch } = useStore();
+  if (n.id === null)
+    return (
+      <div className="nav-item soon-item" aria-disabled="true" title={n.soon} role="link">
+        <Icon name={n.icon} size={16} />
+        {!collapsed && <span>{n.label}</span>}
+        {!collapsed && <SoonPill title={n.soon} />}
+      </div>
+    );
+  const id = n.id;
+  return (
+    <button
+      data-glide
+      className={`nav-item ${state.screen === id ? "active" : ""}`}
+      aria-current={state.screen === id ? "page" : undefined}
+      onClick={() => dispatch({ type: "nav", screen: id })}
+      title={collapsed ? n.label : undefined}
+    >
+      <Icon name={n.icon} size={16} />
+      {!collapsed && <span>{n.label}</span>}
+      {extra}
+    </button>
+  );
+}
+
+function HistoryItem({ c, active }: { c: Chat; active: boolean }) {
+  const { dispatch } = useStore();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(c.title);
+  const [confirm, setConfirm] = useState(false);
+  const busy = chatBusy(c);
+  const commit = () => {
+    setEditing(false);
+    if (draft.trim() && draft.trim() !== c.title) dispatch({ type: "renameChat", id: c.id, title: draft });
+  };
+  return (
+    <div className={`history-item ${active ? "active" : ""} ${busy ? "busy" : ""}`} data-glide>
+      {editing ? (
+        <input
+          className="history-rename"
+          value={draft}
+          autoFocus
+          aria-label="Chat title"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") {
+              setDraft(c.title);
+              setEditing(false);
+            }
+          }}
+        />
+      ) : (
+        <button className="history-open" onClick={() => dispatch({ type: "openChat", id: c.id })} onDoubleClick={() => setEditing(true)} title={c.title}>
+          {busy === "approval" ? (
+            <span className="history-wait" title="Waiting for your approval">
+              <Icon name="shield" size={12} />
+            </span>
+          ) : busy ? (
+            <EqLoader label={busy === "reading" ? "Reading the prompt" : "Writing"} />
+          ) : null}
+          <span className="ellipsis">{c.title}</span>
+        </button>
+      )}
+      {!editing && (
+        <span className="history-actions">
+          <IconButton
+            icon="pencil"
+            label="Rename"
+            size={13}
+            onClick={() => {
+              setDraft(c.title);
+              setEditing(true);
+            }}
+          />
+          <IconButton icon="trash" label={busy ? "Stop the reply before deleting" : "Delete"} size={13} disabled={!!busy} onClick={() => setConfirm(true)} />
+        </span>
+      )}
+      <Dialog
+        open={confirm}
+        title="Delete this chat?"
+        onClose={() => setConfirm(false)}
+        actions={
+          <>
+            <Button variant="ghost" onClick={() => setConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              icon="trash"
+              onClick={() => {
+                setConfirm(false);
+                dispatch({ type: "deleteChat", id: c.id });
+              }}
+            >
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p>
+          “{c.title}” and its {c.messages.length} message{c.messages.length === 1 ? "" : "s"} are removed from this device.
+        </p>
+      </Dialog>
+    </div>
+  );
+}
 
 export function UpdateButton({ compact }: { compact?: boolean }) {
   const { state, actions } = useStore();
@@ -106,17 +224,21 @@ export function Sidebar() {
     for (const c of state.chats) (g[c.group] ??= []).push(c);
     return Object.entries(g);
   }, [state.chats]);
+  const anyBusy = state.chats.some((c) => chatBusy(c));
+  const engineLive = state.engine.phase !== "idle" && state.engine.phase !== "error";
   return (
     <nav className={`sidebar ${collapsed ? "collapsed" : ""}`} aria-label="Main">
       <div className="sidebar-top">
-        <button className="new-chat" onClick={() => dispatch({ type: "newChat" })} title="New chat">
+        <button className="new-chat" onClick={() => dispatch({ type: "newChat" })} title="New chat (Ctrl N)">
           <Icon name="plus" size={15} />
           {!collapsed && <span>New chat</span>}
           {!collapsed && <Kbd>Ctrl N</Kbd>}
         </button>
         <IconButton icon="sidebar" label={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={() => dispatch({ type: "toggleSidebar" })} />
       </div>
-      {!collapsed && (
+      {collapsed ? (
+        <IconButton icon="search" label="Search (Ctrl K)" className="collapsed-search" onClick={() => dispatch({ type: "palette", open: true })} />
+      ) : (
         <button className="search-trigger" onClick={() => dispatch({ type: "palette", open: true })}>
           <Icon name="search" size={14} />
           <span>Search</span>
@@ -124,40 +246,35 @@ export function Sidebar() {
         </button>
       )}
       <GlideMenu className="nav-list">
-        {NAV.map((n) => (
-          <button
-            key={n.id}
-            data-glide
-            className={`nav-item ${state.screen === n.id ? "active" : ""}`}
-            aria-current={state.screen === n.id ? "page" : undefined}
-            onClick={() => dispatch({ type: "nav", screen: n.id })}
-            title={collapsed ? n.label : undefined}
-          >
-            <Icon name={n.icon} size={16} />
-            {!collapsed && <span>{n.label}</span>}
-            {!collapsed && n.id === "monitor" && state.engine.phase !== "idle" && state.engine.phase !== "error" && (
-              <span className="nav-live">
-                <PixelLoader />
-              </span>
-            )}
-          </button>
+        {NAV_TOP.map((n) => (
+          <NavButton
+            key={n.label}
+            n={n}
+            collapsed={collapsed}
+            extra={
+              n.id === "monitor" && engineLive ? (
+                <span className={collapsed ? "nav-dot" : "nav-live"}>{collapsed ? null : <PixelLoader />}</span>
+              ) : n.id === "chat" && collapsed && anyBusy ? (
+                <span className="nav-dot" />
+              ) : undefined
+            }
+          />
         ))}
       </GlideMenu>
       {!collapsed && (
         <div className="history">
+          <div className="history-head">
+            <Icon name="history" size={13} />
+            <span>Chats</span>
+            <span className="mono">{state.chats.length}</span>
+          </div>
+          {state.chats.length === 0 && <div className="history-empty muted">Your chats show up here.</div>}
           <GlideMenu>
             {groups.map(([g, chats]) => (
               <div key={g} className="history-group">
                 <div className="history-label">{g}</div>
                 {chats.map((c) => (
-                  <button
-                    key={c.id}
-                    data-glide
-                    className={`history-item ${c.id === state.activeChatId && state.screen === "chat" ? "active" : ""}`}
-                    onClick={() => dispatch({ type: "openChat", id: c.id })}
-                  >
-                    <span className="ellipsis">{c.title}</span>
-                  </button>
+                  <HistoryItem key={c.id} c={c} active={c.id === state.activeChatId && state.screen === "chat"} />
                 ))}
               </div>
             ))}
@@ -165,6 +282,11 @@ export function Sidebar() {
         </div>
       )}
       {collapsed && <span className="grow" />}
+      <GlideMenu className="nav-list nav-foot">
+        {NAV_FOOT.map((n) => (
+          <NavButton key={n.label} n={n} collapsed={collapsed} />
+        ))}
+      </GlideMenu>
       <div className="sidebar-foot">
         {!collapsed && <span className="mono muted version">v{state.version}</span>}
         <UpdateButton compact={collapsed} />

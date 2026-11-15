@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { FitVerdict } from "../api";
 import { Icon, type IconName } from "./Icon";
 
@@ -278,14 +279,15 @@ export function Dialog({
     return () => window.removeEventListener("keydown", k);
   }, [open, onClose]);
   if (!open) return null;
-  return (
+  return createPortal(
     <div className="scrim" onMouseDown={onClose}>
       <div className="dialog" role="alertdialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()}>
         <h2>{title}</h2>
         <div className="dialog-body">{children}</div>
         <div className="dialog-actions">{actions}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -295,5 +297,126 @@ export function SampleBadge({ children = "Sample data" }: { children?: ReactNode
       <Icon name="info" size={12} />
       {children}
     </span>
+  );
+}
+
+/* ── Soon pill: a feature that is shown but not wired up yet ───────────── */
+export function SoonPill({ title = "Coming soon: not wired up yet" }: { title?: string }) {
+  return (
+    <span className="soon" title={title}>
+      Soon
+    </span>
+  );
+}
+
+/* ── Equalizer loader: the chat-history loader (Monitor keeps the pixel grid) ── */
+export function EqLoader({ label = "Generating" }: { label?: string }) {
+  return (
+    <span className="eq" role="img" aria-label={label}>
+      <i />
+      <i />
+      <i />
+    </span>
+  );
+}
+
+/** Closes a popover on outside click and Escape. */
+export function useDismiss(open: boolean, close: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && close();
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("mousedown", down);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [open, close]);
+  return ref;
+}
+
+/* ── Tokens-per-second chart: area line, grid, avg line ─────────────────
+ * Drawn at the real pixel width (ResizeObserver), so text and strokes are
+ * never stretched. One point still draws (a dot and its value).
+ */
+/** Top of the y axis: four equal steps of a round size (1, 2, 2.5, 5 × 10^n). */
+function niceMax(v: number) {
+  if (!(v > 0)) return 10;
+  const raw = (v * 1.1) / 4;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= raw) return m * p * 4;
+  return 40 * p;
+}
+
+export function TpsChart({
+  values,
+  xs,
+  xLabel,
+  height = 168,
+  label,
+}: {
+  values: number[];
+  /** x position of each value (seconds, or reply index). */
+  xs: number[];
+  xLabel: (x: number) => string;
+  height?: number;
+  label: string;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(560);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setW(Math.max(200, Math.round(e.contentRect.width))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  if (!values.length) return <div className="chart-empty muted">{label}</div>;
+  const padL = 34;
+  const padR = 10;
+  const padT = 10;
+  const padB = 22;
+  const max = niceMax(Math.max(...values));
+  const x0 = xs[0];
+  const x1 = xs[xs.length - 1];
+  const sx = (x: number) => (x1 === x0 ? padL + (w - padL - padR) / 2 : padL + ((x - x0) / (x1 - x0)) * (w - padL - padR));
+  const sy = (v: number) => padT + (1 - v / max) * (height - padT - padB);
+  const pts = values.map((v, i) => [sx(xs[i]), sy(v)] as const);
+  const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  const base = height - padB;
+  const area = pts.length > 1 ? `${line} L${pts[pts.length - 1][0].toFixed(1)} ${base} L${pts[0][0].toFixed(1)} ${base} Z` : "";
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max);
+  const last = pts[pts.length - 1];
+  return (
+    <div className="tps-chart" ref={box}>
+      <svg width={w} height={height} viewBox={`0 0 ${w} ${height}`} role="img" aria-label={label}>
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={padL} x2={w - padR} y1={sy(t)} y2={sy(t)} className={t === 0 ? "chart-axis" : "chart-grid"} />
+            <text x={padL - 6} y={sy(t) + 3.5} className="chart-tick" textAnchor="end">
+              {Number.isInteger(t) ? t : t.toFixed(1)}
+            </text>
+          </g>
+        ))}
+        {area && <path d={area} className="chart-area" />}
+        {pts.length > 1 && <path d={line} className="chart-line" />}
+        <line x1={padL} x2={w - padR} y1={sy(avg)} y2={sy(avg)} className="chart-avg" />
+        <text x={padL + 6} y={sy(avg) - 5} className="chart-tick chart-avg-label">
+          avg {avg.toFixed(1)}
+        </text>
+        <circle cx={last[0]} cy={last[1]} r={3.5} className="chart-dot" />
+        <text x={padL} y={height - 6} className="chart-tick">
+          {xLabel(x0)}
+        </text>
+        {x1 !== x0 && (
+          <text x={w - padR} y={height - 6} className="chart-tick" textAnchor="end">
+            {xLabel(x1)}
+          </text>
+        )}
+      </svg>
+    </div>
   );
 }
