@@ -4,6 +4,17 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-11-15
+
+New desktop chat and a new terminal chat. In short:
+
+- **Desktop app:** an agent-style chat (thinking orb and status word on each reply, code blocks that stay intact while streaming, per-reply stats, file trees), reply options and `/` commands in the composer, rename / delete chats, and a small 3D retro computer on the empty chat.
+- **Monitor:** the tokens-per-second chart now fills in live while a reply is written and keeps one point per finished reply.
+- **Terminal:** `eigencore chat` redone to the v2 design in `docs/design/TUI.md` (header with model, context and fit; Markdown with framed code; state line; measured stats counted in tokens).
+- **Fixed:** the TUI tests now pass on Windows CI, plus the fixes listed below.
+- **Not yet:** tools in chat, file attach, Agent / Plan modes and changing the context window are still not in the desktop app (shown as **Soon**); tool approvals appear only in the browser preview's mock data. See *Not yet in the desktop UI* below.
+- Screenshots in the README (`docs/screenshots/`), from the browser preview on mock data and a demo terminal engine.
+
 ### Added
 - Desktop chat: the wordmark computer is now a real 3D model (CSS 3D, no WebGL): a cream CRT with a deep rear housing and recessed glass on a low desktop case with floppy slot, vents and keyboard, shaded from one light with a contact shadow; teal phosphor screen with a pixel "EC" mark; tilts a few degrees toward the pointer on hover, dips when pressed, real 3D bezel buttons and power LED, cooler grey plastic in the light theme. The composer row now wraps instead of overflowing in narrow windows.
 - Desktop chat: the empty chat's retro computer is now a small computer inside an "EIGEN [computer] CORE" wordmark, with a live, clickable screen (boot line, echo of the message box, pages for version / CPU / threads / model / context and the model's fit verdict, real loading and no-model states; CSS-only animation, paused when hidden, off under reduced motion).
@@ -17,6 +28,7 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 - `tests/test_tui_v2.py`: header snapshots at 80 / 100 / 120 columns and plain, sanitiser acceptance strings in both modes, streaming code fences, state line and stats, Ctrl-C, no regenerate on error, scrolling, SSD warning, approval card, tree, capability probe.
 
 ### Changed
+- Version 0.4.7 (pyproject, `eigencore.__version__`, CLI, installer script). The browser preview's mock updater now demos `v0.4.8`. Installed 0.4.6 apps update to 0.4.7 in-app as usual (same asset names).
 - `eigencore chat` full-screen TUI redone to the v2 design (`docs/design/TUI.md` §3.1). Header: `◩ EigenCore <version> · chat` with `local · ready / thinking / writing` on the right, and a second row with model + quant, context (`≈used / set tok`), fit verdict with headroom (`est.`) and the tools state. Conversation uses `you` / `eigencore` labels with indented bodies; replies render as Markdown with framed, syntax-highlighted code blocks that stay correct while a code fence is still streaming. Footer: `›` prompt with placeholder, command hints, live `/command` suggestions, `ctrl-c stops`, and a context bar that turns amber at 85 %. Narrow terminals (< 100 columns) get the collapsed header and footer; PgUp / PgDn scroll the conversation.
 - While a reply streams, an animated state line shows what is happening (`Thinking…` before the first token, `Writing…` / `Writing code…` after) and the elapsed seconds; `EIGENCORE_REDUCED_MOTION=1` makes it static. When the reply ends it becomes the measured stats line: `decode <n> tok/s · prefill <t> s · <n> tokens · measured this turn`.
 - Speed is now counted in tokens, not stream chunks: `InferenceEngine.stream_messages` records `last_stream_stats` (token count from the model's tokenizer, time to first token, decode time) and there is a new `InferenceEngine.count_tokens()`. Decode tok/s excludes the first token's wait. Without a token count the UI says `chunks/s (stream chunks, not tokens)`.
@@ -28,6 +40,7 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 - Desktop Monitor: the tokens-per-second graph stayed empty. It only got one value per finished reply and drew nothing until there were two (so after the first reply it still said "No turns yet", and it never moved while a reply was being written). The backend now emits a live `("tps", {tok_per_sec, tokens, t})` sample about every 0.5 s while writing, measured over that interval; the chart plots those live (**This reply**) and one point per finished reply (**Per reply**), and draws from the first point. Replies that produced no tokens no longer add a 0.
 - Plain mode: an engine error mid-stream could re-run the prompt through the single-prompt fallback (double reply). The fallback is now chosen before streaming starts.
 - Arrow keys split across reads (slow ptys, SSH) were taken as Esc plus typed text; the key reader now waits up to 100 ms for the rest of an escape sequence.
+- TUI tests failed on Windows CI because Rich picked the legacy Windows console renderer; the tests now pin Rich to the VT renderer so Windows and Linux render the same.
 
 ### Not yet in the desktop UI
 - Shown as **Soon** and not clickable: Agents and Files in the sidebar, attach files / folder, Agent and Plan modes, Tools, and changing the context window. Tool steps and the approval card (Deny / Allow for session / Allow once, focus on Deny) appear only in the browser preview's mock data.
