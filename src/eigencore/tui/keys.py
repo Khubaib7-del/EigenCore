@@ -99,6 +99,22 @@ def parse_keys(data: str) -> list[str]:
     return keys
 
 
+def incomplete_escape(data: str) -> bool:
+    """True when `data` ends in the middle of an escape sequence (a lone ESC,
+    or ESC [ / ESC O without its final byte). Over SSH or a slow pty the bytes
+    of one arrow key can arrive in separate reads; the reader then waits a
+    few milliseconds for the rest instead of reporting ESC + "[B" as typing."""
+    i = data.rfind("\x1b")
+    if i < 0:
+        return False
+    tail = data[i + 1 :]
+    if tail == "":
+        return True
+    if tail[0] in "[O":
+        return not any("@" <= ch <= "~" for ch in tail[1:]) and len(tail) < 16
+    return False
+
+
 class KeyReader:
     """Context manager reading key tokens from stdin in cbreak mode.
 
@@ -180,6 +196,15 @@ class KeyReader:
         """Next key token, or None if none arrives within `timeout` seconds."""
         if not self._buf:
             raw = self._read_raw(timeout)
+            # finish a split escape sequence (bounded: ~100 ms per extra read,
+            # like a terminal editor's escape timeout)
+            for _ in range(4):
+                if not (raw and incomplete_escape(raw)):
+                    break
+                more = self._read_raw(0.1)
+                if not more:
+                    break
+                raw += more
             if raw:
                 self._buf.extend(parse_keys(raw))
         return self._buf.popleft() if self._buf else None

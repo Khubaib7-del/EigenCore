@@ -63,6 +63,10 @@ class FakeEngine:
         self._infinite = infinite
         self.seen = []
 
+    def count_tokens(self, text):
+        # stand-in tokenizer: one token per whitespace-separated word
+        return len(text.split())
+
     def stream_messages(self, messages, config):
         assert isinstance(config, GenerationConfig) and config.stream is True
         self.seen.append(list(messages))
@@ -212,7 +216,7 @@ def test_app_ctrl_c_interrupts_infinite_stream(tmp_path):
     app.handle_key(K.CTRL_C)  # must stop the infinite generator
     _drain(app)
     assert not app._gen_active
-    assert "interrupted" in app.blocks[-1]["meta"]
+    assert "stopped" in app.blocks[-1]["meta"] and "tokens kept" in app.blocks[-1]["meta"]
     # history kept: user message + partial assistant reply
     assert app.messages[0]["role"] == "user"
     assert app.messages[-1]["role"] == "assistant"
@@ -322,7 +326,7 @@ def test_picker_delete_key_asks_confirmation(tmp_path):
     picker.idx = target
     picker.handle_key("x", app)
     assert app.overlay is not None  # confirm dialog
-    assert "Delete" in app.overlay.title
+    assert "delete" in app.overlay.title
     app.handle_key("n")  # default deny path
     assert registry.is_downloaded(other)
 
@@ -349,7 +353,7 @@ def test_frame_renders_picker_overlay(tmp_path):
     app, _, _ = _make_app(tmp_path)
     app.handle_command("/models")
     text = _frame_text(app)
-    assert "Models" in text
+    assert "models" in text
     assert app.spec.name in text
     assert "downloaded" in text
 

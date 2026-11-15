@@ -232,7 +232,7 @@ Header fields, in order: model + quant, context used / context set, fit verdict 
 - [x] v2 SVG set committed to `assets/brand/` (2026-11-09).
 - [ ] Commit the PNG/ICO exports (from the v2 kit zip the owner holds, or regenerate with the command in `assets/brand/README.md`); until then the raster files in `assets/brand/` are still v1.
 - [ ] Follow [TUI.md](TUI.md) for the terminal work order and screens.
-- [ ] Introduce a single `eigencore/tui/theme.py` holding the tokens in 5.2; no hex literals elsewhere.
-- [ ] Sanitiser for model/tool text with tests (`[/]`, OSC title, `ESC[2J`).
+- [x] Introduce a single `eigencore/tui/theme.py` holding the tokens in 5.2; no hex literals elsewhere (2026-11-15).
+- [x] Sanitiser for model/tool text with tests (`[/]`, OSC title, `ESC[2J`): `tui/sanitize.py` (2026-11-15).
 - [ ] Plain mode parity test for every state in 5.4.
-- [ ] Header label reflects the attached policy object, read from it, not a string literal.
+- [x] Header label reflects the attached policy object, read from it, not a string literal: `tui/components.tools_label` (2026-11-15).

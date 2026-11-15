@@ -9,21 +9,34 @@
 > non-TTY keeps the line-mode `tui/chat.py` UI, and the safety rules below
 > (sanitiser, markup off, Ctrl-C, no regenerate, labeled numbers) all still apply.
 
+**Status as of 2026-11-15 (branch `feat/tui-v2`).** SHIPPED means it runs in `eigencore chat` today and has tests; PLANNED means it does not exist yet.
+
 | Piece | Status | Evidence / known problem |
 | --- | --- | --- |
-| `eigencore chat` full-screen TUI on a TTY | SHIPPED | `tui/app.py` (ChatApp), `tui/keys.py` (cross-platform key reader), `tui/banner.py` (banner reveal); 13 tests in `tests/test_tui_app.py` + pty end-to-end drive |
-| In-TUI model picker (switch / download / delete-from-disk) | SHIPPED | `/models` overlay: ↑/↓, Enter switch, `d` download, `x` delete with confirm |
+| `eigencore chat` full-screen TUI on a TTY | SHIPPED | `tui/app.py` (ChatApp), `tui/keys.py` (cross-platform key reader; split escape sequences are joined with a 100 ms timeout); `tests/test_tui_app.py`, `tests/test_tui_v2.py` |
+| Header per §3.1: `◩ EigenCore <ver> · chat`, right-aligned `local · ready / thinking / writing`; row 2 `model`, `ctx ≈used / set tok`, `fit <verdict> <±h> GB est.`, `tools` | SHIPPED | Snapshot tests at 80, 100, 120 columns and plain (`test_header_snapshot_*`). Fit is read from real GGUF geometry when the file is present, otherwise `fit unknown` with no headroom number |
+| Tools label read from the attached policy | SHIPPED | `components.tools_label(policy, tools)`; chat attaches no tools, so it shows `tools off`. The hard-coded "read-only (policy engine attached in P4)" string is gone from `cli/main.py` |
+| Wide (≥ 100 cols) / narrow / plain layouts | SHIPPED | Wide: rules under the header and above the footer. Narrow: two short header lines, no rules, footer `› message · /help`. Plain: §3.2 format (`you>` / `eigencore>` / `[decode … tok/s measured \| prefill … s \| … tokens]`) |
+| Conversation: `you` / `eigencore` labels, indented bodies, Markdown (lists, inline code, headings left-aligned), framed code blocks with language label + Rich `Syntax` highlighting | SHIPPED | `tui/render.py`. An unclosed fence while streaming renders as an open code panel marked `writing…` (no raw backticks, no reflow when it closes); `test_streaming_unclosed_fence_*` |
+| Agent state line while streaming: orb (`◐◓◑◒`, ASCII `\|/-\`, static with `EIGENCORE_REDUCED_MOTION=1`), verb (`Thinking` / `Analyzing` / `Reading prompt` before the first token, `Writing` / `Writing code` after), elapsed seconds; 8 fps, only while generating | SHIPPED | `ChatApp._state_line`; `test_state_line_orb_verb_elapsed_then_stats` |
+| Measured stats line: `decode <n> tok/s · prefill <t> s · <n> tokens · measured this turn` | SHIPPED | Tokens come from the engine: `InferenceEngine.stream_messages` now records `last_stream_stats` (token count from the model's tokenizer over the generated text, time to first token, decode time) and `count_tokens()`. An engine with neither is labelled `chunks/s … (stream chunks, not tokens)`. "prefill" is time to first streamed text, so it includes the first token |
+| Footer: `›` prompt with placeholder, hints `/help /model /context /clear /exit`, `ctrl-c stops`, context bar (`≈%` of the set context, amber + `/context to trim` at ≥ 85 %) | SHIPPED | Typing `/` shows matching commands; Tab completes. Context use is an estimate (chars / 4) and is marked `≈` |
+| Scrollback inside the TUI | SHIPPED | Transcript follows the tail; PgUp / PgDn scroll; finished replies are cached per width |
+| In-TUI model picker (switch / download / delete-from-disk) | SHIPPED | `/models` overlay: ↑/↓, Enter switch, `d` download, `x` delete with confirm (default no) |
 | In-TUI slash commands | SHIPPED | `/help /models /model /download /delete /context /clear /tokens /temp /exit` with Tab completion and suggestions |
-| `eigencore chat` streaming multi-turn chat (Rich) | SHIPPED | `tui/chat.py`; 5 tests, all in plain mode |
-| `--plain` / non-TTY mode | SHIPPED | `tui/chat.py` |
-| Slash commands `/help /model /context /clear /exit` with suggestions | SHIPPED | `tui/chat.py` |
-| Header: model, quant, context, fit verdict, headroom, tools | SHIPPED, inaccurate | Fit verdict inherits the KV heuristic bug; tools label is a hard-coded string (`cli/main.py:275`) although chat has no tools |
-| Model output safety | **Broken** | Model text is parsed as Rich markup: a `[/]` crashes the session (`MarkupError`). OSC/CSI escape sequences pass straight to the terminal in both modes |
-| Ctrl-C during generation | **Broken** | Exits with a traceback instead of stopping the stream |
-| Error mid-stream | **Broken** | An `AttributeError` mid-stream regenerates the reply, so text prints twice |
-| Full-screen adaptive layout, onboarding, SSD-paging warning, approval cards, tools in chat | PLANNED | Screens below |
+| Model output safety | SHIPPED | One sanitiser, `tui/sanitize.py`: strips CSI / OSC / DCS / SOS / PM / APC (7- and 8-bit), all other C0/C1 except `\n` `\t`; model text is never parsed as Rich markup. §5 acceptance strings tested in both modes |
+| Ctrl-C during generation | SHIPPED | Stops the stream, keeps the history and the session (`stopped · <n> tokens kept`); plain mode prints `[stopped]` |
+| Error mid-stream | SHIPPED | Partial reply kept, error shown once, never regenerated (both modes; the old `AttributeError` fallback that re-ran the prompt is gone) |
+| `NO_COLOR` / `TERM=dumb` / non-TTY / `--plain` → plain | SHIPPED | `theme.probe_terminal` |
+| Legacy Windows console | SHIPPED (untested on real conhost) | ASCII glyph set (`[#]`, `>`, `\|/-\`, ASCII boxes) when the encoding is not UTF-8, on conhost without Windows Terminal (`WT_SESSION` unset), or with `EIGENCORE_ASCII=1`; key reader keeps the `msvcrt` path. Manual check on PowerShell 5.1 conhost still to do |
+| SSD-paging warning (§3.4) | SHIPPED | `components.SsdWarning`. Before load in `eigencore chat` (interactive: `continue anyway? … (default x)`; non-interactive: printed to stderr), and as an overlay before `/models` switches to a model whose file exceeds free RAM (`[c] continue [q] pick another model [x] cancel`, Enter does nothing) |
+| Approval card renderer (§3.5) | SHIPPED as a component only | `components.ApprovalCard` (default focus deny, Enter on an unfocused card does nothing, stale cards cannot be approved, sandbox limits shown only when the executor reports them) and `plain_approval` (`approve write ./x? [y/N]`). **Not shown anywhere in `eigencore chat`: chat has no tools** |
+| Tree renderer (`├─ └─ │`, ASCII `\|--` / `` `-- ``) | SHIPPED as a component | `render.render_tree`, `render.tree_from_paths`; not used in chat yet |
+| First-run onboarding (§3.3) | PARTIAL | Line-mode picker grouped by fit with MoE resident / read-per-token (`tui/onboarding.py`). PLANNED: hardware table with a multithreaded bandwidth probe, licence / SHA-256 confirm, 30-second "measure this machine" |
+| Loading-model progress bar (§3.6) | PLANNED | Loading still uses a Rich status spinner before the full-screen app starts |
+| Tools in chat, `/permissions`, `/tools`, audit view | PLANNED | Needs policy-by-default and process isolation first (§4 step 6) |
 
-Source: [`review/research/tui-sandbox.md`](../review/research/tui-sandbox.md) (all reproduced by probe).
+The original bug list came from [`review/research/tui-sandbox.md`](../review/research/tui-sandbox.md) (all reproduced by probe); every item there is now fixed and covered by a test.
 
 ## 2. Technology decision
 

@@ -4,14 +4,28 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
-### Fixed
-- Desktop Monitor: the tokens-per-second graph stayed empty. It only got one value per finished reply and drew nothing until there were two (so after the first reply it still said "No turns yet", and it never moved while a reply was being written). The backend now emits a live `("tps", {tok_per_sec, tokens, t})` sample about every 0.5 s while writing, measured over that interval; the chart plots those live (**This reply**) and one point per finished reply (**Per reply**), and draws from the first point. Replies that produced no tokens no longer add a 0.
-
 ### Added
 - Desktop chat: an interactive retro computer on the empty chat (real version, CPU, threads and model on its screen; its keys and suggestions fill the message box), a thinking orb and rolling status word on each reply (Thinking / Analyzing / Reading prompt before the first token, Writing / Writing code while streaming), per-reply stats as small bars, code blocks that render correctly while the fence is still open (language, file icon, line numbers, copy), and path lists shown as a git-style file tree.
 - Composer: reply options (temperature and longest reply, sent to the engine), `/` commands (`/new`, `/models`, `/monitor`, `/profile`, `/settings`, `/theme`), mode menu and attach menu.
 - Sidebar: rename and delete chats (saved), a bar loader on a chat while it is generating, Profile and Settings at the foot.
 - More inline icons (folder-open, file-code, git-branch, tree, sparkles, shield-check, sliders and more), all on one 1.5 px stroke.
+- `tui/sanitize.py`: one sanitiser for all model text. Strips CSI, OSC, DCS / SOS / PM / APC in 7-bit and 8-bit (C1) forms and every other control character except newline and tab (the old one let `\x9b`, BEL and carriage returns through).
+- `tui/render.py` (Markdown with framed code blocks, git-style tree renderer, turn-stats formatter) and `tui/components.py` (tools label, SSD-paging warning, tool approval card per §3.5 with default-deny focus and a plain `[y/N]` prompt). The approval card is a tested component only; nothing in chat shows it.
+- ASCII glyph fallback (`[#]`, `>`, ASCII boxes and spinner) when the terminal encoding is not UTF-8, on the legacy Windows console without Windows Terminal, or with `EIGENCORE_ASCII=1`.
+- `tests/test_tui_v2.py`: header snapshots at 80 / 100 / 120 columns and plain, sanitiser acceptance strings in both modes, streaming code fences, state line and stats, Ctrl-C, no regenerate on error, scrolling, SSD warning, approval card, tree, capability probe.
+
+### Changed
+- `eigencore chat` full-screen TUI redone to the v2 design (`docs/design/TUI.md` §3.1). Header: `◩ EigenCore <version> · chat` with `local · ready / thinking / writing` on the right, and a second row with model + quant, context (`≈used / set tok`), fit verdict with headroom (`est.`) and the tools state. Conversation uses `you` / `eigencore` labels with indented bodies; replies render as Markdown with framed, syntax-highlighted code blocks that stay correct while a code fence is still streaming. Footer: `›` prompt with placeholder, command hints, live `/command` suggestions, `ctrl-c stops`, and a context bar that turns amber at 85 %. Narrow terminals (< 100 columns) get the collapsed header and footer; PgUp / PgDn scroll the conversation.
+- While a reply streams, an animated state line shows what is happening (`Thinking…` before the first token, `Writing…` / `Writing code…` after) and the elapsed seconds; `EIGENCORE_REDUCED_MOTION=1` makes it static. When the reply ends it becomes the measured stats line: `decode <n> tok/s · prefill <t> s · <n> tokens · measured this turn`.
+- Speed is now counted in tokens, not stream chunks: `InferenceEngine.stream_messages` records `last_stream_stats` (token count from the model's tokenizer, time to first token, decode time) and there is a new `InferenceEngine.count_tokens()`. Decode tok/s excludes the first token's wait. Without a token count the UI says `chunks/s (stream chunks, not tokens)`.
+- `--plain` / non-TTY output follows §3.2: `EigenCore <ver> | <model> <quant> | ctx <n> | fit: <verdict> (<±h> GB est.) | tools: off`, `you>` / `eigencore>` prompts, `[decode … tok/s measured | prefill … s | … tokens]`, `[stopped]` on Ctrl-C.
+- The tools field shows what is attached (`tools off` in chat, which has no tools) instead of the hard-coded "read-only (policy engine attached in P4)". The approval prompt is no longer wired into plain chat.
+- Before loading a model whose file is larger than free RAM, `eigencore chat` asks first (default: don't load); in the full-screen app, switching to such a model from `/models` shows the SSD-paging warning with `[c] continue  [q] pick another model  [x] cancel`.
+
+### Fixed
+- Desktop Monitor: the tokens-per-second graph stayed empty. It only got one value per finished reply and drew nothing until there were two (so after the first reply it still said "No turns yet", and it never moved while a reply was being written). The backend now emits a live `("tps", {tok_per_sec, tokens, t})` sample about every 0.5 s while writing, measured over that interval; the chart plots those live (**This reply**) and one point per finished reply (**Per reply**), and draws from the first point. Replies that produced no tokens no longer add a 0.
+- Plain mode: an engine error mid-stream could re-run the prompt through the single-prompt fallback (double reply). The fallback is now chosen before streaming starts.
+- Arrow keys split across reads (slow ptys, SSH) were taken as Esc plus typed text; the key reader now waits up to 100 ms for the rest of an escape sequence.
 
 ### Not yet in the desktop UI
 - Shown as **Soon** and not clickable: Agents and Files in the sidebar, attach files / folder, Agent and Plan modes, Tools, and changing the context window. Tool steps and the approval card (Deny / Allow for session / Allow once, focus on Deny) appear only in the browser preview's mock data.

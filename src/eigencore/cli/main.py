@@ -441,13 +441,25 @@ def chat(
     if gpu_layers == 0 and hw.available_vram_gb > 0:
         _, _, gpu_layers = _fit_for_spec(spec, hw, registry, kv_quant=kv_type)
 
-    # SSD-paging warning before load when the file exceeds free RAM (TUI.md 3.4)
+    # SSD-paging warning before load when the file exceeds free RAM (TUI.md 3.4).
+    # Interactive: ask (default cancel). Non-interactive: print the warning and go on.
+    from eigencore.tui.components import SsdWarning, ask_ssd_warning
+
     est0, _, _ = _fit_for_spec(spec, hw, registry, kv_quant=kv_type)
-    if not est0.resident:
-        console.print(
-            f"[yellow]WARNING:[/] {spec.name} file ~{est0.weights_gb:.1f} GiB > free RAM "
-            f"{est0.available_ram_gb:.1f} GiB — loading will page from SSD (severe slowdown).[/]"
-        )
+    if SsdWarning.needed(est0):
+        warning = SsdWarning(spec.name, est0.weights_gb, est0.available_ram_gb)
+        if sys.stdin.isatty():
+            choice = ask_ssd_warning(
+                warning,
+                ask=lambda prompt="": console.input(prompt, markup=False),
+                out=lambda line="": console.print(line, markup=False, highlight=False),
+            )
+            if choice != "continue":
+                console.print("not loading; pick a smaller model with `eigencore chat -m <name>`")
+                return
+        else:
+            for line in warning.plain_lines():
+                click.echo(line, err=True)
 
     # First-run onboarding: only when interactive and not yet onboarded
     from eigencore.tui.onboarding import load_config, run_onboarding, save_config
@@ -496,16 +508,8 @@ def chat(
     if caps.plain:
         from eigencore.tui.chat import ChatUI
 
-        ui = ChatUI(
-            engine,
-            spec,
-            hw,
-            geometry=geometry,
-            policy_label="read-only (policy engine attached in P4)",
-            caps=caps,
-            cfg=cfg,
-        )
-        ui.approval_card = ui.render_approval_card
+        # chat has no tools: no policy/tools attached, so the header says "tools: off"
+        ui = ChatUI(engine, spec, hw, geometry=geometry, caps=caps, cfg=cfg)
         ui.run()
     else:
         from eigencore.tui.app import ChatApp
