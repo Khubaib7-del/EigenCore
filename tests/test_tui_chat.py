@@ -52,6 +52,10 @@ class FakeEngine:
         self._reply = reply
         self.seen_messages = []
 
+    def count_tokens(self, text):
+        # stand-in tokenizer: one token per whitespace-separated word
+        return len(text.split())
+
     def stream_messages(self, messages, config):
         assert isinstance(config, GenerationConfig) and config.stream is True
         self.seen_messages.append(list(messages))
@@ -82,10 +86,10 @@ def test_plain_chat_turn_and_exit():
     ui, out = _make_ui(["hi", "/exit"])
     ui.run()
     text = out.getvalue()
-    assert "eigencore chat | test-model" in text  # header
-    assert "fits with margin" in text  # fit verdict from P2 estimator
-    assert "Hello there!" in text  # streamed reply
-    assert "tok/s (measured this turn)" in text
+    assert "EigenCore " in text and "| test-model Q4_K_M |" in text  # header (§3.2)
+    assert "fit: fits_with_margin" in text  # fit verdict from P2 estimator
+    assert "eigencore> Hello there!" in text  # streamed reply
+    assert "tok/s measured" in text and "2 tokens" in text  # tokenizer count, not chunks
     assert "session ended" in text
     # multi-turn: second user message should include first exchange in history
     assert len(ui.engine.seen_messages) == 1
@@ -96,7 +100,7 @@ def test_slash_commands():
     ui.run()
     text = out.getvalue()
     assert "/model" in text and "/exit" in text  # help lists commands
-    assert "estimated tokens in history" in text  # /context
+    assert "estimate: chars / 4" in text and "of 4096 tokens" in text  # /context
     assert "history cleared" in text
     assert "unknown command: /exot" in text and "Did you mean /exit?" in text
 
@@ -164,7 +168,7 @@ def test_ctrl_c_mid_stream_keeps_history_no_regen():
     ui.run()
     text = out.getvalue()
     assert "partial" in text
-    assert "interrupted" in text
+    assert "[stopped]" in text
     assert ui.messages[-1]["content"] == "partial"  # history kept
 
 

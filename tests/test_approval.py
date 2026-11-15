@@ -121,7 +121,7 @@ def test_tui_approval_card_renders_and_collects():
     ok = ui.render_approval_card("write_file", {"path": "x.txt", "api_key": "secret123"})
     assert ok is True
     text = out.getvalue()
-    assert "Tool request" in text and "write_file" in text
+    assert "tool request" in text and "write_file" in text
     assert "secret123" not in text  # redacted
     assert "***REDACTED***" in text
 
