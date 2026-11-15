@@ -136,9 +136,9 @@ export const DEFAULT_SETTINGS: Settings = {
   approvals: "ask",
 };
 
-export const CURRENT_VERSION = "0.4.5";
+export const CURRENT_VERSION = "0.4.6";
 /** Mock "newer release" tag used only to demo the updater states. */
-export const MOCK_NEXT_TAG = "v0.4.6";
+export const MOCK_NEXT_TAG = "v0.4.7";
 
 /** The canned reply the mock streams. Qwen3-style <think> block first. */
 export const MOCK_REPLY = `<think>The user wants a quick way to count words in a file. A short Python function with collections.Counter is clearest, and I should mention lower-casing and stripping punctuation.</think>Here's a small, dependency-free way to count the most common words in a text file:
