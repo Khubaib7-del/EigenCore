@@ -2,27 +2,45 @@
  * Monochrome: colour only for meaning (ok / warn / err), always with a word. */
 
 /* ── Wordmark computer (empty chat) ──────────────────────────────────── *
- * "EIGEN [computer] CORE". The computer is sized in em of its own font-size
- * (one "unit"), which follows the wordmark, so the two scale together.
- * Pixel-ish shading: hard 1-unit edges, no blur, no colour. */
+ * "EIGEN [computer] CORE". The computer is a CSS 3D model (see
+ * RetroComputer.tsx) sized in em of its own font-size (one "unit"), which
+ * follows the wordmark, so the two scale together. One light, top-left:
+ * tops brightest, fronts lit with a soft specular, left sides in shade with
+ * ambient occlusion toward the back. */
 [data-theme="dark"] {
-  --rc-body: #dcd8cc;
-  --rc-hi: #f2efe6;
-  --rc-lo: #a9a497;
-  --rc-edge: #6f6b61;
-  --rc-shadow: rgba(0, 0, 0, 0.55);
+  /* warm cream plastic */
+  --rc-top: #f3eee2;
+  --rc-front-hi: #f6f2e8;
+  --rc-front: #e4dece;
+  --rc-front-lo: #c6bfac;
+  --rc-side: #c2bba7;
+  --rc-side-lo: #8a8371;
+  --rc-cavity: #4a463e;
+  --rc-cavity-lo: #1f1d1a;
+  --rc-spec: 0.6;
+  --rc-ink: #7d7666;
+  --rc-shadow: rgba(0, 0, 0, 0.6);
 }
 [data-theme="light"] {
-  --rc-body: #cfcfcc;
-  --rc-hi: #e9e9e6;
-  --rc-lo: #a3a3a0;
-  --rc-edge: #6b6b68;
-  --rc-shadow: rgba(0, 0, 0, 0.18);
+  /* slightly cooler grey plastic */
+  --rc-top: #e2e6ea;
+  --rc-front-hi: #eceff2;
+  --rc-front: #cfd4da;
+  --rc-front-lo: #aab1ba;
+  --rc-spec: 0.35;
+  --rc-side: #b9bfc7;
+  --rc-side-lo: #858c96;
+  --rc-cavity: #4d545c;
+  --rc-cavity-lo: #22262b;
+  --rc-sil: rgba(30, 40, 55, 0.22);
+  --rc-ink: #7a818a;
+  --rc-shadow: rgba(30, 40, 55, 0.28);
 }
 :root {
-  --phosphor: #d9e2d6;
-  --phosphor-dim: #8f9a8c;
-  --crt-bg: #0d100e;
+  --phosphor: #7ff0dc;
+  --phosphor-dim: #3fa898;
+  --phosphor-glow: rgba(90, 235, 205, 0.55);
+  --crt-bg: #041211;
 }
 
 .chat-empty-inner {
@@ -52,73 +70,310 @@
   margin-right: -0.06em; /* trailing letter-spacing */
 }
 
+/* Layout box: the model is drawn around its desk origin (.rc-obj), which sits
+ * near the bottom of this box; the box is sized to the model's projection. */
 .rc {
-  font-size: calc(var(--wm) * 0.13); /* 1em = one unit */
+  --tx: 0;
+  --ty: 0;
+  font-size: calc(var(--wm) * 0.098); /* 1em = one unit */
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: block;
   flex: none;
-  width: 10.2em;
+  width: 15em;
+  height: 12em;
+  margin: 0 -0.3em -0.1em;
   line-height: 1;
   letter-spacing: 0;
   font-weight: 400;
-  margin-bottom: -0.35em;
-  filter: drop-shadow(0 0.6em 0.5em var(--rc-shadow));
 }
-.rc-monitor {
-  display: flex;
-  flex-direction: column;
-  width: 8.4em;
-  padding: 0.6em 0.6em 0;
-  background: var(--rc-body);
-  border-radius: 0.5em 0.5em 0.3em 0.3em;
+/* A hairline silhouette so pale plastic holds its edge on a light page. */
+[data-theme="light"] .rc {
+  filter: drop-shadow(0 0 0.06em var(--rc-sil));
+}
+.rc-stage {
+  position: absolute;
+  inset: 0;
+  perspective: 70em;
+  perspective-origin: 50% 35%;
+  pointer-events: none;
+}
+.rc-obj {
+  position: absolute;
+  left: 48.4%;
+  top: 82.1%;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(calc(-11deg - var(--ty) * 4deg)) rotateY(calc(31deg + var(--tx) * 7deg));
+  transition: transform 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.rc.tilting .rc-obj {
+  transition-duration: 140ms;
+}
+/* Press: the whole machine dips a hair and the glass flashes. */
+.rc:has(.rc-screen:active) .rc-obj {
+  transform: rotateX(calc(-11deg - var(--ty) * 4deg)) rotateY(calc(31deg + var(--tx) * 7deg)) translate3d(0, 0.12em, -0.35em);
+  transition-duration: 60ms;
+}
+
+.rc-face {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+
+/* Plastic shells. Fronts: lit from the top-left with a specular sheen and a
+ * soft rounded rim. Left sides: in shade, darker toward the back (local x
+ * runs back → front). Tops: brightest, darker toward the back. */
+.rc-shell.rc-f {
+  border-radius: 0.55em;
+  background:
+    radial-gradient(90% 70% at 18% 8%, rgba(255, 255, 255, var(--rc-spec)), transparent 60%),
+    linear-gradient(165deg, var(--rc-front-hi), var(--rc-front) 45%, var(--rc-front-lo));
   box-shadow:
-    inset 0.2em 0.2em 0 var(--rc-hi),
-    inset -0.2em -0.2em 0 var(--rc-lo),
-    0 0 0 0.1em var(--rc-edge);
+    inset 0.14em 0.14em 0.12em rgba(255, 255, 255, 0.65),
+    inset -0.16em -0.2em 0.22em rgba(0, 0, 0, 0.2);
 }
+.rc-shell.rc-l {
+  border-radius: 0.55em;
+  background:
+    linear-gradient(to right, transparent 90%, rgba(255, 255, 255, 0.38) 97%, transparent),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.14), transparent 35%, rgba(0, 0, 0, 0.18)),
+    linear-gradient(to right, var(--rc-side-lo), var(--rc-side) 80%);
+  box-shadow: inset 0 0.12em 0.12em rgba(255, 255, 255, 0.22);
+}
+.rc-shell.rc-t {
+  border-radius: 0.55em;
+  background: linear-gradient(to bottom, var(--rc-side), var(--rc-top) 70%, var(--rc-front-hi));
+}
+/* The CRT housing reads rounder with a radial bulge on its side. */
+.rc-rear1.rc-l,
+.rc-rear2.rc-l {
+  border-radius: 1.2em 0.6em 0.6em 1.2em / 1.6em 0.6em 0.6em 1.6em;
+  background:
+    linear-gradient(to right, transparent 70%, rgba(0, 0, 0, 0.28)),
+    radial-gradient(110% 70% at 45% 30%, rgba(255, 255, 255, 0.2), transparent 65%),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.08), transparent 40%, rgba(0, 0, 0, 0.25)),
+    linear-gradient(to right, var(--rc-side-lo), var(--rc-side) 70%);
+}
+.rc-rear2.rc-l {
+  border-radius: 1.6em 0.5em 0.5em 1.6em / 2em 0.5em 0.5em 2em;
+}
+.rc-rear1.rc-t,
+.rc-rear2.rc-t {
+  border-radius: 1.4em 1.4em 0.4em 0.4em;
+}
+.rc-rear1.rc-f,
+.rc-rear2.rc-f {
+  background: var(--rc-side-lo);
+  box-shadow: none;
+}
+.rc-mon.rc-l,
+.rc-mon.rc-t {
+  border-radius: 0.7em;
+}
+.rc-case.rc-f {
+  border-radius: 0.35em;
+  background:
+    radial-gradient(70% 120% at 10% 0%, rgba(255, 255, 255, var(--rc-spec)), transparent 60%),
+    linear-gradient(to bottom, var(--rc-front-hi), var(--rc-front) 40%, var(--rc-front-lo));
+}
+.rc-case.rc-l,
+.rc-case.rc-t {
+  border-radius: 0.35em;
+}
+.rc-foot.rc-f {
+  border-radius: 0.15em;
+  background: linear-gradient(to bottom, var(--rc-side-lo), var(--rc-side));
+  box-shadow: none;
+}
+.rc-keys.rc-f {
+  border-radius: 0.2em;
+  background: linear-gradient(to bottom, var(--rc-front), var(--rc-front-lo));
+  box-shadow: inset 0 0.08em 0 rgba(255, 255, 255, 0.6);
+}
+.rc-keys.rc-l {
+  border-radius: 0.2em;
+}
+.rc-keys.rc-t {
+  border-radius: 0.3em;
+  background:
+    repeating-linear-gradient(to right, var(--rc-ink) 0 0.1em, transparent 0.1em 0.62em) 0.45em 0.35em / calc(100% - 0.9em) 0.32em no-repeat,
+    repeating-linear-gradient(to right, var(--rc-ink) 0 0.1em, transparent 0.1em 0.62em) 0.75em 0.95em / calc(100% - 1.5em) 0.32em no-repeat,
+    repeating-linear-gradient(to right, var(--rc-ink) 0 0.1em, transparent 0.1em 0.62em) 0.6em 1.55em / calc(100% - 1.2em) 0.32em no-repeat,
+    linear-gradient(to bottom, var(--rc-side), var(--rc-top));
+}
+
+/* Case front details: vents, floppy slot, drive light. */
+.rc-vents {
+  position: absolute;
+  left: 0.8em;
+  top: 0.42em;
+  width: 3.1em;
+  height: 1em;
+  background: repeating-linear-gradient(to bottom, var(--rc-ink) 0 0.12em, transparent 0.12em 0.3em);
+  opacity: 0.7;
+  border-radius: 0.06em;
+}
+.rc-floppy {
+  position: absolute;
+  left: 50%;
+  top: 0.62em;
+  width: 3.6em;
+  height: 0.34em;
+  margin-left: -1.3em;
+  border-radius: 0.1em;
+  background: #2a2721;
+  box-shadow:
+    0 0.07em 0 rgba(255, 255, 255, 0.55),
+    0 -0.06em 0 rgba(0, 0, 0, 0.18);
+}
+.rc-drive-led {
+  position: absolute;
+  right: 1em;
+  top: 0.7em;
+  width: 0.5em;
+  height: 0.2em;
+  border-radius: 0.05em;
+  background: var(--rc-ink);
+}
+
+/* Bezel: the monitor's front, with the screen opening cut out of it. */
+.rc-bezel {
+  padding: 0.78em 0.85em 1.55em; /* = HOLE in RetroComputer.tsx */
+  border-radius: 0.8em;
+  background:
+    radial-gradient(85% 60% at 15% 4%, rgba(255, 255, 255, calc(var(--rc-spec) + 0.1)), transparent 55%),
+    linear-gradient(160deg, var(--rc-front-hi), var(--rc-front) 42%, var(--rc-front-lo));
+  box-shadow:
+    inset 0.16em 0.16em 0.14em rgba(255, 255, 255, 0.7),
+    inset -0.2em -0.24em 0.28em rgba(0, 0, 0, 0.22);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+.rc-wall {
+  background: var(--rc-cavity);
+}
+.rc-backplate {
+  background: var(--rc-cavity-lo);
+}
+.rc-wall-r {
+  background: linear-gradient(to right, var(--rc-cavity-lo), var(--rc-cavity));
+}
+.rc-wall-bt {
+  background: linear-gradient(to bottom, var(--rc-cavity-lo), var(--rc-cavity));
+}
+.rc-wall-l,
+.rc-wall-t {
+  background: var(--rc-cavity-lo);
+}
+.rc-dots {
+  position: absolute;
+  left: 0.95em;
+  bottom: 0.6em;
+  display: flex;
+  gap: 0.28em;
+}
+.rc-dots i {
+  width: 0.34em;
+  height: 0.34em;
+  border-radius: 0.06em;
+  background: var(--rc-front-lo);
+  box-shadow: inset 0.06em 0.06em 0.04em rgba(0, 0, 0, 0.35);
+}
+.rc-dots i.on {
+  background: var(--rc-ink);
+}
+
+/* Small bumps: two bezel buttons and the power LED. */
+.rc-bump.rc-f {
+  border-radius: 0.1em;
+  background: linear-gradient(150deg, var(--rc-front-hi), var(--rc-front-lo));
+  box-shadow: 0 0.04em 0.06em rgba(0, 0, 0, 0.25);
+}
+.rc-bump.rc-l {
+  background: var(--rc-side-lo);
+}
+.rc-bump.rc-t {
+  background: var(--rc-top);
+}
+.rc-led.rc-f {
+  background: #4a463e;
+}
+.rc-led.on.rc-f {
+  background: radial-gradient(circle at 35% 35%, #b8ffd0, var(--ok, #3fb950) 60%);
+  box-shadow: 0 0 0.35em rgba(63, 185, 80, 0.7);
+}
+.rc-led.on.rc-t {
+  background: #7fd98f;
+}
+.rc-led.busy.rc-f {
+  background: var(--warn, #d29922);
+  box-shadow: 0 0 0.35em rgba(210, 153, 34, 0.7);
+  animation: rc-blink 0.9s steps(1) infinite;
+}
+
+/* Contact shadow on the desk. */
+.rc-floor {
+  background:
+    radial-gradient(42% 40% at 50% 50%, var(--rc-shadow), transparent),
+    radial-gradient(closest-side, var(--rc-shadow), transparent);
+  opacity: 0.85;
+}
+
+/* The glass: recessed in the opening, slightly curved (radial falloff,
+ * corner vignette, a soft top-left reflection), phosphor text on it. */
 .rc-screen {
-  position: relative;
   display: block;
-  width: 100%;
-  height: 4.9em;
   padding: 0;
   border: 0;
-  border-radius: 0.55em / 0.65em;
-  background: radial-gradient(120% 110% at 50% 40%, #18201b 0%, var(--crt-bg) 70%);
+  border-radius: 0.5em / 0.6em;
+  background: radial-gradient(120% 110% at 50% 42%, #0d2a27 0%, var(--crt-bg) 72%);
   box-shadow:
-    0 0 0 0.2em var(--rc-lo),
-    inset 0 0 0.6em rgba(0, 0, 0, 0.9);
+    inset 0 0 0.9em rgba(0, 0, 0, 0.95),
+    inset 0 0 0.15em rgba(0, 0, 0, 0.9);
   overflow: hidden;
   cursor: pointer;
+  pointer-events: auto;
   color: var(--phosphor);
+  font-size: 1em;
   transition: filter var(--dur-fast, 120ms) ease;
 }
 .rc-screen:hover {
-  filter: brightness(1.28);
+  filter: brightness(1.18) saturate(1.1);
+}
+.rc-screen:active {
+  filter: brightness(1.45);
 }
 .rc-screen:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 0.35em;
+  outline: 0.18em solid var(--phosphor);
+  outline-offset: -0.18em;
 }
 .rc-glass {
   position: absolute;
-  inset: 0.45em 0.5em;
+  inset: 0.25em 0.55em;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.62em;
-  text-shadow: 0 0 0.35em rgba(200, 230, 200, 0.35);
+  font-size: 0.78em;
+  text-shadow: 0 0 0.3em var(--phosphor-glow);
   animation: rc-flicker 5s steps(1) infinite;
 }
 .rc-lines {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.18em;
+  gap: 0.14em;
   text-align: left;
-  line-height: 1.1;
+  line-height: 1.08;
 }
 .rc-lines > div {
   white-space: nowrap;
@@ -135,22 +390,26 @@
   align-items: center;
   text-align: center;
 }
+.rc-markpage {
+  gap: 0.22em;
+}
+.rc-top {
+  font-size: 0.66em;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
 .rc-mark {
-  font-family: var(--font-sans);
-  font-weight: 900;
-  font-size: 2.6em;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  color: var(--phosphor) !important;
-  padding: 0.04em 0.18em 0;
-  border: 0.06em solid var(--phosphor-dim);
-  border-radius: 0.08em;
-  overflow: visible !important;
+  display: block;
+  height: 3.05em;
+  width: auto;
+  fill: var(--phosphor);
+  filter: drop-shadow(0 0 0.18em var(--phosphor-glow));
+  overflow: visible;
 }
 .rc-big {
-  font-family: var(--font-sans);
-  font-weight: 900;
-  font-size: 1.9em;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1.7em;
   color: var(--phosphor) !important;
 }
 .rc-prompt {
@@ -164,15 +423,18 @@
   margin-left: 0.1em;
   vertical-align: -0.12em;
   background: var(--phosphor);
+  box-shadow: 0 0 0.3em var(--phosphor-glow);
   animation: rc-blink 1.06s steps(1) infinite;
 }
 .rc-scan {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  border-radius: inherit;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.06), transparent 30%),
-    repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 3px);
+    radial-gradient(70% 45% at 28% 12%, rgba(255, 255, 255, 0.11), transparent 70%),
+    radial-gradient(140% 120% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55)),
+    repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.3) 0 0.08em, transparent 0.08em 0.22em);
 }
 .rc-scan::after {
   content: "";
@@ -181,74 +443,8 @@
   right: 0;
   top: 0;
   height: 30%;
-  background: linear-gradient(transparent, rgba(220, 240, 220, 0.05), transparent);
+  background: linear-gradient(transparent, rgba(140, 255, 230, 0.06), transparent);
   animation: rc-sweep 6s linear infinite;
-}
-.rc-chin {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 1.3em;
-  padding: 0 0.15em;
-}
-.rc-dots {
-  display: flex;
-  gap: 0.3em;
-}
-.rc-dots i {
-  width: 0.36em;
-  height: 0.36em;
-  background: var(--rc-lo);
-  box-shadow: inset 0.06em 0.06em 0 var(--rc-edge);
-}
-.rc-dots i.on {
-  background: var(--rc-edge);
-}
-.rc-led {
-  width: 0.45em;
-  height: 0.3em;
-  background: var(--rc-lo);
-}
-.rc-led.on {
-  background: var(--ok, #3fb950);
-}
-.rc-led.busy {
-  background: var(--warn, #d29922);
-  animation: rc-blink 0.9s steps(1) infinite;
-}
-.rc-base {
-  position: relative;
-  width: 9.4em;
-  height: 1.3em;
-  margin-top: 0.1em;
-  background: var(--rc-body);
-  border-radius: 0.2em;
-  box-shadow:
-    inset 0.2em 0.2em 0 var(--rc-hi),
-    inset -0.2em -0.2em 0 var(--rc-lo),
-    0 0 0 0.1em var(--rc-edge);
-}
-.rc-slot {
-  position: absolute;
-  right: 0.9em;
-  top: 0.5em;
-  width: 2.4em;
-  height: 0.25em;
-  background: var(--rc-edge);
-}
-.rc-keys {
-  width: 10.2em;
-  height: 0.9em;
-  margin-top: 0.25em;
-  border-radius: 0.15em;
-  background:
-    repeating-linear-gradient(to right, var(--rc-lo) 0 0.12em, transparent 0.12em 0.6em) 0.3em 0.2em / calc(100% - 0.6em) 0.22em no-repeat,
-    repeating-linear-gradient(to right, var(--rc-lo) 0 0.12em, transparent 0.12em 0.6em) 0.6em 0.5em / calc(100% - 1.2em) 0.2em no-repeat,
-    var(--rc-body);
-  box-shadow:
-    inset 0 0.15em 0 var(--rc-hi),
-    inset 0 -0.15em 0 var(--rc-lo),
-    0 0 0 0.1em var(--rc-edge);
 }
 
 @keyframes rc-blink {
@@ -282,6 +478,11 @@
   .rc *::after {
     animation: none !important;
   }
+  .rc-obj,
+  .rc:has(.rc-screen:active) .rc-obj {
+    transition: none;
+    transform: rotateX(-11deg) rotateY(31deg);
+  }
 }
 
 /* Narrow: computer on top of the wordmark, at a readable size. */
@@ -294,9 +495,8 @@
   .ec-wordmark .rc {
     order: -1;
     flex-basis: 100%;
-    font-size: 9px;
-    width: auto;
-    margin-bottom: 4px;
+    font-size: 7.5px;
+    margin: 0 0 2px;
   }
 }
 
@@ -337,6 +537,11 @@
 }
 .promptbar-row {
   gap: 4px;
+  flex-wrap: wrap; /* narrow windows: the meter, hint and send move to a second row instead of overflowing */
+  row-gap: 6px;
+}
+.promptbar-row > .send-btn {
+  margin-left: auto; /* stays at the right edge when the row wraps */
 }
 .composer-menu {
   position: relative;
