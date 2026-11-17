@@ -4,6 +4,10 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.4.12] - 2026-11-18
+
+A model catalog that knows your PC: 19 verified models from 8 to 64 GB, Hugging Face search, and a fits / tight / too big verdict before you download. Plus 34 small spinners for busy states outside the chat.
+
 ### Added
 - Two-tier model catalog. The curated list grows from 9 to 19 models, with picks for chat, coding and reasoning on 8, 16, 32 and 64 GB machines, favouring mixture-of-experts models (they read only a few GB per token, so they decode faster on a CPU). New: `granite-4.2-3b`, `granite-4.0-h-tiny`, `qwen3.5-4b`, `qwen3.5-9b`, `deepseek-r1-0528-qwen3-8b`, `gpt-oss-20b`, `qwen3-coder-30b-a3b`, `qwen3.6-35b-a3b`, `qwen3-next-80b-a3b`, `qwen3-coder-next-80b-a3b`. Every file, size and licence was checked against the Hugging Face API, and every context length and model shape against the file's own GGUF header. Each entry now also stores that shape (`geometry`), a `ram_class`, a `priority` and the date it was checked (`verified_at`).
 - Hugging Face search, for anything not on the list: `eigencore search <words>` and a search box on the desktop Models screen. It finds GGUF repos (no account needed), picks the Q4_K_M file (or the nearest 4-bit one), reads the licence and flags non-commercial ones. Results are cached for a day in `~/.eigencore/catalog-cache.json`; offline it shows the last results or says it could not search. Repos named "abliterated" / "uncensored" are hidden. Search shows trusted uploaders only by default (known quantisers such as ggml-org, unsloth, bartowski and lmstudio-community, and the model makers' own orgs); community uploads appear with `eigencore search --all-uploaders` or the "Community uploads" switch next to the search box, marked with a "Community" chip. A model you download from search stays in your list (`~/.eigencore/models/custom-models.json`) until you delete it.

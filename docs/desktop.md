@@ -200,7 +200,7 @@ pip install "llama-cpp-python>=0.3.0" --extra-index-url https://abetlen.github.i
 pyinstaller packaging/windows/EigenCore.spec --noconfirm --distpath dist
 
 # 2. installer -> dist\EigenCore-Setup.exe (Inno Setup 6)
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=0.4.11 "/DSourceDir=$PWD\dist\EigenCore" packaging\windows\EigenCore.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=0.4.12 "/DSourceDir=$PWD\dist\EigenCore" packaging\windows\EigenCore.iss
 
 # 3. portable single file -> dist-portable\EigenCore.exe
 $env:EIGENCORE_ONEFILE = "1"; pyinstaller packaging/windows/EigenCore.spec --noconfirm --distpath dist-portable
