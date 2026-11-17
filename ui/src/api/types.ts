@@ -46,6 +46,62 @@ export interface ModelRow {
   license: string | null;
   /** The licence forbids commercial use (shown as an "NC" chip). */
   noncommercial: boolean;
+  /** permissive (Apache/MIT…) · restricted (custom terms) · noncommercial · unknown */
+  licence_kind?: LicenceKind;
+  license_url?: string | null;
+  tags?: string[];
+  /** Smallest RAM class (8/16/32/64 GB) the curated list places it in. */
+  ram_class?: number | null;
+  /** curated (models.json) · custom (added from search) · hf-search (search result) */
+  source?: "curated" | "custom" | "hf-search";
+  /** Per-machine fit details (eigencore.models.fit_check.FitReport). Estimates. */
+  fit_detail?: FitDetail | null;
+  /* search results only */
+  downloads?: number;
+  trusted?: boolean;
+  gated?: boolean;
+}
+
+export type LicenceKind = "permissive" | "restricted" | "noncommercial" | "unknown";
+
+/** Mirrors eigencore.models.fit_check.FitReport.to_dict(). Every number is an estimate. */
+export interface FitDetail {
+  verdict: "fits" | "tight" | "too_big" | "unknown";
+  /** Context (tokens) the verdict was computed at. */
+  context_checked: number;
+  /** Largest power-of-two context that fits next to the weights; null = shape not read yet. */
+  max_context: number | null;
+  model_max_context: number | null;
+  weights_gb: number;
+  kv_cache_gb: number | null;
+  total_gb: number | null;
+  available_ram_gb: number;
+  /** Memory bandwidth / bytes read per token: an optimistic ceiling, not a measurement. */
+  decode_ceiling_tok_s: number | null;
+  active_weights_gb: number | null;
+  runtime_ok: boolean;
+  runtime_note: string | null;
+  min_runtime: string | null;
+  installed_runtime: string | null;
+  /** file (downloaded) · curated (models.json) · header (read over HTTP) · size-only */
+  basis: "file" | "curated" | "header" | "size-only";
+  notes: string[];
+  estimate: true;
+}
+
+/** WebBridge.search_models(): Hugging Face GGUF search. */
+export interface ModelSearch {
+  query: string;
+  results: ModelRow[];
+  error: string | null;
+}
+
+/** WebBridge.check_fit(): verdict after reading the GGUF header. */
+export interface FitCheck {
+  name: string;
+  fit: FitVerdict;
+  fit_detail: FitDetail | null;
+  error: string | null;
 }
 
 export type EngineBackendState = "loading" | "ready" | "error";
@@ -180,6 +236,10 @@ export interface EigenCoreApi {
   openUrl(url: string): void;
   getSettings(): Promise<Settings>;
   saveSettings(patch: Partial<Settings>): Promise<Settings>;
+  /** Live Hugging Face search (desktop) or sample results (preview). */
+  searchModels(query: string): Promise<ModelSearch>;
+  /** Fit verdict before download (reads the GGUF header for search results). */
+  checkFit(name: string): Promise<FitCheck>;
   download(name: string): void;
   delete(name: string): void;
   switchModel(name: string): void;
