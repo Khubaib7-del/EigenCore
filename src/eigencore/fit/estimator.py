@@ -39,6 +39,9 @@ FP16_BYTES_PER_ELEMENT = 2
 KV_BYTES_PER_ELEMENT_Q8 = 1  # q8_0 KV cache
 
 DEFAULT_RUNTIME_RESERVE_GB = 2.0
+# Smallest context the engine opens a model with when the RAM budget says less
+# (or nothing) fits; still clamped to the model's own maximum.
+MIN_DEFAULT_CONTEXT = 2048
 DEFAULT_SAFETY_MARGIN_GB = 1.0
 
 
@@ -360,3 +363,35 @@ def max_context_for_budget(
     while ctx * 2 <= max_ctx and ctx * 2 <= model_context_limit:
         ctx *= 2
     return max(ctx, 0)
+
+
+def default_context_length(
+    geometry: ModelGeometry | None,
+    available_ram_gb: float,
+    model_context_limit: int | None,
+    kv_quant: str = "fp16",
+    file_size_bytes: int | None = None,
+    params_b: float = 0.0,
+    quant: str = "Q4_K_M",
+    floor: int = MIN_DEFAULT_CONTEXT,
+) -> int | None:
+    """Context length to open a model with, from real GGUF geometry.
+
+    The largest power-of-two context whose KV cache fits the RAM budget
+    (`max_context_for_budget`), clamped to the model's maximum context and
+    raised to `floor` (itself never above the model's maximum). Returns None
+    when geometry is unknown, so the caller keeps its own fallback.
+    """
+    if geometry is None or not geometry.is_complete:
+        return None
+    limit = model_context_limit or 128 * 1024
+    ctx = max_context_for_budget(
+        params_b,
+        quant,
+        available_ram_gb,
+        geometry=geometry,
+        model_context_limit=limit,
+        kv_quant=kv_quant,
+        file_size_bytes=file_size_bytes,
+    )
+    return min(max(ctx, floor), limit)
