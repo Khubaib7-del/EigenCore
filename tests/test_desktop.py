@@ -127,7 +127,9 @@ def test_model_rows_marks_downloaded_and_active(tmp_path):
     assert not row.is_active
     others = [r for r in rows if r.name != spec.name]
     assert all(not r.downloaded for r in others)
-    assert all(r.fit == "unknown" for r in others)
+    # curated rows carry their GGUF geometry, so the fit is known before download
+    assert all(r.fit in ("fits_with_margin", "tight", "does_not_fit") for r in others)
+    assert all(r.fit_detail and r.fit_detail["basis"] == "curated" for r in others)
 
 
 def test_switch_model_loads_engine_and_clears_history(tmp_path):

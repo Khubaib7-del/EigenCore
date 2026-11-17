@@ -29,11 +29,11 @@ import queue
 import threading
 import time
 import urllib.request
-from dataclasses import dataclass
-from typing import Callable, Optional
+from dataclasses import dataclass, field
+from typing import Any, Callable, Optional
 
 from eigencore.engine.inference import GenerationConfig
-from eigencore.fit import FitVerdict, estimate_fit, read_gguf_model_info
+from eigencore.fit import FitVerdict
 from eigencore.forge import open_engine
 from eigencore.hal.profiler import HardwareProfile, profile_hardware
 from eigencore.models.registry import ModelRegistry, ModelSpec
@@ -84,25 +84,40 @@ class ModelRow:
     downloaded: bool
     fit: str
     is_active: bool = False
+    # catalog: per-machine fit details (see eigencore.models.fit_check.FitReport)
+    fit_detail: Optional[dict[str, Any]] = field(default=None)
+
+
+#: fit_check verdicts -> the estimator's FitVerdict values the UI chips use
+_LEGACY_VERDICT = {
+    "fits": FitVerdict.FITS_WITH_MARGIN.value,
+    "tight": FitVerdict.TIGHT.value,
+    "too_big": FitVerdict.DOES_NOT_FIT.value,
+    "unknown": FitVerdict.UNKNOWN.value,
+}
+
+
+def fit_details(spec: ModelSpec, registry: ModelRegistry, profile: HardwareProfile):
+    """FitReport for this machine, or None when it cannot be computed.
+
+    A downloaded file is measured from its own GGUF header; otherwise the
+    curated geometry from models.json is used, so the verdict is known before
+    a download. Search results without geometry stay "unknown" unless the file
+    alone is too big. The verdict is judged against total RAM minus the system
+    reserve (``fit_check.ram_budget_gb``), not the RAM free at the moment.
+    """
+    from eigencore.models.fit_check import fit_report_for
+
+    try:
+        return fit_report_for(spec, registry, profile)
+    except Exception:
+        return None
 
 
 def fit_label(spec: ModelSpec, registry: ModelRegistry, profile: HardwareProfile) -> str:
-    """Fit verdict string; UNKNOWN until the file is downloaded (no geometry)."""
-    if not registry.is_downloaded(spec):
-        return FitVerdict.UNKNOWN.value
-    try:
-        info = read_gguf_model_info(spec.local_path(registry.cache_dir))
-        est = estimate_fit(
-            spec.params_b,
-            spec.quant,
-            profile.recommended_context_length,
-            profile.available_ram_gb,
-            geometry=info.geometry if info else None,
-            file_size_bytes=info.file_size_bytes if info else None,
-        )
-        return est.verdict.value
-    except Exception:
-        return FitVerdict.UNKNOWN.value
+    """Fit verdict string (estimator FitVerdict values), before or after download."""
+    rep = fit_details(spec, registry, profile)
+    return _LEGACY_VERDICT[rep.verdict] if rep is not None else FitVerdict.UNKNOWN.value
 
 
 class DesktopBackend:
@@ -133,24 +148,26 @@ class DesktopBackend:
 
     # ----- models -----------------------------------------------------------
     def find(self, name: str) -> Optional[ModelSpec]:
-        return next((m for m in self.registry.list_models() if m.name == name), None)
+        return self.registry.find(name)
+
+    def model_row(self, m: ModelSpec) -> ModelRow:
+        rep = fit_details(m, self.registry, self.profile)
+        return ModelRow(
+            name=m.name,
+            params_b=m.params_b,
+            quant=m.quant,
+            size_gb=m.size_gb,
+            task=m.task,
+            context_length=m.context_length,
+            description=m.description,
+            downloaded=self.registry.is_downloaded(m),
+            fit=_LEGACY_VERDICT[rep.verdict] if rep is not None else FitVerdict.UNKNOWN.value,
+            is_active=self.active_spec is not None and m.name == self.active_spec.name,
+            fit_detail=rep.to_dict() if rep is not None else None,
+        )
 
     def model_rows(self) -> list[ModelRow]:
-        return [
-            ModelRow(
-                name=m.name,
-                params_b=m.params_b,
-                quant=m.quant,
-                size_gb=m.size_gb,
-                task=m.task,
-                context_length=m.context_length,
-                description=m.description,
-                downloaded=self.registry.is_downloaded(m),
-                fit=fit_label(m, self.registry, self.profile),
-                is_active=self.active_spec is not None and m.name == self.active_spec.name,
-            )
-            for m in self.registry.list_models()
-        ]
+        return [self.model_row(m) for m in self.registry.list_models()]
 
     def downloaded_names(self) -> list[str]:
         return [m.name for m in self.registry.list_models() if self.registry.is_downloaded(m)]
@@ -158,6 +175,13 @@ class DesktopBackend:
     # ----- download / delete --------------------------------------------------
     def download(self, name: str) -> None:
         spec = self.find(name)
+        if spec is None and "/" in name:
+            # a Hugging Face search result (repo_id:file): remember it, then download
+            try:
+                spec = self.registry.add_custom(self.registry.resolve_ref(name))
+            except Exception as e:
+                self.events.put(("dl_done", name, False, f"{e}"))
+                return
         if spec is None:
             self.events.put(("dl_done", name, False, f"unknown model: {name}"))
             return
@@ -212,12 +236,12 @@ class DesktopBackend:
         return self.registry.is_downloaded(spec)
 
     def _downloaded_gb(self, spec: ModelSpec) -> float:
-        parent = spec.local_path(self.registry.cache_dir).parent
+        root = spec.repo_dir(self.registry.cache_dir)
         total = 0
-        if parent.exists():
+        if root.exists():
             prefix = self.registry.shard_prefix(spec)
             pattern = f"{prefix}-*.gguf" if prefix else spec.filename
-            for f in parent.glob(pattern):
+            for f in root.glob(pattern):
                 total += f.stat().st_size
         return total / (1024**3)
 
@@ -231,6 +255,8 @@ class DesktopBackend:
             self.events.put(("deleted", name, False))
             return False
         removed = self.registry.delete(spec)
+        if removed and spec.source == "custom":
+            self.registry.remove_custom(spec.name)  # search results leave the list again
         self.events.put(("deleted", name, removed))
         return removed
 

@@ -1,22 +1,16 @@
-import { CURRENT_VERSION, DEFAULT_SETTINGS, MOCK_MODELS, MOCK_NEXT_TAG, MOCK_PROFILE, MOCK_REPLY } from "./mockData";
+import { CURRENT_VERSION, DEFAULT_SETTINGS, MOCK_FIT_CHECKS, MOCK_MODELS, MOCK_NEXT_TAG, MOCK_PROFILE, MOCK_REPLY, MOCK_SEARCH } from "./mockData";
 import type {
   ApprovalDecision,
   BackendEvent,
   EigenCoreApi,
-  FitVerdict,
+  FitCheck,
   HardwareProfile,
   ModelRow,
+  ModelSearch,
   SendOptions,
   Settings,
   Unsubscribe,
 } from "./types";
-
-/** Verdicts the mock reveals once a download "finishes" (MOCK, not computed). */
-const MOCK_FIT_AFTER_DOWNLOAD: Record<string, FitVerdict> = {
-  "phi-3-mini": "fits_with_margin",
-  "qwen2.5-3b": "fits_with_margin",
-  "qwen3-30b-a3b": "does_not_fit",
-};
 
 /** Split text into token-ish pieces (word + leading space), keeping <think> tags whole. */
 export function tokenize(text: string): string[] {
@@ -90,7 +84,38 @@ export class MockApi implements EigenCoreApi {
     return { ...this.settings };
   }
 
+  /** SAMPLE results (MOCK_SEARCH), filtered by the words of the query; all of them when nothing matches.
+   * Trusted uploaders only unless allUploaders (the "Community uploads" toggle), like the desktop. */
+  async searchModels(query: string, allUploaders = false): Promise<ModelSearch> {
+    const q = query.trim().toLowerCase();
+    if (!q) return { query: q, results: [], error: null, all_uploaders: allUploaders };
+    const words = q.split(/\s+/);
+    const pool = MOCK_SEARCH.filter((m) => allUploaders || m.trusted);
+    const hit = pool.filter((m) => words.every((w) => m.name.toLowerCase().includes(w)));
+    const rows = (hit.length ? hit : pool).map((m) => {
+      const known = this.models.find((x) => x.name === m.name);
+      return { ...(known ?? m) };
+    });
+    await new Promise((r) => this.later(450, () => r(null)));
+    return { query: q, results: rows, error: null, all_uploaders: allUploaders };
+  }
+
+  async checkFit(name: string): Promise<FitCheck> {
+    await new Promise((r) => this.later(700, () => r(null)));
+    const curated = this.models.find((m) => m.name === name);
+    if (curated) return { name, fit: curated.fit, fit_detail: curated.fit_detail ?? null, error: null };
+    return MOCK_FIT_CHECKS[name] ?? { name, fit: "unknown", fit_detail: null, error: "no sample header for this model" };
+  }
+
   download(name: string) {
+    if (!this.models.some((x) => x.name === name)) {
+      // a search result: it joins the list, like the desktop's custom-models.json
+      const found = MOCK_SEARCH.find((x) => x.name === name);
+      if (found) {
+        const check = MOCK_FIT_CHECKS[name];
+        this.models.push({ ...found, source: "custom", fit: check?.fit ?? found.fit, fit_detail: check?.fit_detail ?? found.fit_detail });
+      }
+    }
     const m = this.models.find((x) => x.name === name);
     if (!m) return this.emit({ type: "dl_done", name, ok: false, message: `unknown model: ${name}` });
     if (m.downloaded) return this.emit({ type: "dl_done", name, ok: true, message: `${name} already downloaded` });
@@ -102,7 +127,6 @@ export class MockApi implements EigenCoreApi {
       if (pct < 100) this.later(220, tick);
       else {
         m.downloaded = true;
-        m.fit = MOCK_FIT_AFTER_DOWNLOAD[name] ?? "fits_with_margin";
         this.emit({ type: "dl_done", name, ok: true, message: `downloaded ${name}` });
       }
     };
@@ -113,7 +137,7 @@ export class MockApi implements EigenCoreApi {
     const m = this.models.find((x) => x.name === name);
     if (!m || !m.downloaded || m.is_active) return this.emit({ type: "deleted", name, ok: false });
     m.downloaded = false;
-    m.fit = "unknown";
+    if (m.source === "custom") this.models = this.models.filter((x) => x !== m);
     this.emit({ type: "deleted", name, ok: true });
   }
 
