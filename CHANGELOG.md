@@ -4,6 +4,17 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Added
+- Model registry v2: the curated list now lives in `src/eigencore/models/models.json` (`schema_version` 2, shipped in the wheel and in the Windows build) instead of Python literals. Each entry adds `license` (plus `license_name` / `license_url` when the card gives them), `noncommercial`, `tags`, `arch` (GGUF `general.architecture`), `min_runtime` (first llama-cpp-python release that loads the arch) and `size_bytes`. `load_registry()` reads it; `REGISTRY`, `resolve()`, `recommend()` and `download()` work as before.
+- Optional remote list: with `EIGENCORE_MODELS_REMOTE=1` (or `load_registry(remote=True)`) the `models.json` attached to the latest GitHub Release is tried first with a 3 s timeout; any failure falls back to the bundled copy. Off by default.
+- New models: `granite-4.2-8b` (`ibm-granite/granite-4.2-8b-GGUF`, Q4_K_M, 5.35 GB, 131,072 ctx, Apache-2.0) and `twil-8b` (`webAI-Official/TwIL-8B`, balanced Q4_K_M, 5.35 GB, 131,072 ctx, webAI Non-Commercial License). Both need llama-cpp-python 0.3.17 or newer (`granite-docling` tokenizer).
+- Desktop app: model rows carry `license` and `noncommercial`; the Models screen shows a licence chip, or an amber "NC" chip for non-commercial models.
+
+### Changed
+- Registry sizes and context lengths now match the files on Hugging Face (file bytes from the HF API, context from each file's GGUF header): qwen2.5-1.5b 1.12 GB / 32,768 ctx, qwen2.5-3b 2.10 GB / 32,768, qwen2.5-coder-1.5b 1.12 GB / 32,768, qwen2.5-7b 4.68 GB (both shards) / 131,072, qwen3-30b-a3b 18.56 GB / 40,960, phi-3-mini 2.39 GB. The engine still opens a smaller context sized for the machine.
+- `qwen2.5-3b` is flagged non-commercial (Qwen Research licence).
+- `recommend()` (automatic model choice, including the task router) skips non-commercial models and models whose `min_runtime` is newer than the installed llama-cpp-python. They can still be picked by name. On a 16 GB machine the automatic coding model is now `granite-4.2-8b`.
+
 ## [0.4.10] - 2026-11-17
 
 Models load again in the Windows app, the window opens straight to full screen, and the handwritten "Eigen Core" reacts to the pointer.
