@@ -1,0 +1,712 @@
+/* Spinners (components/Spinner.tsx). Small single-element loaders for
+ * buttons, rows, badges and the sidebar. The chat keeps the grid loader.
+ * Every spinner draws in currentColor on a 24-unit box; --sp-dur is the
+ * loop length, set per kind from SPINNERS. */
+
+.spinner {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  overflow: visible;
+  color: inherit;
+}
+.spinner * {
+  animation-duration: var(--sp-dur, 1s);
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+}
+/* Animated parts turn about the box centre. Parts with an SVG transform
+ * attribute keep the default origin, or the attribute would be shifted. */
+:where(.spinner [class]:not([transform])) {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+.sp-block,
+.sp-morph,
+.sp-bar,
+.sp-g,
+.sp-split-l,
+.sp-split-r {
+  transform-box: fill-box;
+}
+
+/* shared motions */
+.sp-rot {
+  animation-name: sp-rot;
+}
+.sp-rot-rev {
+  animation-name: sp-rot;
+  animation-direction: reverse;
+}
+.sp-rot-slow {
+  animation-name: sp-rot;
+  animation-duration: calc(var(--sp-dur) * 1.45);
+}
+.sp-fade {
+  animation-name: sp-fade;
+}
+.sp-dash {
+  animation-name: sp-dash;
+}
+@keyframes sp-rot {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes sp-fade {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.15;
+  }
+}
+@keyframes sp-dash {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+/* atom: three orbit rings turning in depth */
+.sp-atom {
+  animation-name: sp-atom;
+  animation-timing-function: ease-in-out;
+}
+@keyframes sp-atom {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(0.12);
+  }
+}
+
+/* blocks: cells shrink and grow in a diagonal wave */
+.sp-block {
+  transform-origin: center;
+  animation-name: sp-block;
+  animation-timing-function: ease-in-out;
+}
+@keyframes sp-block {
+  0%,
+  70%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  35% {
+    transform: scale(0.28);
+    opacity: 0.55;
+  }
+}
+
+/* classic v2: spokes step round */
+.sp-step8 {
+  animation-name: sp-rot;
+  animation-timing-function: steps(8);
+}
+
+/* compass: the cross turns a quarter, settles, turns again */
+.sp-quarter {
+  animation-name: sp-quarter;
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+}
+@keyframes sp-quarter {
+  0%,
+  15% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(90deg);
+  }
+}
+
+/* fill: a pie fills from twelve o'clock, then clears the same way */
+.sp-pie {
+  animation-name: sp-pie;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+}
+@keyframes sp-pie {
+  0% {
+    stroke-dasharray: 0 100;
+    stroke-dashoffset: 0;
+  }
+  45%,
+  55% {
+    stroke-dasharray: 100 100;
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dasharray: 100 100;
+    stroke-dashoffset: -100;
+  }
+}
+
+/* gather: four tiles pull in, turn a quarter, spread out */
+.sp-gather {
+  animation-name: sp-gather;
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+}
+.sp-g {
+  transform-origin: center;
+  animation-name: sp-g;
+  animation-timing-function: ease-in-out;
+}
+.sp-g0 {
+  --gx: 1.5px;
+  --gy: 1.5px;
+}
+.sp-g1 {
+  --gx: -1.5px;
+  --gy: 1.5px;
+}
+.sp-g2 {
+  --gx: 1.5px;
+  --gy: -1.5px;
+}
+.sp-g3 {
+  --gx: -1.5px;
+  --gy: -1.5px;
+}
+@keyframes sp-gather {
+  0%,
+  30% {
+    transform: rotate(0deg);
+  }
+  70%,
+  100% {
+    transform: rotate(90deg);
+  }
+}
+@keyframes sp-g {
+  0%,
+  22%,
+  80%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(var(--gx), var(--gy)) scale(0.92);
+  }
+}
+
+/* leap: the first dot leaps over the others to the end of the row */
+.sp-leap {
+  animation-name: sp-leap;
+  animation-timing-function: ease-in-out;
+}
+@keyframes sp-leap {
+  0% {
+    transform: translate(0, 0);
+  }
+  11.67% {
+    transform: translate(7px, -7.5px);
+  }
+  23.33%,
+  33.33% {
+    transform: translate(14px, 0);
+  }
+  56.67%,
+  66.67% {
+    transform: translate(7px, 0);
+  }
+  90%,
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* morph: circle to rounded square and back, turning */
+.sp-morph {
+  transform-origin: center;
+  animation-name: sp-morph;
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+}
+@keyframes sp-morph {
+  0% {
+    rx: 6.5px;
+    transform: rotate(0deg);
+  }
+  50% {
+    rx: 2px;
+    transform: rotate(90deg);
+  }
+  100% {
+    rx: 6.5px;
+    transform: rotate(180deg);
+  }
+}
+
+/* orbit: the arc breathes a little as it goes round */
+.sp-orbit {
+  animation-name: sp-rot, sp-orbit-len;
+  animation-timing-function: linear, ease-in-out;
+}
+@keyframes sp-orbit-len {
+  0%,
+  100% {
+    stroke-dasharray: 34 66;
+  }
+  50% {
+    stroke-dasharray: 46 54;
+  }
+}
+
+/* phases: new moon to full and back */
+.sp-ph-r {
+  animation-name: sp-ph-r;
+  animation-timing-function: step-end;
+}
+.sp-ph-l {
+  animation-name: sp-ph-l;
+  animation-timing-function: step-end;
+}
+.sp-ph-dark {
+  animation-name: sp-ph-dark;
+}
+.sp-ph-lit {
+  animation-name: sp-ph-lit;
+}
+@keyframes sp-ph-r {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes sp-ph-l {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes sp-ph-dark {
+  0% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  25% {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  25.01%,
+  74.99% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  75% {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+@keyframes sp-ph-lit {
+  0%,
+  24.99% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  25% {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  75% {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  75.01%,
+  100% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+
+/* pulse: a halo swells and fades round a beating dot */
+.sp-halo {
+  animation-name: sp-halo;
+  animation-timing-function: cubic-bezier(0.2, 0.6, 0.3, 1);
+}
+.sp-beat {
+  animation-name: sp-beat;
+  animation-timing-function: ease-in-out;
+}
+@keyframes sp-halo {
+  0% {
+    transform: scale(0.32);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+@keyframes sp-beat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.82);
+  }
+}
+
+/* ripple: rings grow out of the centre and fade */
+.sp-ripple {
+  animation-name: sp-ripple;
+  animation-timing-function: ease-out;
+}
+@keyframes sp-ripple {
+  0% {
+    r: 1.5px;
+    opacity: 1;
+  }
+  100% {
+    r: 10.5px;
+    opacity: 0;
+  }
+}
+
+/* scan: a bar sweeps down the frame and back */
+.sp-scan {
+  animation-name: sp-scan;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+}
+@keyframes sp-scan {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8.4px);
+  }
+}
+
+/* snake: an arc that stretches round and shrinks to a dot */
+.sp-snake {
+  animation-name: sp-snake;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+}
+@keyframes sp-snake {
+  0% {
+    stroke-dasharray: 2 200;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 72 200;
+    stroke-dashoffset: -14;
+  }
+  100% {
+    stroke-dasharray: 2 200;
+    stroke-dashoffset: -98;
+  }
+}
+
+/* split: two dots meet, merge, part */
+.sp-split-l,
+.sp-split-r {
+  transform-origin: center;
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+}
+.sp-split-l {
+  animation-name: sp-split-l;
+}
+.sp-split-r {
+  animation-name: sp-split-r;
+}
+@keyframes sp-split-l {
+  0%,
+  12%,
+  88%,
+  100% {
+    transform: translateX(0) scale(1);
+  }
+  40%,
+  60% {
+    transform: translateX(4.6px) scale(1.3);
+  }
+}
+@keyframes sp-split-r {
+  0%,
+  12%,
+  88%,
+  100% {
+    transform: translateX(0) scale(1);
+  }
+  40%,
+  60% {
+    transform: translateX(-4.6px) scale(1.3);
+  }
+}
+
+/* steps: bars light left to right, then go out left to right */
+.sp-step {
+  animation-name: sp-step;
+}
+@keyframes sp-step {
+  0% {
+    opacity: 0.2;
+  }
+  5%,
+  50% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0.2;
+  }
+}
+
+/* bars (extra): equaliser */
+.sp-bar {
+  transform-origin: center;
+  animation-name: sp-bar;
+  animation-timing-function: ease-in-out;
+}
+@keyframes sp-bar {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* hourglass (extra): sand runs down, the glass turns over */
+.sp-hg {
+  animation-name: sp-hg;
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+}
+.sp-hg-top,
+.sp-hg-bot {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.sp-hg-top {
+  animation-name: sp-hg-top;
+}
+.sp-hg-bot {
+  animation-name: sp-hg-bot;
+}
+@keyframes sp-hg {
+  0%,
+  78% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(180deg);
+  }
+}
+@keyframes sp-hg-top {
+  0% {
+    transform: scaleY(1);
+  }
+  78%,
+  100% {
+    transform: scaleY(0);
+  }
+}
+@keyframes sp-hg-bot {
+  0% {
+    transform: scaleY(0);
+  }
+  78%,
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+/* still poses: a frame that reads when motion is paused */
+.sp-phases *,
+.sp-fill .sp-pie {
+  animation-delay: calc(var(--sp-dur) * -0.3);
+}
+.sp-snake {
+  animation-delay: calc(var(--sp-dur) * -0.5);
+}
+
+/* slide: three dots take turns sliding into the empty corner */
+.sp-slide {
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+}
+.sp-slide0 {
+  animation-name: sp-slide0;
+}
+.sp-slide1 {
+  animation-name: sp-slide1;
+}
+.sp-slide2 {
+  animation-name: sp-slide2;
+}
+@keyframes sp-slide0 {
+  0.00% { transform: translate(10px, 0px); }
+  8.33% { transform: translate(10px, 0px); }
+  16.67% { transform: translate(10px, 0px); }
+  21.25% { transform: translate(10px, 10px); }
+  25.00% { transform: translate(10px, 10px); }
+  33.33% { transform: translate(10px, 10px); }
+  41.67% { transform: translate(10px, 10px); }
+  46.25% { transform: translate(0px, 10px); }
+  50.00% { transform: translate(0px, 10px); }
+  58.33% { transform: translate(0px, 10px); }
+  66.67% { transform: translate(0px, 10px); }
+  71.25% { transform: translate(0px, 0px); }
+  75.00% { transform: translate(0px, 0px); }
+  83.33% { transform: translate(0px, 0px); }
+  91.67% { transform: translate(0px, 0px); }
+  96.25% { transform: translate(10px, 0px); }
+  100.00% { transform: translate(10px, 0px); }
+}
+@keyframes sp-slide1 {
+  0.00% { transform: translate(10px, 10px); }
+  8.33% { transform: translate(10px, 10px); }
+  12.92% { transform: translate(0px, 10px); }
+  16.67% { transform: translate(0px, 10px); }
+  25.00% { transform: translate(0px, 10px); }
+  33.33% { transform: translate(0px, 10px); }
+  37.92% { transform: translate(0px, 0px); }
+  41.67% { transform: translate(0px, 0px); }
+  50.00% { transform: translate(0px, 0px); }
+  58.33% { transform: translate(0px, 0px); }
+  62.92% { transform: translate(10px, 0px); }
+  66.67% { transform: translate(10px, 0px); }
+  75.00% { transform: translate(10px, 0px); }
+  83.33% { transform: translate(10px, 0px); }
+  87.92% { transform: translate(10px, 10px); }
+  91.67% { transform: translate(10px, 10px); }
+  100.00% { transform: translate(10px, 10px); }
+}
+@keyframes sp-slide2 {
+  0.00% { transform: translate(0px, 10px); }
+  4.58% { transform: translate(0px, 0px); }
+  8.33% { transform: translate(0px, 0px); }
+  16.67% { transform: translate(0px, 0px); }
+  25.00% { transform: translate(0px, 0px); }
+  29.58% { transform: translate(10px, 0px); }
+  33.33% { transform: translate(10px, 0px); }
+  41.67% { transform: translate(10px, 0px); }
+  50.00% { transform: translate(10px, 0px); }
+  54.58% { transform: translate(10px, 10px); }
+  58.33% { transform: translate(10px, 10px); }
+  66.67% { transform: translate(10px, 10px); }
+  75.00% { transform: translate(10px, 10px); }
+  79.58% { transform: translate(0px, 10px); }
+  83.33% { transform: translate(0px, 10px); }
+  91.67% { transform: translate(0px, 10px); }
+  100.00% { transform: translate(0px, 10px); }
+}
+/* flip (HTML, real 3D): a tile flips over one axis, then the other */
+.sp-flip-tile {
+  position: absolute;
+  inset: 21%;
+  border-radius: 16%;
+  background: currentColor;
+  animation-name: sp-flip;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+}
+.spinner.sp-flip,
+.spinner.sp-eclipse {
+  position: relative;
+}
+@keyframes sp-flip {
+  0%,
+  8% {
+    transform: perspective(5em) rotateX(0deg) rotateY(0deg);
+  }
+  42%,
+  58% {
+    transform: perspective(5em) rotateX(-180deg) rotateY(0deg);
+  }
+  92%,
+  100% {
+    transform: perspective(5em) rotateX(-180deg) rotateY(-180deg);
+  }
+}
+
+/* eclipse (HTML): two dots pass in front of each other */
+.sp-ecl {
+  position: absolute;
+  left: 33%;
+  top: 33%;
+  width: 34%;
+  height: 34%;
+  border-radius: 50%;
+  background: currentColor;
+  animation-name: sp-ecl;
+  animation-timing-function: linear;
+}
+.sp-ecl-b {
+  animation-delay: calc(var(--sp-dur) / -2);
+}
+@keyframes sp-ecl {
+  0% {
+    transform: translateX(-72%) scale(0.92);
+    opacity: 0.85;
+    z-index: 2;
+  }
+  25% {
+    transform: translateX(0) scale(1.18);
+    opacity: 1;
+    z-index: 2;
+  }
+  50% {
+    transform: translateX(72%) scale(0.92);
+    opacity: 0.85;
+    z-index: 1;
+  }
+  75% {
+    transform: translateX(0) scale(0.7);
+    opacity: 0.5;
+    z-index: 1;
+  }
+  100% {
+    transform: translateX(-72%) scale(0.92);
+    opacity: 0.85;
+    z-index: 1;
+  }
+}
+
+/* Reduced motion: every spinner holds its pose; only its opacity breathes,
+ * so a busy state still reads as busy. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner * {
+    animation-play-state: paused !important;
+  }
+  .spinner {
+    animation: sp-still 2.4s ease-in-out infinite;
+  }
+}
+@keyframes sp-still {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* where the app uses them */
+.model-dl .spinner {
+  margin-right: 6px;
+}
+.step-status.run {
+  color: var(--ink-2);
+}
+.btn.is-busy {
+  cursor: progress;
+}

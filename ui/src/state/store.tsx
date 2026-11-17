@@ -33,7 +33,8 @@ export interface Message {
   stats?: GenerationStats | null;
   /** placeholder = nothing measured; mock = timings of the mock emitter. */
   statsKind?: "placeholder" | "mock" | "measured";
-  approval?: ApprovalRequest & { decision?: ApprovalDecision };
+  /** toolsBefore: how many tool results the message had when the call was approved. */
+  approval?: ApprovalRequest & { decision?: ApprovalDecision; toolsBefore?: number };
   tools?: ToolCall[];
   startedAt?: number;
   error?: string;
@@ -254,7 +255,7 @@ function reducer(s: State, a: Action): State {
       return patchActiveChat(s, (c) => ({
         ...c,
         messages: c.messages.map((m) =>
-          m.id === a.msgId && m.approval ? { ...m, approval: { ...m.approval, decision: a.decision }, status: "reading" } : m,
+          m.id === a.msgId && m.approval ? { ...m, approval: { ...m.approval, decision: a.decision, toolsBefore: m.tools?.length ?? 0 }, status: "reading" } : m,
         ),
       }));
     case "toast":

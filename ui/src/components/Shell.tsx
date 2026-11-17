@@ -3,6 +3,7 @@ import { api } from "../api";
 import { chatBusy, useStore, type Chat, type Screen } from "../state/store";
 import { GridLoader } from "./GridLoader";
 import { Icon, type IconName } from "./Icon";
+import { Spinner } from "./Spinner";
 import { Button, Dialog, GlideMenu, IconButton, Kbd, SoonPill } from "./primitives";
 
 /* ── Title bar for a frameless window ───────────────────────────────────
@@ -168,7 +169,11 @@ function HistoryItem({ c, active }: { c: Chat; active: boolean }) {
               <Icon name="shield" size={12} />
             </span>
           ) : busy ? (
-            <GridLoader kind={busy === "reading" ? "thinking" : "writing"} size={11} label={busy === "reading" ? "Reading the prompt" : "Writing"} />
+            busy === "reading" ? (
+              <Spinner kind="pulse" tone="violet" size={14} label="Reading the prompt" />
+            ) : (
+              <Spinner kind="linear-dots" tone="blue" size={14} label="Writing" />
+            )
           ) : null}
           <span className="ellipsis">{c.title}</span>
         </button>
@@ -253,7 +258,7 @@ export function UpdateButton({ compact }: { compact?: boolean }) {
   if (u.kind === "checking") {
     label = "Checking…";
     onClick = undefined;
-    badge = <GridLoader kind="update" size={9} />;
+    badge = <Spinner kind="comet" size={11} />;
     tone = "busy";
   } else if (u.kind === "available") {
     label = `${u.tag} is available`;
@@ -266,13 +271,13 @@ export function UpdateButton({ compact }: { compact?: boolean }) {
     sub = `${Math.round(u.pct)}%`;
     pct = u.pct;
     onClick = undefined;
-    badge = <GridLoader kind="download" size={9} />;
+    badge = <Spinner kind="trace" size={11} />;
     tone = "busy";
   } else if (u.kind === "ready_to_install") {
     label = `Installing ${u.tag}`;
     sub = "EigenCore restarts on its own";
     onClick = undefined;
-    badge = <GridLoader kind="loading" size={9} />;
+    badge = <Spinner kind="hourglass" size={11} />;
     tone = "busy";
   } else if (u.kind === "manual") {
     label = `Get ${u.tag}`;
@@ -358,7 +363,7 @@ export function Sidebar() {
             collapsed={collapsed}
             extra={
               n.id === "monitor" && engineLive ? (
-                <span className={collapsed ? "nav-dot" : "nav-live"}>{collapsed ? null : <GridLoader kind="live" size={11} />}</span>
+                <span className={collapsed ? "nav-dot" : "nav-live"}>{collapsed ? null : <Spinner kind="bars" tone="pink" size={13} label="Live" />}</span>
               ) : n.id === "chat" && collapsed && anyBusy ? (
                 <span className="nav-dot" />
               ) : undefined

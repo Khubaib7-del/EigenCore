@@ -5,6 +5,7 @@ import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/agent.css";
 import "./styles/polish.css";
+import "./styles/spinners.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
