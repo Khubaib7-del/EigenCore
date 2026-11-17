@@ -344,10 +344,6 @@ def run(
     spec = _resolve_or_bail(registry, model, hw, task)
     model_path = spec.local_path(registry.cache_dir)
 
-    console.print(
-        f"[dim]Model: {spec.name} | Threads: {hw.recommended_threads} | Ctx: {hw.recommended_context_length}[/]"
-    )
-
     if gpu_layers == 0 and hw.available_vram_gb > 0:
         _, _, gpu_layers = _fit_for_spec(spec, hw, registry, kv_quant=kv_type)
     if gpu_layers > 0:
@@ -358,6 +354,10 @@ def run(
 
     with console.status("[bold cyan]Loading model..."):
         engine.load()
+    # header after load: Ctx is the n_ctx the engine actually opened with
+    console.print(
+        f"[dim]Model: {spec.name} | Threads: {hw.recommended_threads} | Ctx: {engine.n_ctx}[/]"
+    )
 
     config = GenerationConfig(
         prompt_lookup=pld,

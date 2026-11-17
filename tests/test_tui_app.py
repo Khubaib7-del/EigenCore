@@ -361,3 +361,11 @@ def test_frame_renders_picker_overlay(tmp_path):
 def test_glyphs_fallback():
     g = pick_glyphs()
     assert g["prompt"] and g["brand"]
+
+
+def test_context_limit_follows_engine_n_ctx(tmp_path):
+    app, _, engine = _make_app(tmp_path)
+    engine.n_ctx = 16384
+    assert app.context_limit() == 16384
+    engine.n_ctx = None
+    assert app.context_limit() == app.profile.recommended_context_length

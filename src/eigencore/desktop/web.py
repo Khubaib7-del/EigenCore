@@ -354,7 +354,9 @@ class WebBridge:
             # The desktop backend does not take these yet: the UI shows them
             # read-only ("coming soon") and only theme is saved.
             "threads": "auto",
-            "context_length": be.profile.recommended_context_length,
+            # the n_ctx the loaded model opened with; profiler figure before load
+            "context_length": getattr(be.engine, "n_ctx", None)
+            or be.profile.recommended_context_length,
             "kv_cache_type": "f16",
             "approvals": "ask",
         }
