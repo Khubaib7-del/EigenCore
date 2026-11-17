@@ -73,6 +73,20 @@ class ModelGeometry:
     expert_used_count: int | None = None  # MoE: experts activated per token
     key_length: int | None = None  # GGUF {arch}.attention.key_length (per-head K dim)
     value_length: int | None = None  # GGUF {arch}.attention.value_length (per-head V dim)
+    # Hybrid models (Mamba / linear-attention layers mixed with attention):
+    # only this many layers keep a KV cache. None = every layer is attention.
+    attention_layers: int | None = None
+    # Exact K+V elements per token summed over layers, when layers differ
+    # (per-layer KV heads, Gemma's narrower sliding-window heads). Overrides
+    # kv_layers × kv_heads × (K + V dims) when set.
+    kv_elements_per_token: int | None = None
+
+    @property
+    def kv_layers(self) -> int | None:
+        """Layers that hold a KV cache (attention layers only, for hybrids)."""
+        if self.attention_layers is not None:
+            return self.attention_layers
+        return self.num_layers
 
     @property
     def kv_heads(self) -> int | None:
@@ -104,12 +118,19 @@ class ModelGeometry:
 
 
 def kv_bytes_per_token(geometry: ModelGeometry, kv_quant: str = "fp16") -> int:
-    """KV cache bytes per token: layers × kv_heads × (K dim + V dim) × bytes/element."""
+    """KV cache bytes per token: attention layers × kv_heads × (K dim + V dim) × bytes/element.
+
+    Hybrid archs (Granite 4.0-H, Qwen3-Next, Nemotron-H) count only their
+    attention layers; their Mamba / linear-attention state is fixed-size and
+    small, so it is left to the runtime reserve.
+    """
     bytes_per_elem = (
         FP16_BYTES_PER_ELEMENT if kv_quant.lower() in ("fp16", "f16") else KV_BYTES_PER_ELEMENT_Q8
     )
+    if geometry.kv_elements_per_token:
+        return int(geometry.kv_elements_per_token * bytes_per_elem)
     return int(
-        geometry.num_layers
+        geometry.kv_layers
         * geometry.kv_heads
         * (geometry.head_dim + geometry.head_dim_v)
         * bytes_per_elem
