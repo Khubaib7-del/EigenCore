@@ -75,13 +75,13 @@
 .rc {
   --tx: 0;
   --ty: 0;
-  font-size: calc(var(--wm) * 0.098); /* 1em = one unit */
+  font-size: calc(var(--wm) * 0.145); /* 1em = one unit */
   position: relative;
   display: block;
   flex: none;
-  width: 15em;
-  height: 12em;
-  margin: 0 -0.3em -0.1em;
+  width: 18em;
+  height: 15.2em;
+  margin: 0 -0.2em -0.1em;
   line-height: 1;
   letter-spacing: 0;
   font-weight: 400;
@@ -104,7 +104,7 @@
   width: 0;
   height: 0;
   transform-style: preserve-3d;
-  transform: rotateX(calc(-11deg - var(--ty) * 4deg)) rotateY(calc(31deg + var(--tx) * 7deg));
+  transform: rotateX(calc(-12deg - var(--ty) * 4deg)) rotateY(calc(38deg + var(--tx) * 7deg));
   transition: transform 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .rc.tilting .rc-obj {
@@ -112,7 +112,7 @@
 }
 /* Press: the whole machine dips a hair and the glass flashes. */
 .rc:has(.rc-screen:active) .rc-obj {
-  transform: rotateX(calc(-11deg - var(--ty) * 4deg)) rotateY(calc(31deg + var(--tx) * 7deg)) translate3d(0, 0.12em, -0.35em);
+  transform: rotateX(calc(-12deg - var(--ty) * 4deg)) rotateY(calc(38deg + var(--tx) * 7deg)) translate3d(0, 0.12em, -0.35em);
   transition-duration: 60ms;
 }
 
@@ -151,7 +151,8 @@
 }
 /* The CRT housing reads rounder with a radial bulge on its side. */
 .rc-rear1.rc-l,
-.rc-rear2.rc-l {
+.rc-rear2.rc-l,
+.rc-rear3.rc-l {
   border-radius: 1.2em 0.6em 0.6em 1.2em / 1.6em 0.6em 0.6em 1.6em;
   background:
     linear-gradient(to right, transparent 70%, rgba(0, 0, 0, 0.28)),
@@ -159,15 +160,18 @@
     linear-gradient(to bottom, rgba(255, 255, 255, 0.08), transparent 40%, rgba(0, 0, 0, 0.25)),
     linear-gradient(to right, var(--rc-side-lo), var(--rc-side) 70%);
 }
-.rc-rear2.rc-l {
+.rc-rear2.rc-l,
+.rc-rear3.rc-l {
   border-radius: 1.6em 0.5em 0.5em 1.6em / 2em 0.5em 0.5em 2em;
 }
 .rc-rear1.rc-t,
-.rc-rear2.rc-t {
+.rc-rear2.rc-t,
+.rc-rear3.rc-t {
   border-radius: 1.4em 1.4em 0.4em 0.4em;
 }
 .rc-rear1.rc-f,
-.rc-rear2.rc-f {
+.rc-rear2.rc-f,
+.rc-rear3.rc-f {
   background: var(--rc-side-lo);
   box-shadow: none;
 }
@@ -359,11 +363,10 @@
 }
 .rc-glass {
   position: absolute;
-  inset: 0.25em 0.55em;
+  inset: 0.34em 0.5em 0.3em 0.95em;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.78em;
+  flex-direction: column;
+  font-size: 0.66em;
   text-shadow: 0 0 0.3em var(--phosphor-glow);
   animation: rc-flicker 5s steps(1) infinite;
 }
@@ -481,7 +484,7 @@
   .rc-obj,
   .rc:has(.rc-screen:active) .rc-obj {
     transition: none;
-    transform: rotateX(-11deg) rotateY(31deg);
+    transform: rotateX(-12deg) rotateY(38deg);
   }
 }
 
@@ -1407,4 +1410,319 @@
 }
 .pop-attach {
   width: 330px;
+}
+
+/* ── Monitor v2: status bar, pages, tab strip ───────────────────────────── */
+.rc-bar,
+.rc-tabs {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: none;
+  font-size: 0.78em;
+  letter-spacing: 0.08em;
+  color: var(--phosphor-dim);
+}
+.rc-bar {
+  padding-bottom: 0.25em;
+  border-bottom: 0.06em solid rgba(127, 240, 220, 0.22);
+}
+.rc-bar > span {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.rc-dot {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: var(--phosphor-dim);
+}
+.rc-dot.on {
+  background: var(--phosphor);
+  box-shadow: 0 0 0.4em var(--phosphor-glow);
+}
+.rc-dot.busy {
+  background: var(--phosphor);
+  animation: rc-blink 0.6s steps(1) infinite;
+}
+.rc-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25em 0;
+}
+.rc-tabs {
+  justify-content: flex-start;
+  gap: 0.3em;
+  padding-top: 0.25em;
+  border-top: 0.06em solid rgba(127, 240, 220, 0.22);
+}
+.rc-tabs i {
+  font-style: normal;
+  padding: 0.05em 0.35em;
+  border-radius: 0.15em;
+}
+.rc-tabs i.on {
+  background: var(--phosphor);
+  color: var(--crt-bg);
+  text-shadow: none;
+  box-shadow: 0 0 0.4em var(--phosphor-glow);
+}
+.rc-post > div {
+  font-size: 0.92em;
+}
+.rc-table b {
+  display: inline-block;
+  width: 2.6em;
+  font-weight: 700;
+  color: var(--phosphor);
+}
+.rc-meter {
+  display: flex;
+  gap: 0.15em;
+}
+.rc-meter i {
+  width: 0.55em;
+  height: 0.7em;
+  background: rgba(127, 240, 220, 0.16);
+}
+.rc-meter i.on {
+  background: var(--phosphor);
+  box-shadow: 0 0 0.3em var(--phosphor-glow);
+}
+.rc-speed {
+  gap: 0.2em;
+}
+.rc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.rc-speed .rc-big {
+  font-size: 1.5em;
+}
+.rc-spark {
+  width: 100%;
+  height: 1.7em;
+  display: block;
+  overflow: visible;
+}
+.rc-spark-line {
+  fill: none;
+  stroke: var(--phosphor);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 1px var(--phosphor-glow));
+}
+.rc-spark-fill {
+  fill: rgba(127, 240, 220, 0.12);
+}
+.rc-markpage .rc-mark {
+  height: 3.6em;
+}
+.rc-badge {
+  position: absolute;
+  left: 0.85em;
+  bottom: 0.48em;
+  font-family: var(--font-mono);
+  font-size: 0.42em;
+  letter-spacing: 0.22em;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.32);
+  text-shadow: 0 0.05em 0 rgba(255, 255, 255, 0.5);
+}
+
+/* Lean in: hovering the computer brings it a little closer. */
+.rc-stage {
+  transform-origin: 50% 85%;
+  transition: transform 380ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.rc:hover .rc-stage {
+  transform: scale(1.12);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rc-stage { transition: none; }
+  .rc:hover .rc-stage { transform: none; }
+}
+
+/* ── Power-up intro (first show per app session) ──────────────────────────
+ * cable: the lead draws across the desk and the plug slides into the case;
+ * warm:  power LED on, the tube warms from a dot to a line to full screen;
+ * then the POST types and the screen settles. */
+.rc-desk svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.rc-cable {
+  fill: none;
+  stroke: url(#rc-cable-fade);
+  stroke-width: 0.32;
+  stroke-linecap: round;
+}
+.rc-cable-hi {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 0.08;
+  stroke-linecap: round;
+  transform: translate(-0.05px, -0.06px);
+}
+.rc-plugwrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+}
+.rc-plug.rc-f,
+.rc-plug.rc-l,
+.rc-plug.rc-t,
+.rc-plug.rc-k {
+  border-radius: 0.12em;
+  background: #2c2d30;
+}
+.rc-plug.rc-t {
+  background: #45474c;
+}
+.rc-plug.rc-k {
+  background: #1d1e20;
+}
+.rc.phase-cable .rc-cable,
+.rc.phase-cable .rc-cable-hi {
+  stroke-dasharray: 1 1.05;
+  animation: rc-draw 820ms cubic-bezier(0.4, 0, 0.2, 1) 120ms both;
+}
+.rc.phase-cable .rc-plugwrap {
+  animation: rc-plug-in 420ms cubic-bezier(0.3, 0, 0.2, 1.25) 680ms both;
+}
+@keyframes rc-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes rc-plug-in {
+  from {
+    transform: translate3d(-1.6em, 0, 0);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+/* Before power: dark glass, LEDs off. */
+.rc.phase-cable .rc-glass,
+.rc.phase-warm .rc-glass {
+  visibility: hidden;
+}
+.rc.phase-cable .rc-screen {
+  background: #050807;
+}
+.rc.phase-cable .rc-led.rc-f,
+.rc.phase-cable .rc-drive-led {
+  background: #3b3d3a !important;
+  box-shadow: none !important;
+}
+.rc.phase-warm .rc-led.rc-f {
+  animation: rc-led-pop 300ms ease-out both;
+}
+@keyframes rc-led-pop {
+  0% {
+    filter: brightness(3);
+  }
+}
+.rc-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(closest-side, #f4fffc, #a6fff0 60%, rgba(127, 240, 220, 0.4));
+  box-shadow: 0 0 1em var(--phosphor-glow);
+}
+.rc.phase-warm .rc-screen::before {
+  animation: rc-crt-on 640ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
+}
+@keyframes rc-crt-on {
+  0% {
+    opacity: 1;
+    transform: scale(0.03, 0.03);
+    border-radius: 50%;
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1, 0.018);
+    border-radius: 0;
+  }
+  60% {
+    opacity: 0.85;
+    transform: scale(1, 1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1, 1);
+  }
+}
+.rc.phase-post .rc-drive-led {
+  animation: rc-blink 0.18s steps(1) infinite;
+}
+
+/* ── "Eigen [pc] Core" handwritten, Mac hello style ─────────────────────── */
+.hello {
+  --hh: calc(var(--wm) * 1.12 * var(--hk));
+  display: block;
+  flex: none;
+  height: var(--hh);
+  width: auto;
+  margin-bottom: calc(var(--hh) * var(--desc) * -1); /* baseline on the desk line */
+  overflow: visible;
+}
+.hello-ink {
+  fill: var(--ink);
+  stroke: var(--ink);
+  stroke-linejoin: round;
+}
+.hello-pen path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1 1.05;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  animation:
+    rc-draw var(--t) linear var(--d) forwards,
+    hello-show 1ms linear var(--d) forwards;
+}
+@keyframes hello-show {
+  to {
+    opacity: 1;
+  }
+}
+.ec-wordmark.script {
+  gap: calc(var(--wm) * 0.28);
+  margin-bottom: calc(var(--wm) * 1.05);
+  align-items: flex-end;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hello-pen path {
+    animation: none;
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+.rc-desk stop {
+  stop-color: #6b6e74;
+}
+[data-theme="light"] .rc-desk stop {
+  stop-color: #3a3c40;
 }

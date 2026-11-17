@@ -248,7 +248,7 @@ class WebBridge:
         self._version = version
         self._profiler = profiler
         self._window = None
-        self._maximized = False
+        self._maximized = True  # the window opens maximized
         self._release = None
         self._update_busy = False
         self._js_ready = threading.Event()
@@ -612,6 +612,7 @@ def run(debug: bool = False) -> None:
         width=1180,
         height=760,
         min_size=(860, 560),
+        maximized=True,
         frameless=True,
         easy_drag=False,
         text_select=True,

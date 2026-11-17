@@ -92,3 +92,15 @@ build time, so the app loads no font from a CDN.
 ## In-house
 
 - UI icons in `src/components/Icon.tsx` were drawn for EigenCore.
+
+## Sacramento (SIL OFL 1.1) — handwritten "Eigen Core" wordmark
+
+- Font: Sacramento, Copyright 2011 Brian J. Bonislawsky DBA Astigmatic (AOETI), with Reserved Font Name "Sacramento"
+- Source: Google Fonts — https://fonts.google.com/specimen/Sacramento
+- Licence: SIL Open Font License 1.1 — https://openfontlicense.org
+
+`src/components/helloPaths.ts` holds outlines for the glyphs of the words
+"Eigen" and "Core", plus centre-line paths derived from those outlines. They
+were generated from `Sacramento-Regular.ttf`. These are vector paths only. No
+font file ships with the app, and the font is not renamed or sold. The OFL
+covers the outline data.

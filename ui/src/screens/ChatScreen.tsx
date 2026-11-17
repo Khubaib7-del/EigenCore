@@ -221,6 +221,8 @@ export function ChatScreen() {
             cpu={p.cpu_name.replace(/\(R\)|\(TM\)|CPU|@.*$/gi, "").replace(/\s+/g, " ").replace(/^(Intel|AMD)\s+(Core\s+)?/i, "").trim().slice(0, 13)}
             threads={`${p.recommended_threads}/${p.logical_cores} threads`}
             typed={draft}
+            tps={state.tps}
+            ram={`${Math.round(p.total_ram_gb)} GB`}
           />
           <h1 className="greeting">
             {greeting()}. <span>What should we work on?</span>

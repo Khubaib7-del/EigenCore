@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import type { FitVerdict } from "../api/types";
+import { HELLO, type HelloWord } from "./helloPaths";
 
 /*
  * The empty-chat wordmark: "EIGEN [computer] CORE". A small 3D desktop
@@ -46,16 +47,17 @@ const box = (c: V3, s: V3): BoxDef => ({ c, s });
 
 // Desktop case, a low foot, the monitor's front shell, and the stepped CRT
 // housing behind it; a keyboard slab in front.
-const CASE = box([0, -0.95, -0.2], [12, 1.9, 7.2]);
+const CASE = box([0, -0.95, -0.2], [13.6, 1.9, 7.6]);
 const FOOT = box([0, -2.1, 0.4], [4.6, 0.4, 3]);
-const MON = box([0, -5.95, 1.5], [9.8, 7.3, 1.8]);
-const REAR1 = box([0, -6.0, -0.45], [8.6, 6.5, 2.1]);
-const REAR2 = box([0, -5.9, -2.85], [6.6, 5.2, 2.7]);
-const KEYS = box([0.6, -0.2, 4.55], [9.2, 0.4, 2.1]);
+const MON = box([0, -7.1, 2.6], [12.8, 9.6, 1.6]);
+const REAR1 = box([0, -7.15, 0.5], [12.0, 9.0, 2.6]);
+const REAR2 = box([0, -7.0, -2.4], [9.6, 7.4, 3.2]);
+const REAR3 = box([0, -6.9, -5.0], [6.4, 5.0, 2.0]);
+const KEYS = box([0.6, -0.2, 5.1], [11, 0.4, 2.1]);
 
 // The screen opening in the bezel, and how deep the glass sits.
-const HOLE = { l: 0.85, r: 0.85, t: 0.78, b: 1.55 };
-const RECESS = 0.62;
+const HOLE = { l: 1.3, r: 1.3, t: 1.15, b: 1.95 };
+const RECESS = 0.75;
 const front = MON.c[2] + MON.s[2] / 2;
 const holeW = MON.s[0] - HOLE.l - HOLE.r;
 const holeH = MON.s[1] - HOLE.t - HOLE.b;
@@ -131,14 +133,42 @@ const WALLS = (["l", "r", "t", "bt"] as FaceKey[]).map((k) => {
 });
 
 const SHADOW: CSSProperties = {
-  width: "17em",
-  height: "11em",
+  width: "20em",
+  height: "12em",
   transform: "translate(-50%,-50%) translate3d(0.2em,0.02em,0.6em) rotateX(90deg)",
 };
+
+// The power lead: lies on the desk left of the case and plugs into its side.
+const SOCKET_Z = 1.6;
+const PLUG = box([CASE.c[0] - CASE.s[0] / 2 - 0.42, -0.5, SOCKET_Z], [0.84, 0.72, 0.9]);
+const DESK = box([-9.2, -0.03, 4.6], [6, 0, 9]);
+const DX0 = DESK.c[0] - DESK.s[0] / 2;
+const DZ0 = DESK.c[2] - DESK.s[2] / 2;
+// Drawn from the far end toward the socket, so it "arrives" at the case.
+const CABLE_D = `M-10.9 6.6 C-11.3 5.4 -9.3 5.0 -9.8 3.9 S-10.7 2.2 -9.4 ${SOCKET_Z} L${PLUG.c[0] - 0.42} ${SOCKET_Z}`;
+const CABLE = (
+  <span className="rc-face rc-desk" style={face(DESK, "t")} aria-hidden>
+    <svg viewBox={`${DX0} ${DZ0} ${DESK.s[0]} ${DESK.s[2]}`}>
+      <defs>
+        <linearGradient id="rc-cable-fade" gradientUnits="userSpaceOnUse" x1="-10.9" y1="6.6" x2="-9.9" y2="3.6">
+          <stop offset="0" stopOpacity="0" />
+          <stop offset="1" stopOpacity="1" />
+        </linearGradient>
+      </defs>
+      <path className="rc-cable" d={CABLE_D} pathLength={1} />
+      <path className="rc-cable-hi" d={CABLE_D} pathLength={1} />
+    </svg>
+  </span>
+);
 
 const SCENE = (
   <>
     <span className="rc-face rc-floor" style={SHADOW} aria-hidden />
+    {CABLE}
+    <span className="rc-plugwrap">
+      <Box b={PLUG} cls="rc-plug" faces={["k", "l", "t", "f"]} />
+    </span>
+    <Box b={REAR3} cls="rc-shell rc-rear3" />
     <Box b={REAR2} cls="rc-shell rc-rear2" />
     <Box b={REAR1} cls="rc-shell rc-rear1" />
     <Box b={CASE} cls="rc-shell rc-case" faces={["l", "t"]} />
@@ -170,9 +200,40 @@ const EC_PATH = GLYPHS.flatMap((rows, g) =>
   rows.flatMap((row, y) => [...row].map((on, x) => (on === "1" ? `M${g * 7 + x} ${y}h1v1h-1z` : ""))),
 ).join("");
 
-type Page = "mark" | "system" | "fit";
+type Page = "home" | "sys" | "fit" | "speed";
+const TAB: Record<Page, string> = { home: "HOME", sys: "SYS", fit: "FIT", speed: "SPD" };
 
 let bootedOnce = false;
+
+/** True the first time the empty state shows in this app session (and motion is allowed). */
+export function introPending() {
+  return !bootedOnce && !reducedMotion();
+}
+
+// Power-up timeline (ms from mount), first show only.
+export const T_WARM = 1150; // plug seated → LED on, tube warms
+export const T_POST = 1800; // tube lit → POST types
+
+function clock() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** A phosphor sparkline of recent generation speeds (tok/s), scaled to the peak. */
+function Spark({ data }: { data: number[] }) {
+  const pts = data.slice(-24);
+  const peak = Math.max(...pts, 1);
+  const w = 48;
+  const h = 14;
+  const step = pts.length > 1 ? w / (pts.length - 1) : w;
+  const d = pts.map((v, i) => `${i ? "L" : "M"}${(i * step).toFixed(2)} ${(h - (v / peak) * (h - 1) - 0.5).toFixed(2)}`).join("");
+  return (
+    <svg className="rc-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden>
+      <path d={`${d}L${w} ${h}L0 ${h}Z`} className="rc-spark-fill" />
+      <path d={d} className="rc-spark-line" />
+    </svg>
+  );
+}
 
 export function RetroComputer({
   version,
@@ -181,6 +242,8 @@ export function RetroComputer({
   threads,
   loading,
   typed,
+  tps = [],
+  ram,
 }: {
   version: string;
   model: { name: string; quant: string; context: number; fit: FitVerdict } | null;
@@ -189,98 +252,155 @@ export function RetroComputer({
   loading: boolean;
   /** What is in the message box right now (echoed on the screen). */
   typed: string;
+  /** Recent generation speeds in tok/s, oldest first (real samples only). */
+  tps?: number[];
+  /** Installed RAM, e.g. "16 GB". */
+  ram?: string;
 }) {
-  const bootLine = `EIGENCORE v${version}`;
-  const [boot, setBoot] = useState(() => (bootedOnce || reducedMotion() ? bootLine.length + 1 : 0));
-  const [page, setPage] = useState<Page>("mark");
-  const [hidden, setHidden] = useState(typeof document !== "undefined" && document.hidden);
-
-  // Boot: type one line, then hold "OK" briefly. Runs once per app session.
+  // A short POST: each line types in, then the screen settles on HOME.
+  const post = [
+    `EIGENCORE BIOS v${version}`,
+    `CPU  ${cpu}`,
+    ram ? `MEM  ${ram} OK` : "MEM  OK",
+    `LLM  ${loading ? "loading" : model ? model.name : "none"}`,
+    "BOOT OK",
+  ];
+  const total = post.reduce((n, l) => n + l.length, 0);
+  const [boot, setBoot] = useState(() => (bootedOnce || reducedMotion() ? total + 1 : 0));
+  const [phase, setPhase] = useState<"cable" | "warm" | "post" | "on">(() => (boot > total ? "on" : "cable"));
   useEffect(() => {
-    if (boot > bootLine.length) {
+    if (phase !== "cable") return;
+    const a = setTimeout(() => setPhase("warm"), T_WARM);
+    const b = setTimeout(() => setPhase("post"), T_POST);
+    return () => {
+      clearTimeout(a);
+      clearTimeout(b);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [page, setPage] = useState<Page>("home");
+  const [hidden, setHidden] = useState(typeof document !== "undefined" && document.hidden);
+  const [now, setNow] = useState(clock);
+
+  useEffect(() => {
+    if (boot > total) {
       bootedOnce = true;
+      if (phase === "post") setPhase("on");
       return;
     }
-    const t = setTimeout(() => setBoot((n) => n + 1), boot === bootLine.length ? 420 : 38);
+    if (phase === "cable" || phase === "warm") return;
+    const t = setTimeout(() => setBoot((n) => n + 2), boot >= total - 1 ? 520 : 22);
     return () => clearTimeout(t);
-  }, [boot, bootLine.length]);
+  }, [boot, total, phase]);
 
   useEffect(() => {
     const on = () => setHidden(document.hidden);
     document.addEventListener("visibilitychange", on);
-    return () => document.removeEventListener("visibilitychange", on);
+    const t = setInterval(() => setNow(clock()), 15_000);
+    return () => {
+      document.removeEventListener("visibilitychange", on);
+      clearInterval(t);
+    };
   }, []);
 
-  // Typing always brings the echo back into view.
   useEffect(() => {
-    if (typed) setPage("mark");
+    if (typed) setPage("home");
   }, [typed]);
 
   const hasFit = !!model && !loading && model.fit !== "unknown";
-  const pages: Page[] = hasFit ? ["mark", "system", "fit"] : ["mark", "system"];
-  const cur = pages.includes(page) ? page : "mark";
+  const pages: Page[] = ["home", "sys", ...(hasFit ? (["fit"] as Page[]) : []), "speed"];
+  const cur = pages.includes(page) ? page : "home";
   const next = () => setPage(pages[(pages.indexOf(cur) + 1) % pages.length]);
 
-  const booting = boot <= bootLine.length;
+  const booting = boot <= total;
   const echo = typed.replace(/\s+/g, " ");
-  const status = loading ? "loading model" : model ? "ready" : "no model";
+  const status = loading ? "LOADING" : model ? "READY" : "NO MODEL";
+  const last = tps.length ? tps[tps.length - 1] : null;
 
   let body;
   if (booting) {
+    let left = boot;
     body = (
-      <div className="rc-lines">
-        <div className="rc-hi">{bootLine.slice(0, boot)}</div>
-        {boot >= bootLine.length && <div>boot ok</div>}
+      <div className="rc-lines rc-post">
+        {post.map((l, i) => {
+          const n = Math.max(0, Math.min(l.length, left));
+          left -= l.length;
+          return n > 0 ? (
+            <div key={i} className={i === 0 || i === post.length - 1 ? "rc-hi" : ""}>
+              {l.slice(0, n)}
+            </div>
+          ) : null;
+        })}
       </div>
     );
-  } else if (cur === "system") {
+  } else if (cur === "sys") {
     body = (
-      <div className="rc-lines">
-        <div className="rc-hi">v{version}</div>
-        <div>{cpu}</div>
-        <div>{threads}</div>
-        <div className={loading || !model ? "rc-hi" : ""}>{loading ? "loading…" : model ? model.name : "no model"}</div>
-        {model && !loading && <div>ctx {model.context.toLocaleString()}</div>}
+      <div className="rc-lines rc-table">
+        <div><b>VER</b> {version}</div>
+        <div><b>CPU</b> {cpu} · {threads.split(" ")[0]}</div>
+        {ram && <div><b>RAM</b> {ram}</div>}
+        <div className="rc-hi"><b>LLM</b> {loading ? "loading…" : model ? `${model.name}` : "none"}</div>
+        {model && !loading && <div><b>CTX</b> {model.context.toLocaleString()} · {model.quant}</div>}
       </div>
     );
   } else if (cur === "fit" && model && model.fit !== "unknown") {
     const [word, sub] = FIT_WORD[model.fit];
+    const lvl = model.fit === "fits_with_margin" ? 8 : model.fit === "tight" ? 5 : 2;
     body = (
       <div className="rc-lines rc-fit">
         <div>fit on this pc</div>
         <div className="rc-big">{word}</div>
+        <div className="rc-meter" aria-hidden>
+          {Array.from({ length: 10 }, (_, i) => (
+            <i key={i} className={i < lvl ? "on" : ""} />
+          ))}
+        </div>
         <div>{sub}</div>
+      </div>
+    );
+  } else if (cur === "speed") {
+    body = tps.length ? (
+      <div className="rc-lines rc-speed">
+        <div className="rc-row">
+          <span>tok/s</span>
+          <span className="rc-big">{last!.toFixed(1)}</span>
+        </div>
+        <Spark data={tps} />
+        <div className="rc-row">
+          <span>peak {Math.max(...tps).toFixed(1)}</span>
+          <span>{tps.length} runs</span>
+        </div>
+      </div>
+    ) : (
+      <div className="rc-lines rc-fit">
+        <div>tok/s</div>
+        <div className="rc-big">--</div>
+        <div>no runs yet</div>
       </div>
     );
   } else {
     body = (
       <div className="rc-lines rc-markpage">
-        <div className="rc-top" aria-hidden>
-          eigencore
-        </div>
         <svg className="rc-mark" viewBox="0 0 13 7" aria-hidden shapeRendering="crispEdges">
           <path d={EC_PATH} />
         </svg>
         {echo ? (
           <div className="rc-prompt">
-            &gt;{echo.length > 11 ? "…" + echo.slice(-10) : echo}
+            &gt; {echo.length > 18 ? "…" + echo.slice(-17) : echo}
             <i className="rc-cursor" />
           </div>
-        ) : loading || !model ? (
-          <div className="rc-prompt rc-hi">{loading ? "loading…" : "no model"}</div>
         ) : (
           <div className="rc-prompt">
-            &gt;<i className="rc-cursor" />
+            &gt; {loading ? "loading model…" : model ? "ask me anything" : "pick a model"}
+            <i className="rc-cursor" />
           </div>
         )}
       </div>
     );
   }
 
-  const where = booting ? "booting" : cur === "system" ? "system details" : cur === "fit" ? "model fit" : "EigenCore mark";
+  const where = booting ? "booting" : { home: "home", sys: "system details", fit: "model fit", speed: "speed" }[cur];
 
-  // Hover tilt: a few degrees toward the pointer, set as CSS vars, one write
-  // per animation frame, only while the pointer is over the computer.
   const rootRef = useRef<HTMLSpanElement>(null);
   const rafRef = useRef(0);
   const ptRef = useRef({ x: 0, y: 0 });
@@ -311,16 +431,11 @@ export function RetroComputer({
   };
 
   return (
-    <span ref={rootRef} className={`rc ${hidden ? "paused" : ""}`} onPointerMove={onMove} onPointerLeave={onLeave}>
+    <span ref={rootRef} className={`rc phase-${phase} ${hidden ? "paused" : ""}`} onPointerMove={onMove} onPointerLeave={onLeave}>
       <span className="rc-stage">
         <span className="rc-obj">
           {SCENE}
           <span className="rc-face rc-bezel" style={face(BEZEL, "f")} aria-hidden>
-            <span className="rc-dots">
-              {pages.map((p) => (
-                <i key={p} className={!booting && p === cur ? "on" : ""} />
-              ))}
-            </span>
           </span>
           <Box b={LED} cls={`rc-bump rc-led ${loading ? "busy" : model ? "on" : ""}`} />
           <button
@@ -328,11 +443,25 @@ export function RetroComputer({
             className="rc-face rc-screen"
             style={face(GLASS, "f")}
             onClick={next}
-            aria-label={`EigenCore screen, showing ${where}. Model: ${status}. Press to show the next page.`}
-            title="Click for system details"
+            aria-label={`EigenCore screen, showing ${where}. Model: ${status.toLowerCase()}. Press to show the next page.`}
+            title="Click to flip pages"
           >
             <span className="rc-glass mono" aria-live="off">
-              {body}
+              <span className="rc-bar">
+                <span>
+                  <i className={`rc-dot ${loading ? "busy" : model ? "on" : ""}`} />
+                  {booting ? "POST" : status}
+                </span>
+                <span>{now}</span>
+              </span>
+              <span className="rc-body">{body}</span>
+              <span className="rc-tabs">
+                {pages.map((p) => (
+                  <i key={p} className={!booting && p === cur ? "on" : ""}>
+                    {TAB[p]}
+                  </i>
+                ))}
+              </span>
             </span>
             <span className="rc-scan" aria-hidden />
           </button>
@@ -342,17 +471,55 @@ export function RetroComputer({
   );
 }
 
-/** "EIGEN [computer] CORE": the empty-chat heading. */
-export function Wordmark(props: Parameters<typeof RetroComputer>[0]) {
+/** One word written by hand, like the Mac "hello": the letters are a smooth
+ * script font, revealed by a round pen that travels along their centre lines. */
+function Hello({ word, start, dur, writing: intro, label }: { word: HelloWord; start: number; dur: number; writing: boolean; label: string }) {
+  const id = `hello-${label}`;
+  // Drop the mask once the word is written, so the letters render untouched.
+  const [writing, setWriting] = useState(intro);
+  useEffect(() => {
+    if (!intro) return;
+    const t = setTimeout(() => setWriting(false), start + dur + 250);
+    return () => clearTimeout(t);
+  }, [intro, start, dur]);
+  const total = word.guides.reduce((n, g) => n + g.len, 0);
+  // Pen speed eases in and out over the whole word, like a real flourish.
+  const ease = (u: number) => (1 - Math.cos(Math.PI * u)) / 2;
+  let done = 0;
+  const size = { "--hk": (word.h / (word.base - 4)).toFixed(3), "--desc": ((word.h - word.base) / word.h).toFixed(3) } as CSSProperties;
   return (
-    <div className="ec-wordmark" role="group" aria-label="EigenCore">
-      <span className="wm-word" aria-hidden>
-        EIGEN
-      </span>
+    <svg className={`hello ${writing ? "writing" : ""}`} viewBox={`0 0 ${word.w} ${word.h}`} style={size} aria-hidden data-word={label}>
+      {writing && (
+        <defs>
+          <mask id={id} maskUnits="userSpaceOnUse" x={0} y={0} width={word.w} height={word.h}>
+            <g className="hello-pen">
+              {word.guides.map((g, i) => {
+                const t0 = start + dur * ease(done / total);
+                done += g.len;
+                const t = Math.max(30, start + dur * ease(done / total) - t0);
+                const st = { "--d": `${Math.round(t0)}ms`, "--t": `${Math.round(t)}ms` } as CSSProperties;
+                return <path key={i} d={g.d} pathLength={1} style={st} />;
+              })}
+            </g>
+          </mask>
+        </defs>
+      )}
+      <g mask={writing ? `url(#${id})` : undefined}>
+        <path className="hello-ink" d={word.glyph} transform={`translate(${word.tx} ${word.ty})`} strokeWidth={word.thick} />
+      </g>
+    </svg>
+  );
+}
+
+/** "Eigen [computer] Core": the empty-chat heading. On the first show the
+ * computer powers up, then each word writes itself. */
+export function Wordmark(props: Parameters<typeof RetroComputer>[0]) {
+  const [writing] = useState(introPending);
+  return (
+    <div className="ec-wordmark script" role="group" aria-label="EigenCore">
+      <Hello word={HELLO.Eigen} label="Eigen" start={T_POST + 150} dur={1700} writing={writing} />
       <RetroComputer {...props} />
-      <span className="wm-word" aria-hidden>
-        CORE
-      </span>
+      <Hello word={HELLO.Core} label="Core" start={T_POST + 1950} dur={1250} writing={writing} />
     </div>
   );
 }
