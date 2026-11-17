@@ -4,6 +4,18 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-11-17
+
+The desktop app opens full screen with a new animated monitor, provider logos are back in colour, and the engine now sizes context and the KV cache from the model's real shape.
+
+### Added
+- Desktop app: the retro monitor on the empty chat is bigger and deeper (a chunky CRT). On the first open of each session it plays a short power-up: the cable plugs in, the screen warms up, a boot screen runs, then "Eigen" and "Core" are written by hand in a smooth script, like Apple's "hello". The screen has tabs: HOME, SYS, FIT and SPD (a live tokens-per-second line). The handwriting font is Sacramento (SIL OFL 1.1, credited in `ui/CREDITS.md`).
+- Desktop app: model provider logos are shown in their official colours.
+
+### Changed
+- Desktop app: the window opens maximized instead of 1180 × 760.
+- Version 0.4.9. The browser preview's mock updater now demos `v0.4.10`.
+
 ### Fixed
 - Context default: the engine opened every model with the profiler's geometry-free `0.002 × params` rule (falling back to 2048), clamped to the registry context. It now computes `n_ctx` with the fit estimator from the model's real GGUF geometry and the chosen KV type: the largest power-of-two context whose KV cache fits the RAM budget, capped at 16K on CPU by default (llama.cpp reserves the whole KV cache up front) and clamped to the GGUF maximum context, with a floor of 2048 (never above the model's maximum). The profiler figure is used only when the GGUF cannot be read. Benchmark snapshots record the `n_ctx` actually used. The CLI `run` line, the TUI header, context bar and `/context`, and the desktop settings now show this `n_ctx` the model actually opened with, instead of the profiler figure.
 - Fit estimator, MoE: active weights per token were `params × expert_used_count / expert_count`, which drops attention, embeddings and shared experts. They are now summed from the GGUF tensor sizes: every never-routed tensor in full plus `used/count` × the `*_exps` tensors. Without tensor sizes (model not downloaded) no active figure is guessed and the decode ceiling uses the full weights.

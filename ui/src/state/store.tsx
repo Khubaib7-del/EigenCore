@@ -433,8 +433,8 @@ function initialState(boot?: Boot): State {
     paletteOpen: q.get("palette") === "1",
   };
   const up = q.get("update");
-  if (up === "available") s.update = { kind: "available", tag: "v0.4.9", url: "" };
-  if (up === "downloading") s.update = { kind: "downloading", tag: "v0.4.9", pct: 64 };
+  if (up === "available") s.update = { kind: "available", tag: "v0.4.10", url: "" };
+  if (up === "downloading") s.update = { kind: "downloading", tag: "v0.4.10", pct: 64 };
   if (up === "checking") s.update = { kind: "checking" };
   if (q.get("engine") === "writing" || mode === "streaming") s.engine = { phase: "writing", message: "Writing" };
   if (mode === "thinking") s.engine = { phase: "reading", message: "Reading prompt" };
