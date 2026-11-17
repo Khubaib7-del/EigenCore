@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApprovalCard, RollingWord, ThinkingFold, ThinkingOrb, ToolSteps, type OrbState } from "../components/agent";
+import { ApprovalCard, RollingWord, ThinkingFold, ToolSteps } from "../components/agent";
+import { GridLoader, type LoaderKind } from "../components/GridLoader";
 import { Icon, type IconName } from "../components/Icon";
 import { Markdown, openFence, splitThinking } from "../components/Markdown";
 import { Chip, IconButton, useElapsed } from "../components/primitives";
@@ -13,11 +14,11 @@ function greeting() {
   return h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-const SUGGESTIONS: { icon: IconName; short: string; text: string }[] = [
-  { icon: "terminal", short: "rename photos", text: "Write a Python script that renames photos by date" },
-  { icon: "file", short: "summarise", text: "Summarise a long document in five bullet points" },
-  { icon: "sparkles", short: "quantization", text: "Explain how quantization makes models smaller" },
-  { icon: "globe", short: "translate", text: "Translate a paragraph into Urdu" },
+const SUGGESTIONS: { icon: IconName; tint: string; short: string; text: string }[] = [
+  { icon: "terminal", tint: "tint-green", short: "rename photos", text: "Write a Python script that renames photos by date" },
+  { icon: "file", tint: "tint-blue", short: "summarise", text: "Summarise a long document in five bullet points" },
+  { icon: "sparkles", tint: "tint-purple", short: "quantization", text: "Explain how quantization makes models smaller" },
+  { icon: "globe", tint: "tint-teal", short: "translate", text: "Translate a paragraph into Urdu" },
 ];
 
 /* ── Output stats as small bars ─────────────────────────────────────────
@@ -40,14 +41,19 @@ function Meter({ icon, value, unit, frac, title }: { icon: IconName; value: stri
   );
 }
 
-function Stats({ m }: { m: Message }) {
+/* ── Reply footer ────────────────────────────────────────────────────────
+ * The time always shows. The model, the output meters, copy and regenerate
+ * slide in when the pointer is over the reply (or keyboard focus is inside).
+ */
+function ReplyFoot({ m }: { m: Message }) {
   const { state } = useStore();
   const [copied, setCopied] = useState(false);
+  if (m.status === "reading" || m.status === "streaming" || m.status === "awaiting_approval") return null;
   const st = m.stats;
-  if (!st || m.status === "reading" || m.status === "streaming" || m.status === "awaiting_approval") return null;
+  const model = state.models.find((x) => x.name === m.model);
   const measured = m.statsKind !== "placeholder";
-  const rate = st.decode_tok_per_sec ?? st.tok_per_sec;
-  const peak = Math.max(rate, ...state.turns.map((t) => t.decode_tok_per_sec ?? t.tok_per_sec));
+  const rate = st ? (st.decode_tok_per_sec ?? st.tok_per_sec) : 0;
+  const peak = st ? Math.max(rate, ...state.turns.map((t) => t.decode_tok_per_sec ?? t.tok_per_sec)) : 0;
   const kind = m.statsKind === "mock" ? "mock stream" : "measured";
   const copy = () => {
     navigator.clipboard?.writeText(splitThinking(m.content).answer).catch(() => {});
@@ -55,72 +61,88 @@ function Stats({ m }: { m: Message }) {
     setTimeout(() => setCopied(false), 1400);
   };
   return (
-    <div className="msg-stats">
-      {m.statsKind === "mock" && <Chip>mock stream</Chip>}
+    <div className="reply-foot">
+      {m.status === "stopped" && <GridLoader kind="stopped" size={11} />}
+      {m.status === "error" && <GridLoader kind="error" size={11} />}
       {m.status === "stopped" && <Chip tone="warn">Stopped</Chip>}
       {m.status === "error" && <Chip tone="err">Error</Chip>}
-      <Meter
-        icon="bolt"
-        value={measured ? rate.toFixed(1) : "—"}
-        unit="tok/s"
-        frac={measured && peak > 0 ? rate / peak : null}
-        title={measured ? `Output speed after the first token (${kind}). Bar: against the fastest reply this session.` : "Speed is measured once the UI is connected to the engine"}
-      />
-      <Meter
-        icon="hash"
-        value={st.tokens.toLocaleString()}
-        unit="tokens"
-        frac={m.budget ? st.tokens / m.budget : null}
-        title={m.budget ? `${st.tokens} of the ${m.budget} max tokens for this reply` : "Tokens in this reply"}
-      />
-      <Meter
-        icon="clock"
-        value={measured && st.first_token_s != null ? st.first_token_s.toFixed(2) : "—"}
-        unit="s first"
-        frac={measured && st.first_token_s != null && st.seconds > 0 ? st.first_token_s / st.seconds : null}
-        title={measured ? `Time to first token (${kind}); bar: share of the ${st.seconds.toFixed(1)} s total` : "Measured once the UI is connected to the engine"}
-      />
-      <span className="grow" />
-      <IconButton icon={copied ? "check" : "copy"} label={copied ? "Copied" : "Copy reply"} size={14} onClick={copy} />
-      <IconButton icon="refresh" label="Regenerate (coming soon)" size={14} disabled />
+      {st && st.seconds > 0 && (
+        <span className="mono tnum reply-time" title="Time for the whole reply">
+          <Icon name="clock" size={12} />
+          {st.seconds.toFixed(1)} s
+        </span>
+      )}
+      <div className="reply-more">
+        <span className="reply-model">
+          {model && <ProviderLogo provider={model.provider} size={12} />}
+          <span className="mono">{m.model ?? "model"}</span>
+        </span>
+        {st && (
+          <>
+            {m.statsKind === "mock" && <Chip>mock stream</Chip>}
+            <Meter
+              icon="bolt"
+              value={measured ? rate.toFixed(1) : "—"}
+              unit="tok/s"
+              frac={measured && peak > 0 ? rate / peak : null}
+              title={
+                measured
+                  ? `Output speed after the first token (${kind}). Bar: against the fastest reply this session.`
+                  : "Speed is measured once the UI is connected to the engine"
+              }
+            />
+            <Meter
+              icon="hash"
+              value={st.tokens.toLocaleString()}
+              unit="tokens"
+              frac={m.budget ? st.tokens / m.budget : null}
+              title={m.budget ? `${st.tokens} of the ${m.budget} max tokens for this reply` : "Tokens in this reply"}
+            />
+            <Meter
+              icon="timer"
+              value={measured && st.first_token_s != null ? st.first_token_s.toFixed(2) : "—"}
+              unit="s first"
+              frac={measured && st.first_token_s != null && st.seconds > 0 ? st.first_token_s / st.seconds : null}
+              title={
+                measured
+                  ? `Time to first token (${kind}); bar: share of the ${st.seconds.toFixed(1)} s total`
+                  : "Measured once the UI is connected to the engine"
+              }
+            />
+          </>
+        )}
+        <span className="grow" />
+        <IconButton icon={copied ? "check" : "copy"} label={copied ? "Copied" : "Copy reply"} size={14} onClick={copy} className="tint-blue" />
+        <IconButton icon="refresh" label="Regenerate (coming soon)" size={14} disabled />
+      </div>
     </div>
   );
 }
 
-function orbFor(m: Message, thinkingLive: boolean): { orb: OrbState; words: string[] } {
+function liveKind(m: Message, thinkingLive: boolean): { kind: LoaderKind; words: string[] } {
   const { answer } = splitThinking(m.content);
   switch (m.status) {
     case "reading":
-      return { orb: "thinking", words: ["Thinking…", "Analyzing…", "Reading prompt…"] };
+      return { kind: "thinking", words: ["Thinking…", "Analyzing…", "Reading prompt…"] };
     case "streaming":
-      if (thinkingLive) return { orb: "thinking", words: ["Reasoning…"] };
-      return { orb: "writing", words: [openFence(answer) ? "Writing code…" : "Writing…"] };
+      if (thinkingLive) return { kind: "reasoning", words: ["Reasoning…"] };
+      return openFence(answer) ? { kind: "code", words: ["Writing code…"] } : { kind: "writing", words: ["Writing…"] };
     case "awaiting_approval":
-      return m.approval?.decision ? { orb: "thinking", words: ["Thinking…"] } : { orb: "waiting", words: ["Waiting for approval"] };
-    case "stopped":
-      return { orb: "stopped", words: ["Stopped"] };
-    case "error":
-      return { orb: "error", words: ["Error"] };
+      return m.approval?.decision ? { kind: "tool", words: ["Running tool…"] } : { kind: "approval", words: ["Waiting for approval"] };
     default:
-      return { orb: "done", words: ["Done"] };
+      return { kind: "done", words: ["Done"] };
   }
 }
 
-function AgentLine({ m, thinkingLive }: { m: Message; thinkingLive: boolean }) {
-  const { state } = useStore();
-  const model = state.models.find((x) => x.name === m.model);
-  const live = m.status === "reading" || m.status === "streaming" || (m.status === "awaiting_approval" && !!m.approval?.decision);
-  const elapsed = useElapsed(m.startedAt, live);
-  const { orb, words } = orbFor(m, thinkingLive);
+/** Shown only while the reply is in progress: loader, rolling word, timer. */
+function LiveLine({ m, thinkingLive }: { m: Message; thinkingLive: boolean }) {
+  const elapsed = useElapsed(m.startedAt, true);
+  const { kind, words } = liveKind(m, thinkingLive);
   return (
-    <div className={`agent-line ${orb}`}>
-      <ThinkingOrb state={orb} />
-      {model && <ProviderLogo provider={model.provider} size={13} />}
-      <span className="mono agent-model">{m.model ?? "model"}</span>
-      <span className="agent-sep" aria-hidden />
-      {live ? <RollingWord words={words} /> : <span className="agent-word">{words[0]}</span>}
-      {live && m.startedAt !== undefined && <span className="mono muted tnum agent-time">{elapsed}</span>}
-      {!live && m.stats && m.stats.seconds > 0 && <span className="mono muted tnum agent-time">{m.stats.seconds.toFixed(1)} s</span>}
+    <div className={`live-line k-${kind}`}>
+      <GridLoader kind={kind} size={14} />
+      <RollingWord words={words} />
+      {m.startedAt !== undefined && <span className="mono muted tnum agent-time">{elapsed}</span>}
     </div>
   );
 }
@@ -128,10 +150,11 @@ function AgentLine({ m, thinkingLive }: { m: Message; thinkingLive: boolean }) {
 function AssistantMessage({ m, onApprove }: { m: Message; onApprove: (d: "once" | "session" | "deny") => void }) {
   const { thinking, answer, thinkingOpen } = splitThinking(m.content);
   const live = m.status === "streaming" || m.status === "reading";
+  const working = live || m.status === "awaiting_approval";
   const pending = m.approval && !m.approval.decision ? m.approval.tool_name : null;
   return (
-    <article className="msg assistant">
-      <AgentLine m={m} thinkingLive={thinkingOpen && live} />
+    <article className="msg assistant" tabIndex={-1}>
+      {working && <LiveLine m={m} thinkingLive={thinkingOpen && live} />}
       <div className="agent-body">
         {((m.tools && m.tools.length > 0) || pending) && <ToolSteps calls={m.tools ?? []} pending={pending} />}
         {m.approval && <ApprovalCard request={m.approval} decision={m.approval.decision} onDecide={onApprove} />}
@@ -142,7 +165,28 @@ function AssistantMessage({ m, onApprove }: { m: Message; onApprove: (d: "once" 
             <Icon name="alert" size={14} /> {m.error}
           </div>
         )}
-        <Stats m={m} />
+      </div>
+      <ReplyFoot m={m} />
+    </article>
+  );
+}
+
+function UserMessage({ m }: { m: Message }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <article className="msg user">
+      <div className="query">{m.content}</div>
+      <div className="query-foot">
+        <IconButton
+          icon={copied ? "check" : "copy"}
+          label={copied ? "Copied" : "Copy message"}
+          size={13}
+          onClick={() => {
+            navigator.clipboard?.writeText(m.content).catch(() => {});
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1400);
+          }}
+        />
       </div>
     </article>
   );
@@ -157,10 +201,40 @@ export function ChatScreen() {
   const [fill, setFill] = useState<{ text: string; n: number } | null>(null);
   const [draft, setDraft] = useState("");
   const putInComposer = (text: string) => setFill((f) => ({ text, n: (f?.n ?? 0) + 1 }));
-  useEffect(() => {
+  /* Follow the reply only while the reader is at the bottom. Scrolling up
+   * frees the view; the arrow button (or sending) sticks it again. */
+  const [stuck, setStuck] = useState(true);
+  const stuckRef = useRef(true);
+  const lastTop = useRef(0);
+  const onScroll = () => {
     const el = scroller.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [last?.content, last?.status, chat?.messages.length]);
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    const wentUp = el.scrollTop < lastTop.current - 2;
+    lastTop.current = el.scrollTop;
+    // only the reader scrolling up unsticks; content growing never does
+    if (stuckRef.current && !atBottom && !wentUp) return;
+    if (atBottom !== stuckRef.current) {
+      stuckRef.current = atBottom;
+      setStuck(atBottom);
+    }
+  };
+  const toBottom = (smooth = true) => {
+    const el = scroller.current;
+    if (!el) return;
+    stuckRef.current = true;
+    setStuck(true);
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "instant" });
+  };
+  useEffect(() => {
+    if (stuckRef.current) {
+      const el = scroller.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
+    }
+  }, [last?.content, last?.status]);
+  useEffect(() => {
+    toBottom(false);
+  }, [chat?.messages.length, chat?.id]);
 
   const active = state.models.find((m) => m.name === state.activeModel);
   const commands = useMemo<SlashCommand[]>(
@@ -192,7 +266,10 @@ export function ChatScreen() {
   const meter = active ? <ContextMeter used={used} total={active.context_length} /> : null;
   const bar = (
     <PromptBar
-      onSend={actions.send}
+      onSend={(t) => {
+        stuckRef.current = true;
+        actions.send(t);
+      }}
       onStop={actions.stop}
       busy={busy}
       disabled={!state.activeModel || state.engine.phase === "loading"}
@@ -226,7 +303,12 @@ export function ChatScreen() {
             version={state.version}
             model={active ? { name: active.name, quant: active.quant, context: active.context_length, fit: active.fit } : null}
             loading={state.engine.phase === "loading"}
-            cpu={p.cpu_name.replace(/\(R\)|\(TM\)|CPU|@.*$/gi, "").replace(/\s+/g, " ").replace(/^(Intel|AMD)\s+(Core\s+)?/i, "").trim().slice(0, 13)}
+            cpu={p.cpu_name
+              .replace(/\(R\)|\(TM\)|CPU|@.*$/gi, "")
+              .replace(/\s+/g, " ")
+              .replace(/^(Intel|AMD)\s+(Core\s+)?/i, "")
+              .trim()
+              .slice(0, 13)}
             threads={`${p.recommended_threads}/${p.logical_cores} threads`}
             typed={draft}
             tps={state.tps}
@@ -239,13 +321,13 @@ export function ChatScreen() {
           <div className="suggestions">
             {SUGGESTIONS.map((s) => (
               <button key={s.text} className="suggestion" onClick={() => putInComposer(s.text)} title="Put this in the message box">
-                <Icon name={s.icon} size={14} />
+                <Icon name={s.icon} size={14} className={s.tint} />
                 <span>{s.text}</span>
               </button>
             ))}
           </div>
           <p className="local-note muted">
-            <Icon name="shieldCheck" size={13} /> Runs on your CPU. Chats stay on this device.
+            <Icon name="shieldCheck" size={13} className="tint-green" /> Runs on your CPU. Chats stay on this device.
           </p>
         </div>
       </div>
@@ -255,7 +337,7 @@ export function ChatScreen() {
   return (
     <div className="chat">
       <div className="chat-head">
-        <Icon name="chat" size={15} className="muted" />
+        <Icon name="chat" size={15} className="tint-blue" />
         <h1 className="ellipsis">{chat.title}</h1>
         <span className="grow" />
         {active && (
@@ -266,20 +348,30 @@ export function ChatScreen() {
         )}
         <IconButton icon="dots" label="Chat options (coming soon)" disabled />
       </div>
-      <div className="chat-scroll" ref={scroller}>
+      <div className="chat-scroll" ref={scroller} onScroll={onScroll}>
         <div className="thread">
           {chat.messages.map((m) =>
             m.role === "user" ? (
-              <article key={m.id} className="msg user">
-                <div className="bubble">{m.content}</div>
-              </article>
+              <UserMessage key={m.id} m={m} />
             ) : (
               <AssistantMessage key={m.id} m={m} onApprove={(d) => m.approval && actions.approve(m.id, m.approval.id, d)} />
             ),
           )}
         </div>
       </div>
-      <div className="chat-composer">{bar}</div>
+      <div className="chat-composer">
+        <button
+          className={`to-bottom ${stuck ? "" : "show"} ${busy ? "live" : ""}`}
+          onClick={() => toBottom()}
+          aria-label="Scroll to the latest message"
+          title="Jump to latest"
+          tabIndex={stuck ? -1 : 0}
+        >
+          {busy && !stuck && <GridLoader kind="writing" size={10} />}
+          <Icon name="arrowDown" size={16} />
+        </button>
+        {bar}
+      </div>
     </div>
   );
 }
