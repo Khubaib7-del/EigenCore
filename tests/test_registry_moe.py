@@ -19,6 +19,7 @@ def test_qwen3_30b_a3b_registered_as_moe():
     assert abs(active - 1.90625) < 1e-9
 
 
-def test_dense_specs_are_not_moe():
-    dense = [x for x in REGISTRY if x.name != "qwen3-30b-a3b"]
-    assert all(not x.is_moe for x in dense)
+def test_moe_flag_matches_moe_tag():
+    # every curated MoE carries expert counts (from its GGUF header) and the "moe" tag
+    for x in REGISTRY:
+        assert x.is_moe == ("moe" in x.tags), x.name

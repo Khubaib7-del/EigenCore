@@ -169,6 +169,8 @@ def provider_for(name: str, repo_id: str = "") -> str:
 
 def model_row_dict(row, spec=None) -> dict:
     """ModelRow (+ repo_id, provider, active_params_b, license) as the UI's ModelRow."""
+    from eigencore.models.hf_catalog import licence_kind
+
     d = asdict(row)
     repo_id = getattr(spec, "repo_id", "") if spec is not None else ""
     d["repo_id"] = repo_id
@@ -176,9 +178,26 @@ def model_row_dict(row, spec=None) -> dict:
     lic = (getattr(spec, "license_name", None) or getattr(spec, "license", None)) if spec else None
     d["license"] = lic
     d["noncommercial"] = bool(getattr(spec, "noncommercial", False)) if spec is not None else False
+    d["licence_kind"] = (
+        licence_kind(getattr(spec, "license", None), getattr(spec, "license_name", None))
+        if spec is not None
+        else "unknown"
+    )
+    if spec is not None and d["noncommercial"]:
+        d["licence_kind"] = "noncommercial"
+    d["license_url"] = getattr(spec, "license_url", None) if spec is not None else None
+    d["tags"] = list(getattr(spec, "tags", ()) or ()) if spec is not None else []
+    d["ram_class"] = getattr(spec, "ram_class", None) if spec is not None else None
+    d["source"] = getattr(spec, "source", "curated") if spec is not None else "curated"
+    d.setdefault("fit_detail", None)
     m = _ACTIVE_RE.search(row.description or "")
     if m and spec is not None and getattr(spec, "is_moe", False):
         d["active_params_b"] = float(m.group(1))
+    elif spec is not None and getattr(spec, "is_moe", False):
+        geo = getattr(spec, "geometry", None) or {}
+        if geo.get("active_bytes") and spec.size_bytes:
+            # active share of the file, as parameters (an estimate from GGUF tensor bytes)
+            d["active_params_b"] = round(spec.params_b * geo["active_bytes"] / spec.size_bytes, 1)
     return d
 
 
@@ -407,6 +426,85 @@ class WebBridge:
 
     def switch_model(self, name: str) -> None:
         self._be().switch_model(name)
+
+    # ----- Hugging Face catalog (second tier) ------------------------------------
+    def search_models(self, query: str = "") -> dict:
+        """Live Hugging Face search for GGUF models, with a fit verdict per row.
+
+        Rows have the ModelRow shape (``source: "hf-search"``, ``name`` =
+        ``repo_id:file``) so the Models screen renders them like curated ones.
+        The verdict is from the file size only ("too big" or "unknown") until
+        ``check_fit`` reads the file's header. Never raises: offline it returns
+        cached results or an error string.
+        """
+        from eigencore.models.fit_check import min_runtime_for
+
+        be = self._be()
+        q = str(query or "").strip()[:100]
+        if not q:
+            return {"query": q, "results": [], "error": None}
+        catalog = be.registry.catalog
+        entries = catalog.search(q)
+        rows = []
+        for e in entries:
+            spec = be.registry.find(e.name) or e.to_spec(min_runtime=min_runtime_for(e.arch))
+            row = be.model_row(spec)
+            d = model_row_dict(row, spec)
+            d["source"] = spec.source
+            d["licence_kind"] = "noncommercial" if e.noncommercial else e.licence_kind
+            d["downloads"] = e.downloads
+            d["trusted"] = e.trusted
+            d["gated"] = e.gated
+            rows.append(d)
+        return {"query": q, "results": rows, "error": catalog.last_error if not rows else None}
+
+    def check_fit(self, name: str) -> dict:
+        """Fit verdict for one model before download: reads the GGUF header over
+        HTTP Range (a few MB) for search results; curated rows already know it.
+        Returns ``{"name", "fit", "fit_detail", "error"}``."""
+        from eigencore.fit.gguf_remote import hf_file_url, model_info_from_header, read_header
+        from eigencore.models.fit_check import fit_report, min_runtime_for
+
+        be = self._be()
+        cache = self.__dict__.setdefault("_fit_cache", {})
+        if name in cache:
+            return cache[name]
+        try:
+            spec = be.registry.find(name) or be.registry.resolve_ref(name)
+            if spec.geometry or be.registry.is_downloaded(spec):
+                row = be.model_row(spec)
+                out = {"name": name, "fit": row.fit, "fit_detail": row.fit_detail, "error": None}
+            else:
+                hdr = read_header(hf_file_url(spec.repo_id, spec.filename), timeout=20)
+                info = model_info_from_header(hdr, spec.size_bytes)
+                need = min_runtime_for(info.architecture, hdr.kv.get("tokenizer.ggml.pre"))
+                from dataclasses import replace
+
+                spec = replace(
+                    spec,
+                    arch=info.architecture or spec.arch,
+                    min_runtime=need or spec.min_runtime,
+                    context_length=info.context_length or spec.context_length,
+                )
+                rep = fit_report(
+                    spec,
+                    be.profile,
+                    geometry=info.geometry,
+                    active_bytes=info.active_weight_bytes,
+                    basis="header",
+                )
+                from eigencore.desktop.backend import _LEGACY_VERDICT
+
+                out = {
+                    "name": name,
+                    "fit": _LEGACY_VERDICT[rep.verdict],
+                    "fit_detail": rep.to_dict(),
+                    "error": None,
+                }
+        except Exception as e:
+            return {"name": name, "fit": "unknown", "fit_detail": None, "error": f"{e}"}
+        cache[name] = out
+        return out
 
     def send(self, text: str, opts: Optional[dict] = None) -> None:
         opts = opts or {}

@@ -42,6 +42,8 @@ datas = [
     (str(ASSETS), "eigencore/desktop/assets"),  # Path(__file__).parent / "assets"
     # curated model registry, read via Path(__file__).with_name("models.json")
     (str(SRC / "eigencore" / "models" / "models.json"), "eigencore/models"),
+    # arch / tokenizer -> first llama-cpp-python release that loads it (fit_check)
+    (str(SRC / "eigencore" / "models" / "runtime_support.json"), "eigencore/models"),
 ]
 binaries = []
 hiddenimports = collect_submodules("eigencore") + ["clr"]

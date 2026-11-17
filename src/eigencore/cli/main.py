@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import click
 from rich.console import Console
@@ -244,9 +245,17 @@ def models(task: str | None):
     table.add_column("Downloaded?", justify="center")
     table.add_column("Description")
 
+    from eigencore.models.fit_check import fit_report
+
+    pre = {"fits": "fits_with_margin", "tight": "tight", "too_big": "does_not_fit"}
     for m in sorted(available, key=lambda x: x.params_b):
         est, _, _ = _fit_for_spec(m, hw, registry)
         downloaded = registry.is_downloaded(m)
+        if est.verdict == FitVerdict.UNKNOWN and not downloaded:
+            # curated entries carry their GGUF geometry: verdict before download
+            v = pre.get(fit_report(m, hw).verdict)
+            if v:
+                est = SimpleNamespace(verdict=FitVerdict(v))
         if est.verdict == FitVerdict.FITS_WITH_MARGIN:
             fits_label, fits_style = "fits", "green"
         elif est.verdict == FitVerdict.TIGHT:
@@ -268,7 +277,10 @@ def models(task: str | None):
         )
 
     console.print(table)
-    console.print("[dim]* 'unknown*' = exact fit needs the model downloaded (GGUF geometry)[/]")
+    console.print(
+        "[dim]Fit is an estimate at 8K context. * 'unknown*' = needs the GGUF geometry "
+        "(download it, or see `eigencore search`)[/]"
+    )
 
 
 @cli.command()
@@ -294,10 +306,53 @@ def download(name: str):
 
     try:
         path = registry.download(model)
+        if model.source == "hf-search":
+            registry.add_custom(model)  # keep it in `eigencore models` from now on
         console.print(f"\n[green]Downloaded:[/] {path}")
     except Exception as e:
         console.print(f"\n[red]Download failed:[/] {e}")
         sys.exit(1)
+
+
+@cli.command()
+@click.argument("query")
+@click.option("--limit", default=10, show_default=True, help="Max results")
+def search(query: str, limit: int):
+    """Search Hugging Face for GGUF models and show the fit on this machine."""
+    from eigencore.models.fit_check import fit_report, min_runtime_for
+
+    registry = ModelRegistry()
+    hw = profile_hardware()
+    entries = registry.catalog.search(query, limit=limit)
+    if not entries:
+        why = registry.catalog.last_error
+        console.print(f"[yellow]No GGUF models found[/]{f' ({why})' if why else ''}.")
+        return
+    table = Table(title=f"Hugging Face: {query}")
+    table.add_column("Download as", style="cyan", overflow="fold")
+    table.add_column("Size", justify="right")
+    table.add_column("Ctx", justify="right")
+    table.add_column("Licence")
+    table.add_column("Fits?", justify="center")
+    for e in entries:
+        spec = registry.find(e.name) or e.to_spec(min_runtime=min_runtime_for(e.arch))
+        rep = fit_report(spec, hw)
+        style = {"fits": "green", "tight": "yellow", "too_big": "red"}.get(rep.verdict, "dim")
+        lic = e.license_name or e.license or "?"
+        if e.noncommercial:
+            lic = f"[yellow]{lic} (NC)[/]"
+        table.add_row(
+            spec.name,
+            f"{e.size_gb:.1f}GB",
+            f"{e.context_length:,}" if e.context_length else "?",
+            lic,
+            f"[{style}]{rep.verdict.replace('_', ' ')}[/]",
+        )
+    console.print(table)
+    console.print(
+        "[dim]Fit is an estimate from the file size (and the model's shape for curated "
+        "models). Download with: eigencore download <name>[/]"
+    )
 
 
 @cli.command()

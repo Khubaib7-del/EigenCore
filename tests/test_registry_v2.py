@@ -107,7 +107,9 @@ def test_recommend_skips_noncommercial(tmp_path, monkeypatch):
 def test_recommend_skips_arch_the_runtime_cannot_load(tmp_path, monkeypatch):
     monkeypatch.setattr(reg, "runtime_version", lambda: "0.3.9")
     r = ModelRegistry(cache_dir=tmp_path)
-    assert r.recommend(_profile(16.0), task="code").name == "qwen2.5-coder-1.5b"
+    pick = r.recommend(_profile(16.0), task="code")
+    assert pick.name != "granite-4.2-8b"  # needs 0.3.17
+    assert runtime_supports(pick, "0.3.9")
 
 
 def test_runtime_supports_versions():
