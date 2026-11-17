@@ -3,7 +3,8 @@ GGUF metadata reader - architecture-aware model geometry.
 
 Reads general.architecture and the per-architecture keys
 ({arch}.block_count, {arch}.embedding_length, {arch}.attention.head_count,
-{arch}.attention.head_count_kv, {arch}.context_length) from a GGUF file.
+{arch}.attention.head_count_kv, {arch}.attention.key_length/value_length,
+{arch}.context_length) from a GGUF file.
 Prefers the pure-Python gguf package; falls back to llama_cpp.Llama.metadata
 when loadable that way. Returns None when neither is available.
 """
@@ -86,6 +87,8 @@ def _from_gguf_package(path: Path) -> GGUFModelInfo | None:
         num_kv_heads=arch_int("attention.head_count_kv"),
         expert_count=arch_int("expert_count"),
         expert_used_count=arch_int("expert_used_count"),
+        key_length=arch_int("attention.key_length"),
+        value_length=arch_int("attention.value_length"),
     )
     ctx = arch_int("context_length") or arch_int("attention.context_length")
     params = get("general.parameter_count")
@@ -123,6 +126,8 @@ def _from_llama_metadata(path: Path) -> GGUFModelInfo | None:
         num_kv_heads=m("attention.head_count_kv"),
         expert_count=m("expert_count"),
         expert_used_count=m("expert_used_count"),
+        key_length=m("attention.key_length"),
+        value_length=m("attention.value_length"),
     )
     return GGUFModelInfo(
         architecture=arch,
