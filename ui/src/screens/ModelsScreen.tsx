@@ -3,6 +3,7 @@ import type { ModelRow } from "../api";
 import { Icon } from "../components/Icon";
 import { Button, Chip, Dialog, FitChip, IconButton, Progress, Segmented } from "../components/primitives";
 import { ProviderLogo, PROVIDER_NAME } from "../components/ProviderLogo";
+import { Spinner } from "../components/Spinner";
 import { useStore } from "../state/store";
 
 type Filter = "all" | "downloaded" | "code";
@@ -44,6 +45,7 @@ function ModelCard({ m, onDelete }: { m: ModelRow; onDelete: () => void }) {
           <div className="model-dl">
             <Progress value={pct} label={`Downloading ${m.name}`} />
             <span className="mono tnum muted">
+              <Spinner kind="steps" tone="teal" size={14} />
               {Math.round(pct)}% · {((pct / 100) * m.size_gb).toFixed(1)} of {m.size_gb.toFixed(1)} GB
             </span>
           </div>
@@ -71,7 +73,7 @@ function ModelCard({ m, onDelete }: { m: ModelRow; onDelete: () => void }) {
               />
             </>
           ) : downloading ? (
-            <Button size="sm" disabled>
+            <Button size="sm" busy>
               Downloading…
             </Button>
           ) : (

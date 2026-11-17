@@ -3,6 +3,7 @@ import type { ApprovalDecision, ApprovalRequest } from "../api";
 import type { ToolCall } from "../state/store";
 import { GridLoader } from "./GridLoader";
 import { Icon, type IconName } from "./Icon";
+import { Spinner } from "./Spinner";
 import { Kbd, Shimmer } from "./primitives";
 
 /** A status word that rolls up when it changes (Thinking → Analyzing → Writing). */
@@ -125,9 +126,9 @@ const TOOL_ICON: Record<string, IconName> = {
   web_get: "globe",
 };
 
-export function ToolSteps({ calls, pending }: { calls: ToolCall[]; pending?: string | null }) {
+export function ToolSteps({ calls, pending, running }: { calls: ToolCall[]; pending?: string | null; running?: string | null }) {
   const [open, setOpen] = useState(true);
-  const n = calls.length + (pending ? 1 : 0);
+  const n = calls.length + (pending ? 1 : 0) + (running ? 1 : 0);
   if (!n) return null;
   const rows: TreeRow[] = calls.map((c) => ({
     depth: 0,
@@ -153,6 +154,19 @@ export function ToolSteps({ calls, pending }: { calls: ToolCall[]; pending?: str
         <span className="step-status warn">
           <Icon name="shield" size={12} />
           Needs approval
+        </span>
+      ),
+    });
+  if (running)
+    rows.push({
+      depth: 0,
+      icon: TOOL_ICON[running] ?? "wrench",
+      tint: TOOL_TINT[running] ?? "tint-orange",
+      label: <span className="mono">{running}</span>,
+      status: (
+        <span className="step-status run">
+          {running === "search_files" ? <Spinner kind="radar" tone="sky" size={14} /> : <Spinner kind="orbit" tone="orange" size={14} />}
+          Running
         </span>
       ),
     });

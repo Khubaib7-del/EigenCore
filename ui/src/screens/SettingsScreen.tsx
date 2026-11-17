@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { api, type Settings } from "../api";
 import { Icon } from "../components/Icon";
-import { GridLoader } from "../components/GridLoader";
+import { Spinner } from "../components/Spinner";
 import { Button, Chip, Progress, Segmented } from "../components/primitives";
 import { ProviderLogo, PROVIDER_NAME } from "../components/ProviderLogo";
 import { useStore } from "../state/store";
@@ -33,7 +33,7 @@ function Updates() {
     case "checking":
       body = (
         <span className="update-line">
-          <GridLoader kind="update" /> Checking GitHub Releases…
+          <Spinner kind="comet" tone="sky" size={16} /> Checking GitHub Releases…
         </span>
       );
       break;
@@ -62,7 +62,7 @@ function Updates() {
     case "ready_to_install":
       body = (
         <span className="update-line">
-          <GridLoader kind="loading" /> Installing {u.tag}. EigenCore closes and reopens on its own.
+          <Spinner kind="hourglass" tone="green" size={16} /> Installing {u.tag}. EigenCore closes and reopens on its own.
         </span>
       );
       break;

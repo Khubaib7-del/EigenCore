@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { FitVerdict } from "../api";
 import { Icon, type IconName } from "./Icon";
 import { GridLoader, type LoaderKind } from "./GridLoader";
+import { Spinner } from "./Spinner";
 
 /* ── Button ─────────────────────────────────────────────── */
 type BtnVariant = "primary" | "secondary" | "ghost" | "danger";
@@ -10,13 +11,22 @@ export function Button({
   variant = "secondary",
   size = "md",
   icon,
+  busy = false,
   children,
   className = "",
+  disabled,
   ...rest
-}: { variant?: BtnVariant; size?: "sm" | "md"; icon?: IconName } & ButtonHTMLAttributes<HTMLButtonElement>) {
+}: {
+  variant?: BtnVariant;
+  size?: "sm" | "md";
+  icon?: IconName;
+  /** Shows a spinner in place of the icon and disables the button. */
+  busy?: boolean;
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const px = size === "sm" ? 14 : 15;
   return (
-    <button className={`btn btn-${variant} btn-${size} ${className}`} {...rest}>
-      {icon && <Icon name={icon} size={size === "sm" ? 14 : 15} />}
+    <button className={`btn btn-${variant} btn-${size} ${busy ? "is-busy" : ""} ${className}`} disabled={disabled || busy} aria-busy={busy || undefined} {...rest}>
+      {busy ? <Spinner kind="ring" size={px} /> : icon && <Icon name={icon} size={px} />}
       {children}
     </button>
   );

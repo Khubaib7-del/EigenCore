@@ -152,11 +152,13 @@ function AssistantMessage({ m, onApprove }: { m: Message; onApprove: (d: "once" 
   const live = m.status === "streaming" || m.status === "reading";
   const working = live || m.status === "awaiting_approval";
   const pending = m.approval && !m.approval.decision ? m.approval.tool_name : null;
+  const ap = m.approval;
+  const running = live && ap?.decision && ap.decision !== "deny" && (m.tools?.length ?? 0) <= (ap.toolsBefore ?? Infinity) ? ap.tool_name : null;
   return (
     <article className="msg assistant" tabIndex={-1}>
       {working && <LiveLine m={m} thinkingLive={thinkingOpen && live} />}
       <div className="agent-body">
-        {((m.tools && m.tools.length > 0) || pending) && <ToolSteps calls={m.tools ?? []} pending={pending} />}
+        {((m.tools && m.tools.length > 0) || pending || running) && <ToolSteps calls={m.tools ?? []} pending={pending} running={running} />}
         {m.approval && <ApprovalCard request={m.approval} decision={m.approval.decision} onDecide={onApprove} />}
         {thinking !== null && <ThinkingFold text={thinking} live={thinkingOpen && live} />}
         {answer && <Markdown text={answer} streaming={m.status === "streaming" && !thinkingOpen} />}

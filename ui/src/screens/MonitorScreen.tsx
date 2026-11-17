@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../api";
 import { Icon, type IconName } from "../components/Icon";
 import { GridLoader } from "../components/GridLoader";
+import { Spinner } from "../components/Spinner";
 import { Chip, Ring, SampleBadge, Segmented, TpsChart } from "../components/primitives";
 import { useStore, type EnginePhase } from "../state/store";
 
@@ -100,7 +101,7 @@ function SpeedCard() {
         </div>
         {view === "live" && writing && (
           <span className="chart-live">
-            <GridLoader kind="live" size={11} /> live
+            <Spinner kind="bars" tone="pink" size={14} /> live
           </span>
         )}
       </div>
