@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { api, type Settings } from "../api";
 import { Icon } from "../components/Icon";
-import { Button, Chip, PixelLoader, Progress, Segmented } from "../components/primitives";
+import { GridLoader } from "../components/GridLoader";
+import { Button, Chip, Progress, Segmented } from "../components/primitives";
 import { ProviderLogo, PROVIDER_NAME } from "../components/ProviderLogo";
 import { useStore } from "../state/store";
 
@@ -32,7 +33,7 @@ function Updates() {
     case "checking":
       body = (
         <span className="update-line">
-          <PixelLoader variant="orbit" /> Checking GitHub Releases…
+          <GridLoader kind="update" /> Checking GitHub Releases…
         </span>
       );
       break;
@@ -61,7 +62,7 @@ function Updates() {
     case "ready_to_install":
       body = (
         <span className="update-line">
-          <PixelLoader variant="orbit" /> Installing {u.tag}. EigenCore closes and reopens on its own.
+          <GridLoader kind="loading" /> Installing {u.tag}. EigenCore closes and reopens on its own.
         </span>
       );
       break;

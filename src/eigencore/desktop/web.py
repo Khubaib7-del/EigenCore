@@ -272,6 +272,7 @@ class WebBridge:
         self._profiler = profiler
         self._window = None
         self._maximized = True  # the window opens maximized
+        self._minimized = False
         self._release = None
         self._update_busy = False
         self._js_ready = threading.Event()
@@ -307,11 +308,43 @@ class WebBridge:
         if self._emit is None:
             self._emit = lambda payload: window.evaluate_js(dispatch_script(payload))
         try:
-            window.events.maximized += lambda *a: setattr(self, "_maximized", True)
-            window.events.restored += lambda *a: setattr(self, "_maximized", False)
+            window.events.maximized += lambda *a: self._on_maximized()
+            window.events.restored += lambda *a: self._on_restored()
             window.events.closed += lambda *a: self._closed.set()
+            window.events.shown += lambda *a: self._on_shown()
+            window.events.minimized += lambda *a: setattr(self, "_minimized", True)
         except Exception:  # older pywebview without these events
             pass
+
+    def _on_shown(self) -> None:
+        if self._window is not None:
+            hwnd = window_hwnd(self._window)
+            if hwnd:
+                enable_native_minimize(hwnd)
+
+    def _on_maximized(self) -> None:
+        self._maximized = True
+        self._minimized = False
+
+    def _on_restored(self) -> None:
+        # "restored" fires both when a minimized window comes back and when a
+        # maximized one is restored. Coming back from the taskbar keeps the
+        # maximized state it had (0.4.10 lost it, so the next Maximize click
+        # did nothing).
+        if self._minimized:
+            self._minimized = False
+            self._notify_window("restored")
+        else:
+            self._maximized = False
+
+    def _notify_window(self, what: str) -> None:
+        """Tell the page the window was restored, so it can fade back in."""
+        if self._window is None or not self._js_ready.is_set():
+            return
+        with contextlib.suppress(Exception):
+            self._window.evaluate_js(
+                f"document.dispatchEvent(new CustomEvent('eigencore:window', {{detail: {json.dumps(what)}}}))"
+            )
 
     def _put(self, *event) -> None:
         self._be().events.put(tuple(event))
@@ -617,8 +650,10 @@ class WebBridge:
         if w is None:
             return False
         if op == "minimize":
+            self._minimized = True
             w.minimize()
         elif op == "toggle_maximize":
+            self._minimized = False  # the page is visible, so it is not minimized
             if self._maximized:
                 w.restore()
                 self._maximized = False
@@ -721,6 +756,74 @@ def primary_screen_area() -> Optional[tuple[int, int, int, int]]:
         return None
 
 
+# Win32 window styles a normal (framed) window has. A frameless WinForms
+# window drops them, which is why Windows skipped the minimize / restore
+# animation and a click on the taskbar button could not minimize it.
+_WS_MAXIMIZEBOX = 0x00010000
+_WS_MINIMIZEBOX = 0x00020000
+_WS_SYSMENU = 0x00080000
+_GWL_STYLE = -16
+_SWP_FLAGS = (
+    0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020
+)  # NOSIZE|NOMOVE|NOZORDER|NOACTIVATE|FRAMECHANGED
+
+
+def window_hwnd(window) -> Optional[int]:
+    """The native handle of a pywebview window on Windows, or None."""
+    native = getattr(window, "native", None)
+    handle = getattr(native, "Handle", None)
+    if handle is None:
+        return None
+    for conv in ("ToInt64", "ToInt32"):
+        fn = getattr(handle, conv, None)
+        if fn is not None:
+            with contextlib.suppress(Exception):
+                return int(fn())
+    with contextlib.suppress(TypeError, ValueError):
+        return int(handle)
+    return None
+
+
+def enable_native_minimize(hwnd: int) -> bool:
+    """Give a frameless window the minimize/maximize/system-menu styles.
+
+    Windows then animates minimize and restore like any other app, and the
+    taskbar button minimizes the window on a second click. The window keeps
+    no caption, so it still looks frameless. Windows only; False elsewhere
+    or on failure.
+    """
+    if sys.platform != "win32" or not hwnd:
+        return False
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+        get = getattr(user32, "GetWindowLongPtrW", None) or user32.GetWindowLongW
+        put = getattr(user32, "SetWindowLongPtrW", None) or user32.SetWindowLongW
+        style = get(hwnd, _GWL_STYLE)
+        want = style | _WS_MINIMIZEBOX | _WS_MAXIMIZEBOX | _WS_SYSMENU
+        if want != style:
+            put(hwnd, _GWL_STYLE, want)
+            user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, _SWP_FLAGS)
+        return True
+    except Exception:
+        log.debug("could not add native window styles", exc_info=True)
+        return False
+
+
+def startup_background(state_path: Optional[Path] = None) -> str:
+    """The window colour before the page paints: the saved theme's background.
+
+    A light-theme user used to see a dark frame flash on start and restore.
+    """
+    path = state_path or (state_dir() / "desktop-ui.json")
+    try:
+        theme = json.loads(path.read_text(encoding="utf-8")).get("theme")
+    except (OSError, ValueError, AttributeError):
+        theme = None
+    return "#FFFFFF" if theme == "light" else "#0A0A0A"
+
+
 def run(debug: bool = False) -> None:
     """Open the web UI window and block until it closes.
 
@@ -766,7 +869,7 @@ def run(debug: bool = False) -> None:
         frameless=True,
         easy_drag=False,
         text_select=True,
-        background_color="#0E0F11",
+        background_color=startup_background(),
     )
     bridge._attach(window)
 

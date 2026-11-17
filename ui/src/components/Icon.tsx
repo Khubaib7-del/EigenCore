@@ -37,6 +37,13 @@ const P = {
   chevronDown: <path d="m6 9 6 6 6-6" />,
   chevronRight: <path d="m9 6 6 6-6 6" />,
   arrowUp: <path d="M12 19V5M6 11l6-6 6 6" />,
+  arrowDown: <path d="M12 5v14M6 13l6 6 6-6" />,
+  timer: (
+    <>
+      <circle cx="12" cy="13.5" r="7" />
+      <path d="M12 13.5V10M10 3h4M18.5 6.5 17 8" />
+    </>
+  ),
   stop: <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none" />,
   copy: (
     <>

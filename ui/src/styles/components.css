@@ -1007,24 +1007,31 @@
   user-select: none;
 }
 .tk-kw {
-  font-weight: 600;
-  color: var(--ink);
+  color: var(--sx-kw);
+  font-weight: 500;
 }
 .tk-str {
-  color: var(--ink-2);
+  color: var(--sx-str);
 }
 .tk-com {
-  color: var(--ink-3);
+  color: var(--sx-com);
   font-style: italic;
 }
 .tk-num {
-  color: inherit;
+  color: var(--sx-num);
 }
 .tk-fn {
-  color: var(--ink);
-  text-decoration: underline;
-  text-decoration-color: var(--line-strong);
-  text-underline-offset: 3px;
+  color: var(--sx-fn);
+}
+.tk-type {
+  color: var(--sx-type);
+}
+.tk-op {
+  color: var(--sx-op);
+}
+.tk-dec {
+  color: var(--sx-type);
+  font-style: italic;
 }
 .codeblock code {
   color: color-mix(in srgb, var(--ink) 86%, var(--ink-2));

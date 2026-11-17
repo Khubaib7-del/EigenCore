@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { FitVerdict } from "../api";
 import { Icon, type IconName } from "./Icon";
+import { GridLoader, type LoaderKind } from "./GridLoader";
 
 /* ── Button ─────────────────────────────────────────────── */
 type BtnVariant = "primary" | "secondary" | "ghost" | "danger";
@@ -131,32 +132,9 @@ export function Shimmer({ children }: { children: ReactNode }) {
   return <span className="shimmer">{children}</span>;
 }
 
-const CHEVRON = Array.from({ length: 9 }, (_, i) => {
-  const r = Math.floor(i / 3),
-    c = i % 3;
-  return (c + Math.abs(r - 1)) * 90;
-});
-const ORBIT_ORDER = [0, 1, 2, 5, 8, 7, 6, 3];
-const ORBIT = Array.from({ length: 9 }, (_, i) => {
-  const k = ORBIT_ORDER.indexOf(i);
-  return k === -1 ? null : k * 110;
-});
-
-/** 3×3 pixel grid. "drive" = chevron wavefront, "orbit" = comet round the edge. */
+/** Old name for the grid loader: "drive" (writing) or "orbit" (checking). */
 export function PixelLoader({ variant = "drive", round = false }: { variant?: "drive" | "orbit"; round?: boolean }) {
-  const delays = variant === "orbit" ? ORBIT : CHEVRON;
-  const dur = variant === "orbit" ? 950 : 650;
-  return (
-    <span aria-hidden className="pixel-grid">
-      {delays.map((d, i) => (
-        <span
-          key={i}
-          className={round ? "round" : ""}
-          style={{ opacity: d === null ? 0.08 : 0.16, animation: d === null ? "none" : `pixel-on ${dur}ms ease-in-out ${d}ms infinite` }}
-        />
-      ))}
-    </span>
-  );
+  return <GridLoader pattern={variant} tone={variant === "orbit" ? "teal" : "blue"} round={round} />;
 }
 
 export function useElapsed(since: number | undefined, running: boolean) {
@@ -172,11 +150,11 @@ export function useElapsed(since: number | undefined, running: boolean) {
 }
 
 /** Loader + shimmering label + live elapsed timer. */
-export function LoadingState({ label, since, variant }: { label: string; since?: number; variant?: "drive" | "orbit" }) {
+export function LoadingState({ label, since, kind = "loading" }: { label: string; since?: number; kind?: LoaderKind }) {
   const elapsed = useElapsed(since, true);
   return (
     <div className="loading-state" role="status" aria-live="polite">
-      <PixelLoader variant={variant} />
+      <GridLoader kind={kind} />
       <Shimmer>{label}</Shimmer>
       {since !== undefined && <span className="mono muted tnum">{elapsed}</span>}
     </div>
@@ -232,19 +210,30 @@ export function Sparkline({ data, height = 64 }: { data: number[]; height?: numb
 }
 
 /** Ring gauge 0..1. */
-export function Ring({ value, size = 64, stroke = 6, children }: { value: number; size?: number; stroke?: number; children?: ReactNode }) {
+export function Ring({ value, size = 64, stroke = 6, children, color }: { value: number; size?: number; stroke?: number; children?: ReactNode; color?: boolean }) {
+  const gid = useId();
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const v = Math.max(0, Math.min(1, value));
   return (
     <span className="ring" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+        {color && (
+          <defs>
+            <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="var(--c-teal)" />
+              <stop offset="60%" stopColor={v > 0.8 ? "var(--c-amber)" : "var(--c-blue)"} />
+              <stop offset="100%" stopColor={v > 0.9 ? "var(--c-red)" : "var(--c-violet)"} />
+            </linearGradient>
+          </defs>
+        )}
         <circle cx={size / 2} cy={size / 2} r={r} className="ring-track" strokeWidth={stroke} fill="none" />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={r}
           className="ring-value"
+          style={color ? { stroke: `url(#${gid})` } : undefined}
           strokeWidth={stroke}
           fill="none"
           strokeDasharray={c}
@@ -311,13 +300,7 @@ export function SoonPill({ title = "Coming soon: not wired up yet" }: { title?: 
 
 /* ── Equalizer loader: the chat-history loader (Monitor keeps the pixel grid) ── */
 export function EqLoader({ label = "Generating" }: { label?: string }) {
-  return (
-    <span className="eq" role="img" aria-label={label}>
-      <i />
-      <i />
-      <i />
-    </span>
-  );
+  return <GridLoader kind="writing" size={11} label={label} />;
 }
 
 /** Closes a popover on outside click and Escape. */
@@ -364,6 +347,7 @@ export function TpsChart({
   height?: number;
   label: string;
 }) {
+  const gid = useId();
   const box = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(560);
   useEffect(() => {
@@ -393,6 +377,17 @@ export function TpsChart({
   return (
     <div className="tps-chart" ref={box}>
       <svg width={w} height={height} viewBox={`0 0 ${w} ${height}`} role="img" aria-label={label}>
+        <defs>
+          <linearGradient id={`${gid}-line`} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="var(--c-teal)" />
+            <stop offset="50%" stopColor="var(--c-blue)" />
+            <stop offset="100%" stopColor="var(--c-violet)" />
+          </linearGradient>
+          <linearGradient id={`${gid}-area`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--c-blue)" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="var(--c-blue)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
         {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={w - padR} y1={sy(t)} y2={sy(t)} className={t === 0 ? "chart-axis" : "chart-grid"} />
@@ -401,8 +396,8 @@ export function TpsChart({
             </text>
           </g>
         ))}
-        {area && <path d={area} className="chart-area" />}
-        {pts.length > 1 && <path d={line} className="chart-line" />}
+        {area && <path d={area} className="chart-area" style={{ fill: `url(#${gid}-area)` }} />}
+        {pts.length > 1 && <path d={line} className="chart-line" style={{ stroke: `url(#${gid}-line)` }} />}
         <line x1={padL} x2={w - padR} y1={sy(avg)} y2={sy(avg)} className="chart-avg" />
         <text x={padL + 6} y={sy(avg) - 5} className="chart-tick chart-avg-label">
           avg {avg.toFixed(1)}

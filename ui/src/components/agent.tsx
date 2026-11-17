@@ -1,24 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ApprovalDecision, ApprovalRequest } from "../api";
 import type { ToolCall } from "../state/store";
+import { GridLoader } from "./GridLoader";
 import { Icon, type IconName } from "./Icon";
 import { Kbd, Shimmer } from "./primitives";
-
-/* ── Thinking orb ────────────────────────────────────────────────────────
- * A flat monochrome orb on the left of the agent line. No gradients: a solid
- * core plus one ring whose motion says what the engine is doing. Colour only
- * for meaning (done = ok, stopped = warn, error = err), always next to a word.
- */
-export type OrbState = "idle" | "thinking" | "writing" | "waiting" | "done" | "stopped" | "error";
-
-export function ThinkingOrb({ state, size = 18 }: { state: OrbState; size?: number }) {
-  return (
-    <span className={`orb orb-${state}`} style={{ width: size, height: size }} aria-hidden>
-      <span className="orb-ring" />
-      <span className="orb-core" />
-    </span>
-  );
-}
 
 /** A status word that rolls up when it changes (Thinking → Analyzing → Writing). */
 export function RollingWord({ words, interval = 1800 }: { words: string[]; interval?: number }) {
@@ -56,7 +41,7 @@ export function ThinkingFold({ text, live }: { text: string; live: boolean }) {
   return (
     <div className={`thinking ${open ? "open" : ""}`}>
       <button className="thinking-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <Icon name="sparkles" size={13} />
+        {live ? <GridLoader kind="reasoning" size={12} /> : <Icon name="sparkles" size={13} className="tint-purple" />}
         {live ? <Shimmer>Reasoning</Shimmer> : <span>Reasoning</span>}
         {!live && <span className="muted">· {words} words</span>}
         <Icon name="chevronRight" size={13} className="thinking-chev" />
@@ -75,6 +60,7 @@ export function ThinkingFold({ text, live }: { text: string; live: boolean }) {
 export interface TreeRow {
   depth: number;
   icon: IconName;
+  tint?: string;
   label: ReactNode;
   meta?: ReactNode;
   status?: ReactNode;
@@ -110,7 +96,7 @@ export function TreeList({ rows, label }: { rows: TreeRow[]; label?: string }) {
           <span className="tree-guide mono" aria-hidden>
             {g[i]}
           </span>
-          <Icon name={r.icon} size={14} className="tree-icon" />
+          <Icon name={r.icon} size={14} className={`tree-icon ${r.tint ?? ""}`} />
           <span className="tree-label">{r.label}</span>
           {r.meta && <span className="tree-meta mono">{r.meta}</span>}
           {r.status && <span className="tree-status">{r.status}</span>}
@@ -121,6 +107,15 @@ export function TreeList({ rows, label }: { rows: TreeRow[]; label?: string }) {
 }
 
 /* ── Tool steps (was tool chips) ─────────────────────────────────────── */
+const TOOL_TINT: Record<string, string> = {
+  read_file: "tint-blue",
+  list_dir: "tint-amber",
+  search_files: "tint-sky",
+  write_file: "tint-green",
+  run_shell: "tint-orange",
+  web_get: "tint-teal",
+};
+
 const TOOL_ICON: Record<string, IconName> = {
   read_file: "fileCode",
   list_dir: "folderOpen",
@@ -137,6 +132,7 @@ export function ToolSteps({ calls, pending }: { calls: ToolCall[]; pending?: str
   const rows: TreeRow[] = calls.map((c) => ({
     depth: 0,
     icon: TOOL_ICON[c.tool_name] ?? "wrench",
+    tint: TOOL_TINT[c.tool_name] ?? "tint-orange",
     label: <span className="mono">{c.tool_name}</span>,
     meta: c.summary,
     status: (
@@ -150,6 +146,7 @@ export function ToolSteps({ calls, pending }: { calls: ToolCall[]; pending?: str
     rows.push({
       depth: 0,
       icon: TOOL_ICON[pending] ?? "wrench",
+      tint: "tint-amber",
       label: <span className="mono">{pending}</span>,
       meta: "waiting for you",
       status: (
@@ -162,7 +159,7 @@ export function ToolSteps({ calls, pending }: { calls: ToolCall[]; pending?: str
   return (
     <div className="steps">
       <button className="steps-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <Icon name="gitBranch" size={14} />
+        <Icon name="gitBranch" size={14} className="tint-orange" />
         <span>Steps</span>
         <span className="muted mono">{n}</span>
         <Icon name="chevronRight" size={13} className={`steps-chev ${open ? "open" : ""}`} />

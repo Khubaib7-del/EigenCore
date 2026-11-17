@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { api } from "../api";
 import { chatBusy, useStore, type Chat, type Screen } from "../state/store";
+import { GridLoader } from "./GridLoader";
 import { Icon, type IconName } from "./Icon";
-import { Button, Dialog, EqLoader, GlideMenu, IconButton, Kbd, PixelLoader, SoonPill } from "./primitives";
+import { Button, Dialog, GlideMenu, IconButton, Kbd, SoonPill } from "./primitives";
 
 /* ── Title bar for a frameless window ───────────────────────────────────
  * The whole bar is a drag region (pywebview: class "pywebview-drag-region";
@@ -10,19 +11,61 @@ import { Button, Dialog, EqLoader, GlideMenu, IconButton, Kbd, PixelLoader, Soon
  */
 export function TitleBar() {
   const { state } = useStore();
-  const win = (op: "minimize" | "toggle_maximize" | "close") => api.windowControl(op);
+  const win = (op: "minimize" | "toggle_maximize" | "close") => {
+    if (op !== "minimize" || matchMedia("(prefers-reduced-motion: reduce)").matches) return api.windowControl(op);
+    // fade the page out first, so the window does not vanish mid-frame
+    const root = document.documentElement;
+    root.classList.add("win-hiding");
+    setTimeout(() => {
+      api.windowControl("minimize");
+      setTimeout(() => root.classList.remove("win-hiding"), 60);
+    }, 110);
+  };
+  useEffect(() => {
+    // the window came back (taskbar click, Alt+Tab): fade the page in
+    const root = document.documentElement;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const show = () => {
+      root.classList.remove("win-hiding");
+      root.classList.add("win-showing");
+      clearTimeout(t);
+      t = setTimeout(() => root.classList.remove("win-showing"), 240);
+    };
+    const onVis = () => document.visibilityState === "visible" && show();
+    document.addEventListener("eigencore:window", show);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("eigencore:window", show);
+      document.removeEventListener("visibilitychange", onVis);
+      clearTimeout(t);
+    };
+  }, []);
   const onDouble = (e: ReactMouseEvent) => {
     if (!(e.target as HTMLElement).closest("button")) win("toggle_maximize");
   };
   const engine = state.engine;
   const status =
-    engine.phase === "loading" ? "Loading model" : engine.phase === "reading" ? "Reading prompt" : engine.phase === "writing" ? "Writing" : engine.phase === "error" ? "Engine error" : state.activeModel ? "Ready" : "No model";
+    engine.phase === "loading"
+      ? "Loading model"
+      : engine.phase === "reading"
+        ? "Reading prompt"
+        : engine.phase === "writing"
+          ? "Writing"
+          : engine.phase === "error"
+            ? "Engine error"
+            : state.activeModel
+              ? "Ready"
+              : "No model";
   return (
     <header className="titlebar pywebview-drag-region" onDoubleClick={onDouble}>
       <div className="titlebar-brand">
         <span className="wordmark">EigenCore</span>
         <span className="titlebar-sep" />
-        <span className={`engine-dot ${engine.phase === "idle" && !state.activeModel ? "none" : engine.phase}`} aria-hidden />
+        {engine.phase === "loading" || engine.phase === "reading" || engine.phase === "writing" ? (
+          <GridLoader kind={engine.phase === "loading" ? "loading" : engine.phase === "reading" ? "thinking" : "writing"} size={11} />
+        ) : (
+          <span className={`engine-dot ${engine.phase === "idle" && !state.activeModel ? "none" : engine.phase}`} aria-hidden />
+        )}
         <span className="titlebar-status">{status}</span>
         {state.activeModel && <span className="mono titlebar-model">{state.activeModel}</span>}
       </div>
@@ -48,28 +91,28 @@ export function TitleBar() {
   );
 }
 
-type NavItem = { id: Screen; label: string; icon: IconName } | { id: null; label: string; icon: IconName; soon: string };
+type NavItem = { id: Screen; label: string; icon: IconName; tint?: string } | { id: null; label: string; icon: IconName; soon: string; tint?: string };
 
 /** Main nav. Items with `soon` are shown, muted, and do nothing yet. */
 const NAV_TOP: NavItem[] = [
-  { id: "chat", label: "Chat", icon: "chat" },
-  { id: null, label: "Agents", icon: "bot", soon: "Agents: coming soon. Tool use with approvals is being wired up." },
-  { id: null, label: "Files", icon: "folder", soon: "Workspace files: coming soon. Attach a folder for the agent to work in." },
-  { id: "models", label: "Models", icon: "models" },
-  { id: "monitor", label: "Monitor", icon: "activity" },
+  { id: "chat", label: "Chat", icon: "chat", tint: "tint-blue" },
+  { id: null, label: "Agents", icon: "bot", tint: "tint-violet", soon: "Agents: coming soon. Tool use with approvals is being wired up." },
+  { id: null, label: "Files", icon: "folder", tint: "tint-amber", soon: "Workspace files: coming soon. Attach a folder for the agent to work in." },
+  { id: "models", label: "Models", icon: "models", tint: "tint-purple" },
+  { id: "monitor", label: "Monitor", icon: "activity", tint: "tint-green" },
 ];
 const NAV_FOOT: NavItem[] = [
-  { id: "profile", label: "Profile", icon: "cpu" },
-  { id: "settings", label: "Settings", icon: "settings" },
+  { id: "profile", label: "Profile", icon: "cpu", tint: "tint-orange" },
+  { id: "settings", label: "Settings", icon: "settings", tint: "tint-mono gear-nav" },
 ];
-const NAV = [...NAV_TOP, ...NAV_FOOT].filter((n): n is { id: Screen; label: string; icon: IconName } => n.id !== null);
+const NAV = [...NAV_TOP, ...NAV_FOOT].filter((n): n is { id: Screen; label: string; icon: IconName; tint?: string } => n.id !== null);
 
 function NavButton({ n, collapsed, extra }: { n: NavItem; collapsed: boolean; extra?: ReactNode }) {
   const { state, dispatch } = useStore();
   if (n.id === null)
     return (
       <div className="nav-item soon-item" aria-disabled="true" title={n.soon} role="link">
-        <Icon name={n.icon} size={16} />
+        <Icon name={n.icon} size={16} className={n.tint} />
         {!collapsed && <span>{n.label}</span>}
         {!collapsed && <SoonPill title={n.soon} />}
       </div>
@@ -83,7 +126,7 @@ function NavButton({ n, collapsed, extra }: { n: NavItem; collapsed: boolean; ex
       onClick={() => dispatch({ type: "nav", screen: id })}
       title={collapsed ? n.label : undefined}
     >
-      <Icon name={n.icon} size={16} />
+      <Icon name={n.icon} size={16} className={n.tint} />
       {!collapsed && <span>{n.label}</span>}
       {extra}
     </button>
@@ -125,7 +168,7 @@ function HistoryItem({ c, active }: { c: Chat; active: boolean }) {
               <Icon name="shield" size={12} />
             </span>
           ) : busy ? (
-            <EqLoader label={busy === "reading" ? "Reading the prompt" : "Writing"} />
+            <GridLoader kind={busy === "reading" ? "thinking" : "writing"} size={11} label={busy === "reading" ? "Reading the prompt" : "Writing"} />
           ) : null}
           <span className="ellipsis">{c.title}</span>
         </button>
@@ -174,44 +217,106 @@ function HistoryItem({ c, active }: { c: Chat; active: boolean }) {
   );
 }
 
+/** The EigenCore mark (die + core), drawn small for the update button. */
+function Mark({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="40 40 420 420" aria-hidden className="eg-mark">
+      <path
+        className="eg-die"
+        d="M157.5,48.5 L202.5,48.5 A37.5 37.5 0 0 1 240.0,86.0 L240.0,183.5 A52.5 52.5 0 0 0 292.5,236.0 L390.0,236.0 A37.5 37.5 0 0 1 427.5,273.5 L427.5,318.5 A105.0 105.0 0 0 1 322.5,423.5 L157.5,423.5 A105.0 105.0 0 0 1 52.5,318.5 L52.5,153.5 A105.0 105.0 0 0 1 157.5,48.5 Z"
+      />
+      <g className="eg-core">
+        <rect x="300" y="112" width="122.5" height="122.5" rx="35" fill="#2E3A9E" />
+        <rect x="286.2" y="96.6" width="122.5" height="122.5" rx="35" fill="#5B6CF0" />
+        <rect x="318" y="128.4" width="58.9" height="58.9" rx="17" fill="#C9CFFF" />
+      </g>
+    </svg>
+  );
+}
+
+/* ── Update button ─────────────────────────────────────────────────────
+ * An icon, not a pill: the EigenCore mark with a small coloured badge for
+ * the update state. Hovering (or focusing) it grows it into a pill that says
+ * what is going on. A download draws a ring round the mark. Once installed,
+ * or when already current, the badge is a green check until a new version
+ * shows up.
+ */
 export function UpdateButton({ compact }: { compact?: boolean }) {
   const { state, actions } = useStore();
   const u = state.update;
   let label = "Check for updates";
+  let sub = `v${state.version}`;
   let onClick: (() => void) | undefined = actions.checkUpdate;
-  let progress: number | null = null;
+  let pct: number | null = null;
+  let badge: ReactNode = <Icon name="refresh" size={9} />;
+  let tone = "idle";
   if (u.kind === "checking") {
     label = "Checking…";
     onClick = undefined;
+    badge = <GridLoader kind="update" size={9} />;
+    tone = "busy";
   } else if (u.kind === "available") {
-    label = `Update to ${u.tag}`;
+    label = `${u.tag} is available`;
+    sub = "Click to update";
     onClick = actions.installUpdate;
+    badge = <Icon name="arrowDown" size={10} strokeWidth={2.4} />;
+    tone = "available";
   } else if (u.kind === "downloading") {
-    label = `Downloading ${Math.round(u.pct)}%`;
-    progress = u.pct;
+    label = `Downloading ${u.tag}`;
+    sub = `${Math.round(u.pct)}%`;
+    pct = u.pct;
     onClick = undefined;
+    badge = <GridLoader kind="download" size={9} />;
+    tone = "busy";
   } else if (u.kind === "ready_to_install") {
-    label = "Installing…";
+    label = `Installing ${u.tag}`;
+    sub = "EigenCore restarts on its own";
     onClick = undefined;
+    badge = <GridLoader kind="loading" size={9} />;
+    tone = "busy";
   } else if (u.kind === "manual") {
     label = `Get ${u.tag}`;
+    sub = "Opens the release page";
     onClick = () => api.openUrl(u.url);
-  } else if (u.kind === "up_to_date") label = "Up to date";
-  else if (u.kind === "error") label = "Retry update check";
-  if (compact)
-    return (
-      <IconButton
-        icon={u.kind === "available" ? "download" : "refresh"}
-        label={label}
-        onClick={onClick}
-        className={u.kind === "available" ? "has-update" : ""}
-      />
-    );
+    badge = <Icon name="arrowDown" size={10} strokeWidth={2.4} />;
+    tone = "available";
+  } else if (u.kind === "up_to_date") {
+    label = "Up to date";
+    sub = `v${state.version} · check again`;
+    badge = <Icon name="check" size={10} strokeWidth={2.6} />;
+    tone = "current";
+  } else if (u.kind === "error") {
+    label = "Update check failed";
+    sub = "Click to retry";
+    badge = <Icon name="alert" size={9} strokeWidth={2.2} />;
+    tone = "error";
+  }
+  const R = 15;
+  const C = 2 * Math.PI * R;
   return (
-    <button className={`update-btn ${u.kind}`} onClick={onClick} disabled={!onClick}>
-      {u.kind === "checking" ? <PixelLoader variant="orbit" /> : <Icon name={u.kind === "available" ? "download" : "refresh"} size={13} />}
-      <span>{label}</span>
-      {progress !== null && <span className="update-progress" style={{ width: `${progress}%` }} />}
+    <button
+      className={`update-mark ${tone} ${compact ? "compact" : ""}`}
+      onClick={onClick}
+      disabled={!onClick}
+      aria-label={`${label}. ${sub}`}
+      title={compact ? `${label} · ${sub}` : undefined}
+    >
+      <span className="um-icon">
+        <Mark size={20} />
+        {pct !== null && (
+          <svg className="um-ring" viewBox="0 0 34 34" aria-hidden>
+            <circle cx="17" cy="17" r={R} />
+            <circle cx="17" cy="17" r={R} className="um-ring-fill" strokeDasharray={C} strokeDashoffset={C * (1 - pct / 100)} />
+          </svg>
+        )}
+        <span className="um-badge">{badge}</span>
+      </span>
+      {!compact && (
+        <span className="um-text">
+          <span className="um-label">{label}</span>
+          <span className="um-sub mono">{sub}</span>
+        </span>
+      )}
     </button>
   );
 }
@@ -253,7 +358,7 @@ export function Sidebar() {
             collapsed={collapsed}
             extra={
               n.id === "monitor" && engineLive ? (
-                <span className={collapsed ? "nav-dot" : "nav-live"}>{collapsed ? null : <PixelLoader />}</span>
+                <span className={collapsed ? "nav-dot" : "nav-live"}>{collapsed ? null : <GridLoader kind="live" size={11} />}</span>
               ) : n.id === "chat" && collapsed && anyBusy ? (
                 <span className="nav-dot" />
               ) : undefined
@@ -398,7 +503,8 @@ export function VersionBanner() {
     <div className="version-banner" role="alert">
       <Icon name="alert" size={14} />
       <span>
-        UI build <span className="mono">{UI_VERSION}</span> does not match app <span className="mono">{appVersion}</span>. Close all EigenCore windows and restart.
+        UI build <span className="mono">{UI_VERSION}</span> does not match app <span className="mono">{appVersion}</span>. Close all EigenCore windows and
+        restart.
       </span>
     </div>
   );

@@ -41,7 +41,7 @@ export function ModelPicker({
     <div className="model-picker" ref={ref}>
       <button className="model-trigger" onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}>
         {cur ? <ProviderLogo provider={cur.provider} size={14} /> : <Icon name="models" size={14} />}
-        <span className="mono">{loading ? "Loading…" : cur?.name ?? "Choose a model"}</span>
+        <span className="mono">{loading ? "Loading…" : (cur?.name ?? "Choose a model")}</span>
         <Icon name="chevronDown" size={13} />
       </button>
       {open && (
@@ -124,7 +124,9 @@ function MenuButton({
   text,
   children,
   className = "",
+  tint = "",
 }: {
+  tint?: string;
   id: Exclude<Menu, null>;
   open: Menu;
   setOpen: (m: Menu) => void;
@@ -140,18 +142,22 @@ function MenuButton({
   return (
     <div className={`composer-menu ${className}`} ref={ref}>
       <button
-        className={`composer-btn ${text ? "with-text" : ""} ${isOpen ? "open" : ""}`}
+        className={`composer-btn ${text ? "with-text" : ""} ${isOpen ? "open" : ""} ${tint}`}
         aria-label={label}
         title={label}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         onClick={() => setOpen(isOpen ? null : id)}
       >
-        <Icon name={icon} size={15} />
+        <Icon name={icon} size={15} className="cb-icon" />
         {text}
         {text && <Icon name="chevronDown" size={12} className="composer-chev" />}
       </button>
-      {isOpen && <div className={`popover composer-pop pop-${id}`} role="menu">{children}</div>}
+      {isOpen && (
+        <div className={`popover composer-pop pop-${id}`} role="menu">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -196,6 +202,7 @@ export function PromptBar({
   const [menu, setMenu] = useState<Menu>(preview && preview !== "slash" ? preview : null);
   const [sel, setSel] = useState(0);
   const ta = useRef<HTMLTextAreaElement>(null);
+  const [focused, setFocused] = useState(!!autoFocus);
   useEffect(() => {
     onTextChange?.(text);
   }, [text, onTextChange]);
@@ -226,9 +233,23 @@ export function PromptBar({
     onSend(text.trim());
     setText("");
   };
+  const open = focused || !!text || menu !== null || busy || !!preview;
   const tempWord = options.temperature <= 0.3 ? "focused" : options.temperature <= 0.9 ? "balanced" : "creative";
   return (
-    <div className={`promptbar ${busy ? "busy" : ""}`}>
+    <div
+      className={`promptbar ${busy ? "busy" : ""} ${open ? "expanded" : "compact"}`}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+      }}
+      onMouseDown={(e) => {
+        // a click anywhere on the bar opens it and puts the caret in the box
+        if (!(e.target as HTMLElement).closest("button, input, textarea, .popover")) {
+          e.preventDefault();
+          ta.current?.focus();
+        }
+      }}
+    >
       {slash.length > 0 && (
         <div className="popover slash-menu" role="listbox" aria-label="Commands">
           <div className="popover-label">Commands</div>
@@ -249,41 +270,8 @@ export function PromptBar({
           ))}
         </div>
       )}
-      <textarea
-        ref={ta}
-        rows={1}
-        value={text}
-        autoFocus={autoFocus}
-        placeholder={placeholder ?? "Message EigenCore"}
-        aria-label="Message"
-        onChange={(e) => {
-          setText(e.target.value);
-          setSel(0);
-        }}
-        onKeyDown={(e) => {
-          if (slash.length) {
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              return setSel((n) => Math.min(slash.length - 1, n + 1));
-            }
-            if (e.key === "ArrowUp") {
-              e.preventDefault();
-              return setSel((n) => Math.max(0, n - 1));
-            }
-            if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
-              e.preventDefault();
-              return runCmd(slash[Math.min(sel, slash.length - 1)]);
-            }
-            if (e.key === "Escape") return setText("");
-          }
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            send();
-          }
-        }}
-      />
-      <div className="promptbar-row">
-        <MenuButton id="attach" open={menu} setOpen={setMenu} icon="plus" label="Attach">
+      <div className="pb-main">
+        <MenuButton id="attach" open={menu} setOpen={setMenu} icon="plus" label="Attach" tint="tint-blue attach">
           <div className="popover-label">Attach</div>
           <button className="menu-item" disabled role="menuitem">
             <Icon name="paperclip" size={14} />
@@ -301,95 +289,48 @@ export function PromptBar({
             </span>
             <SoonPill />
           </button>
-        </MenuButton>
-        <MenuButton id="mode" open={menu} setOpen={setMenu} icon="chat" label="Mode" text={<span>Chat</span>}>
-          <div className="popover-label">Mode</div>
-          <button className="menu-item on" role="menuitemradio" aria-checked onClick={() => setMenu(null)}>
-            <Icon name="chat" size={14} />
+          <button className="menu-item" disabled role="menuitem">
+            <Icon name="wrench" size={14} />
             <span className="menu-text">
-              <span>Chat</span>
-              <span className="muted">Talk to the local model</span>
-            </span>
-            <Icon name="check" size={14} />
-          </button>
-          <button className="menu-item" role="menuitemradio" aria-checked={false} disabled>
-            <Icon name="bot" size={14} />
-            <span className="menu-text">
-              <span>Agent</span>
-              <span className="muted">Uses tools, asks before each one</span>
-            </span>
-            <SoonPill />
-          </button>
-          <button className="menu-item" role="menuitemradio" aria-checked={false} disabled>
-            <Icon name="layers" size={14} />
-            <span className="menu-text">
-              <span>Plan</span>
-              <span className="muted">Writes a step-by-step plan first</span>
+              <span>Tools</span>
+              <span className="muted">The desktop chat has no tools yet</span>
             </span>
             <SoonPill />
           </button>
         </MenuButton>
-        {picker}
-        <button className="composer-btn with-text soon-btn" disabled title="Tools: coming soon (the desktop chat has no tools yet)" aria-label="Tools (coming soon)">
-          <Icon name="wrench" size={14} />
-          <span>Tools</span>
-          <SoonPill />
-        </button>
-        <MenuButton id="options" open={menu} setOpen={setMenu} icon="sliders" label="Reply options" className="options-menu">
-          <div className="popover-label">Reply options</div>
-          <div className="opt">
-            <div className="opt-head">
-              <Icon name="thermometer" size={14} />
-              <span>Temperature</span>
-              <span className="grow" />
-              <span className="mono tnum">{options.temperature.toFixed(1)}</span>
-              <span className="muted">{tempWord}</span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={1.5}
-              step={0.1}
-              value={options.temperature}
-              aria-label="Temperature"
-              onChange={(e) => onOptions({ temperature: Number(e.target.value) })}
-              style={{ ["--fill" as string]: `${(options.temperature / 1.5) * 100}%` }}
-            />
-          </div>
-          <div className="opt">
-            <div className="opt-head">
-              <Icon name="hash" size={14} />
-              <span>Longest reply</span>
-              <span className="grow" />
-              <span className="muted">tokens</span>
-            </div>
-            <div className="opt-chips" role="radiogroup" aria-label="Longest reply">
-              {MAX_TOKENS.map((n) => (
-                <button key={n} role="radio" aria-checked={options.max_tokens === n} className={options.max_tokens === n ? "on" : ""} onClick={() => onOptions({ max_tokens: n })}>
-                  {n.toLocaleString()}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="opt opt-ro">
-            <div className="opt-head">
-              <Icon name="layers" size={14} />
-              <span>Context window</span>
-              <span className="grow" />
-              <span className="mono tnum">{contextLength ? contextLength.toLocaleString() : "—"}</span>
-              <SoonPill title="Set by the model and hardware profile; changing it is coming soon" />
-            </div>
-          </div>
-          <div className="popover-sep" />
-          <button className="popover-link" onClick={() => onOptions({ ...DEFAULT_GEN })}>
-            <Icon name="refresh" size={14} /> Reset to defaults
-          </button>
-        </MenuButton>
-        <span className="grow" />
-        {meter}
-        <span className="promptbar-hint muted">
-          <Kbd>/</Kbd> commands
-        </span>
+        <textarea
+          ref={ta}
+          value={text}
+          autoFocus={autoFocus}
+          placeholder={placeholder ?? "Message EigenCore"}
+          rows={1}
+          aria-label="Message"
+          onChange={(e) => {
+            setText(e.target.value);
+            setSel(0);
+          }}
+          onKeyDown={(e) => {
+            if (slash.length) {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                return setSel((n) => Math.min(slash.length - 1, n + 1));
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                return setSel((n) => Math.max(0, n - 1));
+              }
+              if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+                e.preventDefault();
+                return runCmd(slash[Math.min(sel, slash.length - 1)]);
+              }
+              if (e.key === "Escape") return setText("");
+            }
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              send();
+            }
+          }}
+        />
         {busy ? (
           <button className="send-btn stop" onClick={onStop} aria-label="Stop generating" title="Stop">
             <Icon name="stop" size={14} />
@@ -399,6 +340,99 @@ export function PromptBar({
             <Icon name="arrowUp" size={16} />
           </button>
         )}
+      </div>
+      <div className="pb-tools" aria-hidden={!open}>
+        <div className="pb-tools-inner">
+          <MenuButton id="mode" open={menu} setOpen={setMenu} icon="chat" label="Mode" text={<span>Chat</span>} tint="tint-violet">
+            <div className="popover-label">Mode</div>
+            <button className="menu-item on" role="menuitemradio" aria-checked onClick={() => setMenu(null)}>
+              <Icon name="chat" size={14} />
+              <span className="menu-text">
+                <span>Chat</span>
+                <span className="muted">Talk to the local model</span>
+              </span>
+              <Icon name="check" size={14} />
+            </button>
+            <button className="menu-item" role="menuitemradio" aria-checked={false} disabled>
+              <Icon name="bot" size={14} />
+              <span className="menu-text">
+                <span>Agent</span>
+                <span className="muted">Uses tools, asks before each one</span>
+              </span>
+              <SoonPill />
+            </button>
+            <button className="menu-item" role="menuitemradio" aria-checked={false} disabled>
+              <Icon name="layers" size={14} />
+              <span className="menu-text">
+                <span>Plan</span>
+                <span className="muted">Writes a step-by-step plan first</span>
+              </span>
+              <SoonPill />
+            </button>
+          </MenuButton>
+          {picker}
+          <MenuButton id="options" open={menu} setOpen={setMenu} icon="settings" label="Reply options" className="options-menu" tint="gear">
+            <div className="popover-label">Reply options</div>
+            <div className="opt">
+              <div className="opt-head">
+                <Icon name="thermometer" size={14} />
+                <span>Temperature</span>
+                <span className="grow" />
+                <span className="mono tnum">{options.temperature.toFixed(1)}</span>
+                <span className="muted">{tempWord}</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={1.5}
+                step={0.1}
+                value={options.temperature}
+                aria-label="Temperature"
+                onChange={(e) => onOptions({ temperature: Number(e.target.value) })}
+                style={{ ["--fill" as string]: `${(options.temperature / 1.5) * 100}%` }}
+              />
+            </div>
+            <div className="opt">
+              <div className="opt-head">
+                <Icon name="hash" size={14} />
+                <span>Longest reply</span>
+                <span className="grow" />
+                <span className="muted">tokens</span>
+              </div>
+              <div className="opt-chips" role="radiogroup" aria-label="Longest reply">
+                {MAX_TOKENS.map((n) => (
+                  <button
+                    key={n}
+                    role="radio"
+                    aria-checked={options.max_tokens === n}
+                    className={options.max_tokens === n ? "on" : ""}
+                    onClick={() => onOptions({ max_tokens: n })}
+                  >
+                    {n.toLocaleString()}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="opt opt-ro">
+              <div className="opt-head">
+                <Icon name="layers" size={14} />
+                <span>Context window</span>
+                <span className="grow" />
+                <span className="mono tnum">{contextLength ? contextLength.toLocaleString() : "—"}</span>
+                <SoonPill title="Set by the model and hardware profile; changing it is coming soon" />
+              </div>
+            </div>
+            <div className="popover-sep" />
+            <button className="popover-link" onClick={() => onOptions({ ...DEFAULT_GEN })}>
+              <Icon name="refresh" size={14} /> Reset to defaults
+            </button>
+          </MenuButton>
+          <span className="grow" />
+          {meter}
+          <span className="promptbar-hint muted">
+            <Kbd>/</Kbd> commands
+          </span>
+        </div>
       </div>
     </div>
   );
