@@ -472,41 +472,80 @@ export function RetroComputer({
 }
 
 /** One word written by hand, like the Mac "hello": the letters are a smooth
- * script font, revealed by a round pen that travels along their centre lines. */
+ * script font, revealed by a round pen that travels along their centre lines.
+ * Hover: the word lifts, leans toward the pointer and a light sweeps across
+ * the ink. Click: the pen writes it again. */
 function Hello({ word, start, dur, writing: intro, label }: { word: HelloWord; start: number; dur: number; writing: boolean; label: string }) {
   const id = `hello-${label}`;
+  // Each write gets its own key so the pen animation restarts on a replay.
+  const [pass, setPass] = useState(intro ? 1 : 0);
+  const [delay, setDelay] = useState(start);
   // Drop the mask once the word is written, so the letters render untouched.
   const [writing, setWriting] = useState(intro);
   useEffect(() => {
-    if (!intro) return;
-    const t = setTimeout(() => setWriting(false), start + dur + 250);
+    if (!writing) return;
+    const t = setTimeout(() => setWriting(false), delay + dur + 250);
     return () => clearTimeout(t);
-  }, [intro, start, dur]);
+  }, [writing, pass, delay, dur]);
+  const rewrite = () => {
+    if (writing) return;
+    setDelay(0);
+    setPass((n) => n + 1);
+    setWriting(true);
+  };
+  const lean = (e: PointerEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const u = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width) * 2 - 1));
+    e.currentTarget.style.setProperty("--lean", u.toFixed(3));
+  };
   const total = word.guides.reduce((n, g) => n + g.len, 0);
   // Pen speed eases in and out over the whole word, like a real flourish.
   const ease = (u: number) => (1 - Math.cos(Math.PI * u)) / 2;
   let done = 0;
   const size = { "--hk": (word.h / (word.base - 4)).toFixed(3), "--desc": ((word.h - word.base) / word.h).toFixed(3) } as CSSProperties;
+  const glyph = <path d={word.glyph} transform={`translate(${word.tx} ${word.ty})`} strokeWidth={word.thick} />;
   return (
-    <svg className={`hello ${writing ? "writing" : ""}`} viewBox={`0 0 ${word.w} ${word.h}`} style={size} aria-hidden data-word={label}>
-      {writing && (
-        <defs>
-          <mask id={id} maskUnits="userSpaceOnUse" x={0} y={0} width={word.w} height={word.h}>
+    <svg
+      className={`hello ${writing ? "writing" : ""}`}
+      viewBox={`0 0 ${word.w} ${word.h}`}
+      style={size}
+      aria-hidden
+      data-word={label}
+      onPointerMove={lean}
+      onPointerLeave={(e) => e.currentTarget.style.setProperty("--lean", "0")}
+      onClick={rewrite}
+    >
+      <defs>
+        {writing && (
+          <mask key={pass} id={id} maskUnits="userSpaceOnUse" x={0} y={0} width={word.w} height={word.h}>
             <g className="hello-pen">
               {word.guides.map((g, i) => {
-                const t0 = start + dur * ease(done / total);
+                const t0 = delay + dur * ease(done / total);
                 done += g.len;
-                const t = Math.max(30, start + dur * ease(done / total) - t0);
+                const t = Math.max(30, delay + dur * ease(done / total) - t0);
                 const st = { "--d": `${Math.round(t0)}ms`, "--t": `${Math.round(t)}ms` } as CSSProperties;
                 return <path key={i} d={g.d} pathLength={1} style={st} />;
               })}
             </g>
           </mask>
-        </defs>
-      )}
+        )}
+        <mask id={`${id}-ink`} maskUnits="userSpaceOnUse" x={0} y={0} width={word.w} height={word.h}>
+          <g className="hello-ink-mask">{glyph}</g>
+        </mask>
+        <linearGradient id={`${id}-sheen`} x1="0" y1="0" x2="1" y2="0.35">
+          <stop offset="0" stopColor="var(--sheen)" stopOpacity="0" />
+          <stop offset="0.5" stopColor="var(--sheen)" stopOpacity="0.9" />
+          <stop offset="1" stopColor="var(--sheen)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
       <g mask={writing ? `url(#${id})` : undefined}>
-        <path className="hello-ink" d={word.glyph} transform={`translate(${word.tx} ${word.ty})`} strokeWidth={word.thick} />
+        <g className="hello-ink">{glyph}</g>
       </g>
+      {!writing && (
+        <g mask={`url(#${id}-ink)`} aria-hidden>
+          <rect className="hello-sheen" x={-word.w * 0.35} y={0} width={word.w * 0.35} height={word.h} fill={`url(#${id}-sheen)`} />
+        </g>
+      )}
     </svg>
   );
 }

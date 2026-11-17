@@ -4,7 +4,24 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-11-17
+
+Models load again in the Windows app, the window opens straight to full screen, and the handwritten "Eigen Core" reacts to the pointer.
+
+### Added
+- Desktop app: the "Eigen" and "Core" words react to the pointer. On hover a word lifts, leans toward the pointer and a phosphor light sweeps across the ink; a click writes it again with the pen.
+- `packaging/windows/check_cpu_baseline.py`: the release and PR builds fail if the bundled llama.cpp contains AVX-512 instructions.
+
+### Changed
+- Version 0.4.10. The browser preview's mock updater now demos `v0.4.11`.
+- Chat box placeholder: "Choose a model to start" when a model is downloaded but none is loaded (it said "Download a model" before), and "Loading the model…" while one loads.
+- Title bar: the status dot is grey for "No model" (it was green, like "Ready").
+- Settings: the context length hint no longer calls the value "the profiler's pick" (0.4.9 sizes it per model).
+
 ### Fixed
+- Windows app: loading any model failed with `[WinError -1073741795] Windows Error 0xc000001d` (illegal instruction) in 0.4.9. The release build installed `llama-cpp-python>=0.3.0`; the newest version (0.3.37) had no prebuilt wheel, so pip compiled llama.cpp on the GitHub build machine with `GGML_NATIVE=ON`, tuned to that machine's CPU (most likely AVX-512, which most laptops do not have). 0.4.8 was built the same way and worked, most likely because its build machine had no AVX-512. The build now installs only the prebuilt CPU wheel, pinned to `llama-cpp-python==0.3.36` (AVX2 + FMA + F16C baseline, no AVX-512, checked with the new script), and never compiles it.
+- Engine: a CPU without AVX2 now gets a clear message ("this CPU lacks AVX2 ...") before loading, and an illegal-instruction crash during load is reported in plain words instead of the raw Windows error.
+- Desktop app (Windows): the window first appeared offset at its 1180 × 760 default and then jumped to maximized. It is now created at the full size of the primary screen and maximized. Restoring it from maximized goes back to 1180 × 760, centred.
 - Agent (ReAct): the GBNF grammar was built but never passed to the model, so tool calls were not constrained. `Forge.run_agent` now passes `ReActAgent.grammar` (llama.cpp `LlamaGrammar`, compiled once per grammar) to every step. The grammar now matches what the agent parses (`thought` / `action` / `final` with `content`, `tool`, `args`; the old one had no `final` and used other keys). It also fixes problems that stopped it working in llama.cpp: rule names with `_` (rejected by the parser), unlimited whitespace and digits that let a model spin until `max_tokens`, and raw control characters inside strings. Optional tool parameters are now optional. Checked with a 15M test model: 10 of 10 steps were valid JSON.
 - `--pld`: the prompt-lookup path pasted prompt text into the reply without the model producing it, so it could change the answer. The flag is now hidden and ignored with a warning; replies are exactly what the model samples. A real draft-and-verify version is planned.
 - One load path: the CLI (`run`, `chat`, the TUI model switch, `analyze`, `benchmark`) and the desktop app now build engines through `eigencore.forge.open_engine`, the same function Forge uses, instead of each creating `InferenceEngine` itself. Without `-m`, `run` asks Forge's task router for the model (a coding prompt gets the coding model) and prints the routing reason; `chat` keeps `--task`. The router does not swap models in the middle of a chat (loading takes too long on CPU).

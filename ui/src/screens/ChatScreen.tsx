@@ -196,7 +196,15 @@ export function ChatScreen() {
       onStop={actions.stop}
       busy={busy}
       disabled={!state.activeModel || state.engine.phase === "loading"}
-      placeholder={state.activeModel ? "Message EigenCore" : "Download a model in Models to start"}
+      placeholder={
+        state.activeModel
+          ? "Message EigenCore"
+          : state.engine.phase === "loading"
+            ? "Loading the model…"
+            : state.models.some((m) => m.downloaded)
+              ? "Choose a model to start"
+              : "Download a model in Models to start"
+      }
       picker={picker}
       meter={meter}
       options={state.genOptions}

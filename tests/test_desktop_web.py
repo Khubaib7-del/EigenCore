@@ -144,6 +144,9 @@ class FakeWindow:
     def resize(self, w, h):
         self.calls.append(("resize", w, h))
 
+    def move(self, x, y):
+        self.calls.append(("move", x, y))
+
 
 class _Hook:
     def __init__(self):
@@ -176,7 +179,7 @@ def _bridge(tmp_path, engine=None, updater=None, opened=None, downloaded=True):
         updater=updater or FakeUpdater(),
         state_path=tmp_path / "ui.json",
         open_url=opened.append,
-        version="0.4.9",
+        version="0.4.10",
         profiler=lambda: _profile("Rescanned CPU"),
     )
     br.ready()
@@ -379,7 +382,7 @@ def test_backend_factory_failure_is_reported(tmp_path):
 # ----- updates ------------------------------------------------------------------------
 
 
-def _rel(version="0.4.10", installer=True):
+def _rel(version="0.4.11", installer=True):
     return Release(
         version=version,
         page_url="https://github.com/Khubaib7-del/EigenCore/releases/tag/v" + version,
@@ -393,20 +396,20 @@ def _updates(col):
 
 
 def test_check_for_update_states(tmp_path):
-    br, *_, col = _bridge(tmp_path, updater=FakeUpdater(_rel("0.4.10")))
+    br, *_, col = _bridge(tmp_path, updater=FakeUpdater(_rel("0.4.11")))
     try:
         br.check_for_update()
         e = col.wait_for(lambda e: e[0] == "update" and e[1]["kind"] == "available")
-        assert e[1]["tag"] == "v0.4.10"
+        assert e[1]["tag"] == "v0.4.11"
         assert _updates(col)[0] == {"kind": "checking"}
     finally:
         _stop(br)
 
-    br, *_, col = _bridge(tmp_path, updater=FakeUpdater(_rel("0.4.9")))
+    br, *_, col = _bridge(tmp_path, updater=FakeUpdater(_rel("0.4.10")))
     try:
         br.check_for_update()
         e = col.wait_for(lambda e: e[0] == "update" and e[1]["kind"] == "up_to_date")
-        assert e[1]["current"] == "0.4.9"
+        assert e[1]["current"] == "0.4.10"
     finally:
         _stop(br)
 
@@ -419,7 +422,7 @@ def test_check_for_update_states(tmp_path):
 
 
 def test_install_update_downloads_runs_installer_and_closes(tmp_path):
-    up = FakeUpdater(_rel("0.4.10"))
+    up = FakeUpdater(_rel("0.4.11"))
     br, *_, col = _bridge(tmp_path, updater=up)
     win = FakeWindow()
     br._attach(win)
@@ -440,7 +443,7 @@ def test_install_update_downloads_runs_installer_and_closes(tmp_path):
 
 def test_install_update_portable_opens_page(tmp_path):
     opened = []
-    up = FakeUpdater(_rel("0.4.10"), installed=False)
+    up = FakeUpdater(_rel("0.4.11"), installed=False)
     br, *_, col = _bridge(tmp_path, updater=up, opened=opened)
     try:
         br.install_update()
@@ -452,7 +455,7 @@ def test_install_update_portable_opens_page(tmp_path):
 
 
 def test_install_update_failure_is_reported(tmp_path):
-    up = FakeUpdater(_rel("0.4.10"), fail_download=True)
+    up = FakeUpdater(_rel("0.4.11"), fail_download=True)
     br, *_, col = _bridge(tmp_path, updater=up)
     try:
         br.install_update()
@@ -474,7 +477,10 @@ def test_open_url_only_https(tmp_path):
 # ----- window ---------------------------------------------------------------------------
 
 
-def test_window_controls():
+def test_window_controls(monkeypatch):
+    import eigencore.desktop.web as web
+
+    monkeypatch.setattr(web, "primary_screen_area", lambda: (0, 0, 1920, 1080))
     br = WebBridge(backend=SimpleNamespace(events=queue.Queue()), emit=lambda p: None)
     assert br.window_control("minimize") is False  # no window yet
     win = FakeWindow()
@@ -488,7 +494,16 @@ def test_window_controls():
     assert br.window_control("resize", 100, 2000)
     assert not br.window_control("explode")
     assert br.window_control("close")
-    assert win.calls == ["minimize", "restore", "maximize", ("resize", 860, 2000), "destroy"]
+    # restoring from maximized goes back to the default size, centred
+    assert win.calls == [
+        "minimize",
+        "restore",
+        ("resize", 1180, 760),
+        ("move", 370, 160),
+        "maximize",
+        ("resize", 860, 2000),
+        "destroy",
+    ]
     # maximize/restore done with the OS (e.g. Win+Down / Win+Up) keeps the state in sync
     win.events.restored.handlers[0]()
     assert not br.is_maximized()

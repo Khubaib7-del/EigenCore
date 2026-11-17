@@ -153,7 +153,7 @@ export function SettingsScreen() {
             options={threadOpts.map((t) => ({ value: t, label: t === "auto" ? "Auto" : t }))}
           />
         </Row>
-        <Row label="Context length" soon={soon} hint={soon ? `Uses ${s.context_length.toLocaleString()} tokens (the profiler’s pick), capped by each model’s limit.` : "Longer context needs more RAM. Capped by each model’s limit."}>
+        <Row label="Context length" soon={soon} hint={soon ? `Set per model from its real size and your free RAM (up to 16K on CPU), capped by the model’s limit.` : "Longer context needs more RAM. Capped by each model’s limit."}>
           <Segmented
             disabled={soon}
             label="Context length"
