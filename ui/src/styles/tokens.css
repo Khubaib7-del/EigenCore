@@ -1,6 +1,7 @@
 /* EigenCore UI design tokens.
- * Monochrome chrome (black/grey dark, white/grey light). Colour is used only
- * for meaning (ok / warn / error) and stays muted. No brand colour in the UI.
+ * Monochrome chrome and text (black/grey dark, white/grey light). Colour is
+ * kept for small things that carry meaning: loaders (one tone per job),
+ * icons, syntax colours in code, chart lines, and ok / warn / error.
  * Theme is chosen by [data-theme] on <html>: "dark" | "light".
  */
 
@@ -69,6 +70,30 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.55);
+
+  /* accent tones: loaders, icons, charts (not text or chrome) */
+  --c-violet: #a78bfa;
+  --c-purple: #c084fc;
+  --c-blue: #60a5fa;
+  --c-sky: #38bdf8;
+  --c-cyan: #22d3ee;
+  --c-teal: #2dd4bf;
+  --c-green: #4ade80;
+  --c-lime: #a3e635;
+  --c-amber: #fbbf24;
+  --c-orange: #fb923c;
+  --c-red: #f87171;
+  --c-pink: #f472b6;
+  /* syntax */
+  --sx-kw: #c792ea;
+  --sx-str: #a5d6a7;
+  --sx-num: #f9a66c;
+  --sx-com: #6b7280;
+  --sx-fn: #82aaff;
+  --sx-type: #ffcb6b;
+  --sx-op: #89ddff;
+  --sx-add: #4ade80;
+  --sx-del: #f87171;
 }
 
 [data-theme="light"] {
@@ -102,6 +127,28 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.14);
+
+  --c-violet: #7c3aed;
+  --c-purple: #9333ea;
+  --c-blue: #2563eb;
+  --c-sky: #0284c7;
+  --c-cyan: #0891b2;
+  --c-teal: #0d9488;
+  --c-green: #16a34a;
+  --c-lime: #65a30d;
+  --c-amber: #d97706;
+  --c-orange: #ea580c;
+  --c-red: #dc2626;
+  --c-pink: #db2777;
+  --sx-kw: #8b2fc9;
+  --sx-str: #2f7d32;
+  --sx-num: #c2410c;
+  --sx-com: #8a8f98;
+  --sx-fn: #1d4ed8;
+  --sx-type: #a16207;
+  --sx-op: #0e7490;
+  --sx-add: #15803d;
+  --sx-del: #b91c1c;
 }
 
 @media (prefers-reduced-motion: reduce) {

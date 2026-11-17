@@ -4,6 +4,23 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Added
+- Desktop app: one grid loader for the whole app (`ui/src/components/GridLoader.tsx`). It is a 3×3 grid with 19 patterns (drive, orbit, pulse, snake, rain, scan, checker, spiral, cross, diagonal, sparkle, heartbeat, leap, fill, wave, breathe, and static check, fail and halt) and one colour per job: thinking, reasoning, writing, writing code, tools, approval, loading a model, downloading, checking for updates, searching, live, idle, done, error and stopped. It replaces the orb, the equaliser and the two pixel loaders. Every loader shares one clock, and reduced motion holds a still frame.
+- Chat: a "jump to latest" button. Scrolling up while a reply streams frees the view instead of pinning it to the bottom. The arrow brings it back, and sending a message sticks to the bottom again.
+- Chat: a copy button under your own message, shown on hover.
+
+### Changed
+- Chat: your message is a rounded block with more contrast. A reply shows its loader, status word and timer only while it is in progress. When it finishes, the footer always shows the total time, and the model name, the speed, token and first-token meters, copy and regenerate appear on hover.
+- Chat: code is syntax-coloured (keywords, strings, numbers, comments, calls, types, decorators, operators), with a separate palette for dark and light. Icons in the chat, the sidebar, tool steps and Monitor are coloured. Text and chrome stay black and white.
+- Composer: it starts as one compact row (attach, the box, send) and opens when you click or type in it, showing mode, model, reply options, the context meter and the "/" hint. The reply-options button is now a gear that turns on hover and makes a half turn while open. The attach "+" turns into a ×. "Tools (soon)" moved into the attach menu.
+- Update button: the EigenCore mark with a coloured badge instead of a pill. Hovering it grows it into a pill with the version and what a click does. Updates show a blue download badge that pulses, downloads show a progress ring, and an up-to-date or freshly installed app shows a green check until the next version is out.
+- Monitor: the tokens-per-second chart draws a teal-to-violet line over a blue fade with an amber average line, the context ring is a gradient that turns amber and then red as it fills, and the stat icons and CPU thread cells are coloured.
+
+### Fixed
+- Windows: minimize and restore no longer cut out abruptly. The frameless window gets the minimize, maximize and system-menu styles, so Windows animates it and a second click on the taskbar button minimizes it. The page fades out before it minimizes and back in when it returns. Needs a check on a real Windows PC.
+- Windows: bringing a maximized window back from the taskbar no longer forgets that it is maximized (the next Maximize click did nothing before).
+- The window starts in the saved theme's colour, so a light-theme user no longer sees a dark flash on start.
+
 ## [0.4.10] - 2026-11-17
 
 Models load again in the Windows app, the window opens straight to full screen, and the handwritten "Eigen Core" reacts to the pointer.

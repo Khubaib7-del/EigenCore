@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { GridLoader } from "./GridLoader";
 import { Icon } from "./Icon";
 
 /*
@@ -6,8 +7,9 @@ import { Icon } from "./Icon";
  * numbers and horizontal scroll (layout after Beautiful UI's Code Block, MIT;
  * code written for EigenCore). It renders the same way while the fence is
  * still open and the model is writing: the header says "writing" and a caret
- * sits at the end of the last line. Highlighting is monochrome: the tiny
- * tokenizer only varies weight and ink level, so it works in both themes.
+ * sits at the end of the last line. A tiny tokenizer colours keywords,
+ * strings, numbers, comments, calls, types, decorators and operators with the
+ * --sx-* tokens (one set per theme).
  */
 
 const KW = new Set(
@@ -67,18 +69,21 @@ function highlight(line: string, lang: string): ReactNode[] {
   if (lang === "diff" && /^[+-]/.test(line)) return [<span key={0} className={line[0] === "+" ? "tk-add" : "tk-del"}>{line}</span>];
   const com = HASH.has(lang) ? "#.*$" : SLASH.has(lang) ? "\\/\\/.*$|\\/\\*.*?(?:\\*\\/|$)" : "#.*$|\\/\\/.*$";
   const re = new RegExp(
-    `(${com})|("(?:[^"\\\\]|\\\\.)*"?|'(?:[^'\\\\]|\\\\.)*'?|\`[^\`]*\`?)|(\\b\\d+(?:\\.\\d+)?\\b)|([A-Za-z_][A-Za-z0-9_]*)|(\\s+)|(.)`,
+    `(${com})|("(?:[^"\\\\]|\\\\.)*"?|'(?:[^'\\\\]|\\\\.)*'?|\`[^\`]*\`?)|(\\b(?:0x[0-9a-fA-F]+|\\d+(?:\\.\\d+)?)\\b)|(@[A-Za-z_][\\w.]*)|([A-Za-z_][A-Za-z0-9_]*)|(\\s+)|([=+\\-*/%<>!&|^~?:]+)|(.)`,
     "g",
   );
   let m: RegExpExecArray | null;
   let k = 0;
   while ((m = re.exec(line))) {
-    const [t, c, str, num, word] = m;
+    const [t, c, str, num, dec, word, , op] = m;
     if (c) out.push(<span key={k++} className="tk-com">{t}</span>);
     else if (str) out.push(<span key={k++} className="tk-str">{t}</span>);
     else if (num) out.push(<span key={k++} className="tk-num">{t}</span>);
+    else if (dec) out.push(<span key={k++} className="tk-dec">{t}</span>);
     else if (word && KW.has(word)) out.push(<span key={k++} className="tk-kw">{t}</span>);
     else if (word && line[re.lastIndex] === "(") out.push(<span key={k++} className="tk-fn">{t}</span>);
+    else if (word && /^[A-Z][A-Za-z0-9]*[a-z]/.test(word)) out.push(<span key={k++} className="tk-type">{t}</span>);
+    else if (op) out.push(<span key={k++} className="tk-op">{t}</span>);
     else out.push(t);
   }
   return out;
@@ -108,11 +113,7 @@ export function CodeBlock({ code, lang, streaming }: { code: string; lang?: stri
         </span>
         {streaming && (
           <span className="codeblock-live">
-            <span className="eq" aria-hidden>
-              <i />
-              <i />
-              <i />
-            </span>
+            <GridLoader kind="code" size={11} />
             writing
           </span>
         )}

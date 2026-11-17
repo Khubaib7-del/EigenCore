@@ -127,7 +127,9 @@ class FakeUpdater:
 class FakeWindow:
     def __init__(self):
         self.calls = []
-        self.events = SimpleNamespace(maximized=_Hook(), restored=_Hook(), closed=_Hook())
+        self.events = SimpleNamespace(
+            maximized=_Hook(), restored=_Hook(), closed=_Hook(), shown=_Hook(), minimized=_Hook()
+        )
 
     def minimize(self):
         self.calls.append("minimize")
@@ -509,6 +511,49 @@ def test_window_controls(monkeypatch):
     assert not br.is_maximized()
     win.events.maximized.handlers[0]()
     assert br.is_maximized()
+
+
+def test_restore_from_taskbar_keeps_maximized():
+    br = WebBridge(backend=SimpleNamespace(events=queue.Queue()), emit=lambda p: None)
+    win = FakeWindow()
+    br._attach(win)
+    assert br.is_maximized()
+    # minimized from the title bar, then brought back from the taskbar
+    assert br.window_control("minimize")
+    win.events.restored.handlers[0]()
+    assert br.is_maximized()  # 0.4.10 forgot it, so Maximize did nothing next
+    # minimized by the OS (Win+D), then restored
+    win.events.minimized.handlers[0]()
+    win.events.restored.handlers[0]()
+    assert br.is_maximized()
+    # a real restore from maximized still clears it
+    win.events.restored.handlers[0]()
+    assert not br.is_maximized()
+
+
+def test_startup_background_follows_saved_theme(tmp_path):
+    import eigencore.desktop.web as web
+
+    path = tmp_path / "desktop-ui.json"
+    assert web.startup_background(path) == "#0A0A0A"  # no file: dark
+    path.write_text('{"theme": "light"}', encoding="utf-8")
+    assert web.startup_background(path) == "#FFFFFF"
+    path.write_text('{"theme": "dark"}', encoding="utf-8")
+    assert web.startup_background(path) == "#0A0A0A"
+    path.write_text("not json", encoding="utf-8")
+    assert web.startup_background(path) == "#0A0A0A"
+
+
+def test_native_minimize_helpers(monkeypatch):
+    import eigencore.desktop.web as web
+
+    handle = SimpleNamespace(ToInt64=lambda: 4242)
+    assert web.window_hwnd(SimpleNamespace(native=SimpleNamespace(Handle=handle))) == 4242
+    assert web.window_hwnd(SimpleNamespace(native=None)) is None
+    assert web.window_hwnd(object()) is None
+    monkeypatch.setattr(web.sys, "platform", "linux")
+    assert web.enable_native_minimize(4242) is False
+    assert web.enable_native_minimize(0) is False
 
 
 # ----- paths / run --------------------------------------------------------------------

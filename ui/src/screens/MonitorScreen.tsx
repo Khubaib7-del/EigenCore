@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { api } from "../api";
 import { Icon, type IconName } from "../components/Icon";
-import { Chip, PixelLoader, Ring, SampleBadge, Segmented, TpsChart } from "../components/primitives";
+import { GridLoader } from "../components/GridLoader";
+import { Chip, Ring, SampleBadge, Segmented, TpsChart } from "../components/primitives";
 import { useStore, type EnginePhase } from "../state/store";
 
 const PHASES: { id: EnginePhase; label: string }[] = [
@@ -11,11 +12,13 @@ const PHASES: { id: EnginePhase; label: string }[] = [
   { id: "writing", label: "Writing" },
 ];
 
-function Stat({ icon, label, value, unit, foot }: { icon: IconName; label: string; value: string; unit?: string; foot: string }) {
+function Stat({ icon, label, value, unit, foot, tint }: { icon: IconName; label: string; value: string; unit?: string; foot: string; tint: string }) {
   return (
     <div className="card stat">
       <div className="stat-label">
-        <Icon name={icon} size={14} />
+        <span className={`stat-ico ${tint}`}>
+          <Icon name={icon} size={14} />
+        </span>
         {label}
       </div>
       <div className="stat-value tnum">
@@ -97,7 +100,7 @@ function SpeedCard() {
         </div>
         {view === "live" && writing && (
           <span className="chart-live">
-            <PixelLoader /> live
+            <GridLoader kind="live" size={11} /> live
           </span>
         )}
       </div>
@@ -142,7 +145,7 @@ export function MonitorScreen() {
             <div className="engine-phase">{phase === "error" ? "Error" : PHASES.find((p) => p.id === phase)?.label}</div>
             <div className="muted mono">{model ? `${model.name} · ${model.quant} · ${state.profile.recommended_threads} threads` : "No model loaded"}</div>
           </div>
-          {(phase === "reading" || phase === "writing" || phase === "loading") && <PixelLoader />}
+          {(phase === "reading" || phase === "writing" || phase === "loading") && <GridLoader kind={phase === "loading" ? "loading" : phase === "reading" ? "thinking" : "writing"} />}
         </div>
         <ol className="phase-track" aria-label="Engine state">
           {PHASES.map((p) => (
@@ -154,10 +157,11 @@ export function MonitorScreen() {
       </div>
 
       <div className="stat-grid">
-        <Stat icon="bolt" label="Speed" value={speed != null ? speed.toFixed(1) : "—"} unit="tok/s" foot={speedFoot} />
-        <Stat icon="sparkle" label="Tokens" value={sessionTokens.toLocaleString()} foot={`${tag}${state.turns.length} turn${state.turns.length === 1 ? "" : "s"} this session`} />
-        <Stat icon="clock" label="First token" value={last?.first_token_s != null ? last.first_token_s.toFixed(2) : "—"} unit="s" foot={last ? `${tag}last turn` : "Shown after the first reply"} />
+        <Stat tint="tint-amber" icon="bolt" label="Speed" value={speed != null ? speed.toFixed(1) : "—"} unit="tok/s" foot={speedFoot} />
+        <Stat tint="tint-violet" icon="sparkle" label="Tokens" value={sessionTokens.toLocaleString()} foot={`${tag}${state.turns.length} turn${state.turns.length === 1 ? "" : "s"} this session`} />
+        <Stat tint="tint-teal" icon="clock" label="First token" value={last?.first_token_s != null ? last.first_token_s.toFixed(2) : "—"} unit="s" foot={last ? `${tag}last turn` : "Shown after the first reply"} />
         <Stat
+          tint="tint-pink"
           icon="memory"
           label="Engine RAM"
           value={model ? `≈ ${model.size_gb.toFixed(1)}` : "—"}
@@ -174,7 +178,7 @@ export function MonitorScreen() {
             <span className="muted">approx.</span>
           </div>
           <div className="gauge-body">
-            <Ring value={ctxTotal ? ctxUsed / ctxTotal : 0} size={96} stroke={8}>
+            <Ring value={ctxTotal ? ctxUsed / ctxTotal : 0} size={96} stroke={8} color>
               <span className="tnum">{ctxTotal ? Math.round((ctxUsed / ctxTotal) * 100) : 0}%</span>
             </Ring>
             <div className="mono tnum gauge-text">
