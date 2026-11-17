@@ -21,7 +21,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from eigencore.engine.inference import KV_NEEDS_FLASH, GenerationConfig, InferenceEngine
+from eigencore.engine.inference import KV_NEEDS_FLASH, GenerationConfig
 from eigencore.fit import (
     FitVerdict,
     estimate_fit,
@@ -29,17 +29,35 @@ from eigencore.fit import (
     max_context_for_budget,
     read_gguf_model_info,
 )
+from eigencore.forge import open_engine, pick_model
 from eigencore.hal.profiler import profile_hardware
 from eigencore.models.registry import ModelRegistry
 
 console = Console()
 
 
-def _resolve_or_bail(registry, model, hw, task="general"):
+PLD_IGNORED = (
+    "--pld is ignored: prompt-lookup decoding is not available yet "
+    "(the old shortcut could change the output). Generating normally."
+)
+
+
+def _warn_pld(pld: bool) -> None:
+    if pld:
+        click.echo(PLD_IGNORED, err=True)
+
+
+def _resolve_or_bail(registry, model, hw, task="general", prompt=None):
     """Resolve a model spec; if the resolved one isn't downloaded, fall back
     to the first downloaded model (with a note). Exit cleanly when none."""
     try:
-        spec = registry.resolve(model, hw, task)
+        if model is None:
+            # no -m: Forge's router picks (a coding prompt gets the coding model)
+            spec, decision = pick_model(hw, registry, prompt, task)
+            if decision is not None and decision.confidence >= 0.4:
+                console.print(f"[dim]Router: {decision.reason} -> {spec.name}[/]")
+        else:
+            spec = registry.resolve(model, hw, task)
     except ValueError as e:
         console.print(f"[red]Error:[/] {e}")
         sys.exit(1)
@@ -321,7 +339,8 @@ def delete(name: str):
 @click.option(
     "--pld",
     is_flag=True,
-    help="Enable prompt-lookup decoding (copies prompt-verbatim spans; default OFF until measured)",
+    hidden=True,
+    help="Prompt-lookup decoding: not available yet (accepted and ignored)",
 )
 def run(
     model: str | None,
@@ -338,18 +357,18 @@ def run(
     """Run inference with a prompt."""
     if kv_type != "fp16" and no_flash:
         raise click.UsageError(KV_NEEDS_FLASH.format(kv_type=kv_type))
+    _warn_pld(pld)
     hw = profile_hardware()
     registry = ModelRegistry()
 
-    spec = _resolve_or_bail(registry, model, hw, task)
-    model_path = spec.local_path(registry.cache_dir)
+    spec = _resolve_or_bail(registry, model, hw, task, prompt=prompt)
 
     if gpu_layers == 0 and hw.available_vram_gb > 0:
         _, _, gpu_layers = _fit_for_spec(spec, hw, registry, kv_quant=kv_type)
     if gpu_layers > 0:
         console.print(f"[dim]Offloading {gpu_layers} layers to {hw.gpu_name}[/]")
-    engine = InferenceEngine(
-        model_path, hw, spec, kv_type=kv_type, flash_attn=not no_flash, n_gpu_layers=gpu_layers
+    engine = open_engine(
+        spec, hw, registry, kv_type=kv_type, flash_attn=not no_flash, n_gpu_layers=gpu_layers
     )
 
     with console.status("[bold cyan]Loading model..."):
@@ -360,7 +379,6 @@ def run(
     )
 
     config = GenerationConfig(
-        prompt_lookup=pld,
         max_tokens=max_tokens,
         temperature=temperature,
         stream=not no_stream,
@@ -411,7 +429,8 @@ def run(
 @click.option(
     "--pld",
     is_flag=True,
-    help="Enable prompt-lookup decoding (copies prompt-verbatim spans; default OFF until measured)",
+    hidden=True,
+    help="Prompt-lookup decoding: not available yet (accepted and ignored)",
 )
 def chat(
     model: str | None,
@@ -428,6 +447,7 @@ def chat(
     commands; --plain or piped stdin gives the line-mode UI)."""
     if kv_type != "fp16" and no_flash:
         raise click.UsageError(KV_NEEDS_FLASH.format(kv_type=kv_type))
+    _warn_pld(pld)
     hw = profile_hardware()
     registry = ModelRegistry()
     from eigencore.tui.theme import probe_terminal
@@ -490,8 +510,8 @@ def chat(
         cfg_store["model"] = spec.name
         save_config(cfg_store)
 
-    engine = InferenceEngine(
-        model_path, hw, spec, kv_type=kv_type, flash_attn=not no_flash, n_gpu_layers=gpu_layers
+    engine = open_engine(
+        spec, hw, registry, kv_type=kv_type, flash_attn=not no_flash, n_gpu_layers=gpu_layers
     )
 
     with console.status("[bold cyan]Loading model..."):
@@ -505,7 +525,6 @@ def chat(
         plain=caps.plain,
         max_tokens=max_tokens,
         temperature=temperature,
-        prompt_lookup=pld,
     )
     if caps.plain:
         from eigencore.tui.chat import ChatUI
@@ -521,10 +540,10 @@ def chat(
         def _switch_model(new_spec):
             """Reload the engine with another (downloaded) model from the TUI."""
             state["engine"].unload()
-            state["engine"] = InferenceEngine(
-                new_spec.local_path(registry.cache_dir),
-                hw,
+            state["engine"] = open_engine(
                 new_spec,
+                hw,
+                registry,
                 kv_type=kv_type,
                 flash_attn=not no_flash,
                 n_gpu_layers=gpu_layers,
@@ -565,9 +584,8 @@ def analyze(
     hw = profile_hardware()
     registry = ModelRegistry()
 
-    spec = _resolve_or_bail(registry, model, hw)
-    model_path = spec.local_path(registry.cache_dir)
-    engine = InferenceEngine(model_path, hw, spec)
+    spec = _resolve_or_bail(registry, model, hw, prompt=prompt)
+    engine = open_engine(spec, hw, registry)
 
     with console.status("[bold cyan]Loading model..."):
         engine.load()
@@ -692,7 +710,7 @@ def benchmark(
         )
     )
 
-    engine = InferenceEngine(model_path, hw, spec)
+    engine = open_engine(spec, hw, registry)
     with console.status("[bold cyan]Loading model..."):
         engine.load()
 

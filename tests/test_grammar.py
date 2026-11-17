@@ -27,8 +27,8 @@ class TestGBNFBuilder:
         reg = _make_registry(Tool(name="ping", description="ping", handler=_noop))
         grammar = GBNFBuilder.tool_call_grammar(reg)
         assert "root" in grammar
-        assert "call_ping" in grammar
-        assert "tool_call" in grammar
+        assert "call-ping" in grammar
+        assert "tool-call" in grammar
         assert "ws" in grammar
 
     def test_single_tool_with_params(self):
@@ -43,7 +43,7 @@ class TestGBNFBuilder:
         )
         reg = _make_registry(tool)
         grammar = GBNFBuilder.tool_call_grammar(reg)
-        assert "call_search" in grammar
+        assert "call-search" in grammar
         assert "query" in grammar
         assert "limit" in grammar
         assert "string" in grammar
@@ -55,9 +55,9 @@ class TestGBNFBuilder:
             Tool(name="write", description="write", handler=_noop),
         )
         grammar = GBNFBuilder.tool_call_grammar(reg)
-        assert "call_read" in grammar
-        assert "call_write" in grammar
-        assert "call_read | call_write" in grammar or "call_write | call_read" in grammar
+        assert "call-read" in grammar
+        assert "call-write" in grammar
+        assert "call-read | call-write" in grammar or "call-write | call-read" in grammar
 
     def test_enum_param(self):
         tool = Tool(
@@ -97,8 +97,9 @@ class TestGBNFBuilder:
     def test_thought_or_action_grammar(self):
         reg = _make_registry(Tool(name="calc", description="calc", handler=_noop))
         grammar = GBNFBuilder.thought_or_action_grammar(reg)
-        assert "thought_block" in grammar
-        assert "action_block" in grammar
+        # old name kept as an alias of react_grammar (thought | action | final)
+        assert grammar == GBNFBuilder.react_grammar(reg)
+        assert "final" in grammar
         assert "thought" in grammar
         assert "action" in grammar
 

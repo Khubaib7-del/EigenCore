@@ -4,6 +4,11 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Fixed
+- Agent (ReAct): the GBNF grammar was built but never passed to the model, so tool calls were not constrained. `Forge.run_agent` now passes `ReActAgent.grammar` (llama.cpp `LlamaGrammar`, compiled once per grammar) to every step. The grammar now matches what the agent parses (`thought` / `action` / `final` with `content`, `tool`, `args`; the old one had no `final` and used other keys). It also fixes problems that stopped it working in llama.cpp: rule names with `_` (rejected by the parser), unlimited whitespace and digits that let a model spin until `max_tokens`, and raw control characters inside strings. Optional tool parameters are now optional. Checked with a 15M test model: 10 of 10 steps were valid JSON.
+- `--pld`: the prompt-lookup path pasted prompt text into the reply without the model producing it, so it could change the answer. The flag is now hidden and ignored with a warning; replies are exactly what the model samples. A real draft-and-verify version is planned.
+- One load path: the CLI (`run`, `chat`, the TUI model switch, `analyze`, `benchmark`) and the desktop app now build engines through `eigencore.forge.open_engine`, the same function Forge uses, instead of each creating `InferenceEngine` itself. Without `-m`, `run` asks Forge's task router for the model (a coding prompt gets the coding model) and prints the routing reason; `chat` keeps `--task`. The router does not swap models in the middle of a chat (loading takes too long on CPU).
+
 ## [0.4.9] - 2026-11-17
 
 The desktop app opens full screen with a new animated monitor, provider logos are back in colour, and the engine now sizes context and the KV cache from the model's real shape.

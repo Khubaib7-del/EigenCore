@@ -78,20 +78,19 @@ def test_pld_off_by_default():
     assert GenerationConfig().prompt_lookup is False
 
 
-def test_pld_copies_verbatim_span_and_stays_aligned():
+def test_pld_flag_never_changes_output():
+    """The old string-copy path emitted prompt text the model never produced.
+    With --pld on, the stream must still be exactly what the backend sampled."""
     engine, fake = _engine()
     prompt = "Please repeat: ALPHA-BETA-GAMMA end."
-    # backend would emit the span token-by-token; PLD copies it in one go and
-    # swallows the covered backend tokens
+    # the model diverges from the prompt after ALPHA-BETA
     fake.Llama.return_value.create_chat_completion.return_value = iter(
-        _chunks(["Please repeat: ", "ALPHA", "-BETA", "-GAMMA", " end."])
+        _chunks(["Please repeat: ", "ALPHA", "-BETA", "-OMEGA", " done."])
     )
     cfg = GenerationConfig(stream=True, prompt_lookup=True)
-    out = list(engine.stream_messages([{"role": "user", "content": prompt}], cfg))
-    text = "".join(out)
-    assert "ALPHA-BETA-GAMMA" in text
-    assert text.endswith("end.")
-    assert engine.last_pld_copied_chars >= len("ALPHA-BETA-GAMMA")
+    out = "".join(engine.stream_messages([{"role": "user", "content": prompt}], cfg))
+    assert out == "Please repeat: ALPHA-BETA-OMEGA done."
+    assert engine.last_pld_copied_chars == 0
 
 
 def test_pld_disabled_passes_backend_tokens_through():
