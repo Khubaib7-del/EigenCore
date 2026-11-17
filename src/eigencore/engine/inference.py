@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from eigencore.engine.layer_skip import LayerSkipScheduler, SkipStrategy
-from eigencore.engine.prompt_lookup import longest_prompt_continuation
 from eigencore.engine.sparse_inference import SparsityCache, SparsityPredictor
 from eigencore.engine.speculative import SpeculativeDecoder
 from eigencore.hal.profiler import HardwareProfile, InstructionSet
@@ -59,9 +58,13 @@ class GenerationConfig:
     enable_layer_skip: bool = True
     enable_sparse_inference: bool = True
     complexity: float = 0.5
-    # Prompt-lookup decoding: copy prompt-verbatim spans instead of decoding
-    # them. Default OFF; enable only after owner benchmarks (FINAL_REPORT §9 item 9).
+    # Prompt-lookup decoding. Accepted but ignored: the old string-copy path
+    # emitted prompt text the model never verified, which can change output.
+    # A token-level draft + verify version is planned (E5).
     prompt_lookup: bool = False
+    # GBNF grammar text (llama.cpp format). When set, sampling is constrained
+    # to strings the grammar accepts (used by the ReAct agent).
+    grammar: str | None = None
 
 
 @dataclass
@@ -105,7 +108,8 @@ class InferenceEngine:
         self._sparsity_predictor: SparsityPredictor | None = None
         self._sparsity_cache = SparsityCache()
         self._speculative_decoder = SpeculativeDecoder(adaptive=True)
-        self.last_pld_copied_chars = 0
+        self.last_pld_copied_chars = 0  # always 0: string-copy PLD is disabled
+        self._grammar_cache: dict[str, object] = {}
         self.last_stream_stats: dict | None = None
 
     def load(self) -> None:
@@ -217,6 +221,19 @@ class InferenceEngine:
         else:
             return 256
 
+    def _grammar_kwargs(self, config: GenerationConfig) -> dict:
+        """`grammar=` for create_chat_completion, compiled once per grammar text."""
+        if not config.grammar:
+            return {}
+        cache = self.__dict__.setdefault("_grammar_cache", {})
+        compiled = cache.get(config.grammar)
+        if compiled is None:
+            from llama_cpp import LlamaGrammar
+
+            compiled = LlamaGrammar.from_string(config.grammar, verbose=False)
+            cache[config.grammar] = compiled
+        return {"grammar": compiled}
+
     def generate(
         self,
         prompt: str,
@@ -255,6 +272,7 @@ class InferenceEngine:
             repeat_penalty=config.repeat_penalty,
             stop=config.stop or None,
             stream=True,
+            **self._grammar_kwargs(config),
         ):
             delta = chunk["choices"][0].get("delta", {})
             token = delta.get("content", "")
@@ -268,19 +286,16 @@ class InferenceEngine:
     ) -> Iterator[str]:
         """Stream a chat completion from a full message list (multi-turn).
 
-        When config.prompt_lookup is set, prompt-verbatim continuations are
-        emitted directly (byte-identical copy, see engine.prompt_lookup);
-        copied characters are reported via `last_pld_copied_chars`.
+        `config.prompt_lookup` is ignored here: the string-copy shortcut emitted
+        prompt text the model never produced. `last_pld_copied_chars` stays 0.
         """
         if self._llm is None:
             raise RuntimeError("Model not loaded. Call .load() first.")
         if config is None:
             config = GenerationConfig(stream=True)
-        prompt_text = " ".join(m.get("content", "") for m in messages)
         generated = ""
         self.last_pld_copied_chars = 0
         self.last_stream_stats = None  # set only when the stream completes
-        pending_skip = 0  # backend chars to swallow (already copied from prompt)
         t_start = time.perf_counter()
         t_first: float | None = None
         for chunk in self._llm.create_chat_completion(
@@ -292,27 +307,13 @@ class InferenceEngine:
             repeat_penalty=config.repeat_penalty,
             stop=config.stop or None,
             stream=True,
+            **self._grammar_kwargs(config),
         ):
             delta = chunk["choices"][0].get("delta", {})
             token = delta.get("content", "")
             if token:
                 if t_first is None:
                     t_first = time.perf_counter()
-                if pending_skip > 0:
-                    # this backend token is part of a span we already copied
-                    pending_skip -= len(token)
-                    continue
-                if config.prompt_lookup:
-                    continuation = longest_prompt_continuation(prompt_text, generated + token)
-                    if continuation:
-                        # The prompt continues the generation verbatim: emit the
-                        # copied span after this token and swallow its backend copy.
-                        pending_skip = len(continuation)
-                        self.last_pld_copied_chars += len(continuation)
-                        generated += token + continuation
-                        yield token
-                        yield continuation
-                        continue
                 generated += token
                 yield token
         t_end = time.perf_counter()
@@ -360,6 +361,7 @@ class InferenceEngine:
             top_k=config.top_k,
             repeat_penalty=config.repeat_penalty,
             stop=config.stop or None,
+            **self._grammar_kwargs(config),
         )
 
         elapsed = time.perf_counter() - start
