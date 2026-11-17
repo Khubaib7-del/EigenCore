@@ -168,11 +168,14 @@ def provider_for(name: str, repo_id: str = "") -> str:
 
 
 def model_row_dict(row, spec=None) -> dict:
-    """ModelRow (+ repo_id, provider, active_params_b) as the UI's ModelRow."""
+    """ModelRow (+ repo_id, provider, active_params_b, license) as the UI's ModelRow."""
     d = asdict(row)
     repo_id = getattr(spec, "repo_id", "") if spec is not None else ""
     d["repo_id"] = repo_id
     d["provider"] = provider_for(row.name, repo_id)
+    lic = (getattr(spec, "license_name", None) or getattr(spec, "license", None)) if spec else None
+    d["license"] = lic
+    d["noncommercial"] = bool(getattr(spec, "noncommercial", False)) if spec is not None else False
     m = _ACTIVE_RE.search(row.description or "")
     if m and spec is not None and getattr(spec, "is_moe", False):
         d["active_params_b"] = float(m.group(1))

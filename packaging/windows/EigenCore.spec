@@ -40,6 +40,8 @@ datas = [
     (str(UI_DIST), "ui"),
     (str(ASSETS), "assets"),  # Flet app (and legacy layout)
     (str(ASSETS), "eigencore/desktop/assets"),  # Path(__file__).parent / "assets"
+    # curated model registry, read via Path(__file__).with_name("models.json")
+    (str(SRC / "eigencore" / "models" / "models.json"), "eigencore/models"),
 ]
 binaries = []
 hiddenimports = collect_submodules("eigencore") + ["clr"]

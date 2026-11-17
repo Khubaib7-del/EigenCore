@@ -1,3 +1,3 @@
-from eigencore.models.registry import ModelRegistry, ModelSpec
+from eigencore.models.registry import REGISTRY, ModelRegistry, ModelSpec, load_registry
 
-__all__ = ["ModelRegistry", "ModelSpec"]
+__all__ = ["REGISTRY", "ModelRegistry", "ModelSpec", "load_registry"]

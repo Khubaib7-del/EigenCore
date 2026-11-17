@@ -21,6 +21,13 @@ function ModelCard({ m, onDelete }: { m: ModelRow; onDelete: () => void }) {
           {m.is_active && <Chip icon="check">Active</Chip>}
           {m.task === "code" && <Chip icon="terminal">Code</Chip>}
           {m.active_params_b && <Chip>MoE</Chip>}
+          {m.noncommercial ? (
+            <span title={`Non-commercial licence: ${m.license ?? "see model card"}`}>
+              <Chip tone="warn">NC</Chip>
+            </span>
+          ) : (
+            m.license && <Chip mono>{m.license}</Chip>
+          )}
         </div>
         <p className="model-desc">{m.description}</p>
         <div className="model-meta mono">
