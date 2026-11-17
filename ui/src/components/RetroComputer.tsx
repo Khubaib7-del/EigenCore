@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import type { FitVerdict } from "../api/types";
+import { HELLO, type HelloWord } from "./helloPaths";
 
 /*
  * The empty-chat wordmark: "EIGEN [computer] CORE". A small 3D desktop
@@ -48,14 +49,15 @@ const box = (c: V3, s: V3): BoxDef => ({ c, s });
 // housing behind it; a keyboard slab in front.
 const CASE = box([0, -0.95, -0.2], [13.6, 1.9, 7.6]);
 const FOOT = box([0, -2.1, 0.4], [4.6, 0.4, 3]);
-const MON = box([0, -6.9, 1.5], [12.6, 9.2, 1.8]);
-const REAR1 = box([0, -6.95, -0.45], [11.2, 8.3, 2.1]);
-const REAR2 = box([0, -6.8, -2.85], [8.6, 6.6, 2.7]);
-const KEYS = box([0.6, -0.2, 4.75], [11, 0.4, 2.1]);
+const MON = box([0, -7.1, 2.6], [12.8, 9.6, 1.6]);
+const REAR1 = box([0, -7.15, 0.5], [12.0, 9.0, 2.6]);
+const REAR2 = box([0, -7.0, -2.4], [9.6, 7.4, 3.2]);
+const REAR3 = box([0, -6.9, -5.0], [6.4, 5.0, 2.0]);
+const KEYS = box([0.6, -0.2, 5.1], [11, 0.4, 2.1]);
 
 // The screen opening in the bezel, and how deep the glass sits.
-const HOLE = { l: 0.72, r: 0.72, t: 0.66, b: 1.42 };
-const RECESS = 0.62;
+const HOLE = { l: 1.3, r: 1.3, t: 1.15, b: 1.95 };
+const RECESS = 0.75;
 const front = MON.c[2] + MON.s[2] / 2;
 const holeW = MON.s[0] - HOLE.l - HOLE.r;
 const holeH = MON.s[1] - HOLE.t - HOLE.b;
@@ -136,9 +138,37 @@ const SHADOW: CSSProperties = {
   transform: "translate(-50%,-50%) translate3d(0.2em,0.02em,0.6em) rotateX(90deg)",
 };
 
+// The power lead: lies on the desk left of the case and plugs into its side.
+const SOCKET_Z = 1.6;
+const PLUG = box([CASE.c[0] - CASE.s[0] / 2 - 0.42, -0.5, SOCKET_Z], [0.84, 0.72, 0.9]);
+const DESK = box([-9.2, -0.03, 4.6], [6, 0, 9]);
+const DX0 = DESK.c[0] - DESK.s[0] / 2;
+const DZ0 = DESK.c[2] - DESK.s[2] / 2;
+// Drawn from the far end toward the socket, so it "arrives" at the case.
+const CABLE_D = `M-10.9 6.6 C-11.3 5.4 -9.3 5.0 -9.8 3.9 S-10.7 2.2 -9.4 ${SOCKET_Z} L${PLUG.c[0] - 0.42} ${SOCKET_Z}`;
+const CABLE = (
+  <span className="rc-face rc-desk" style={face(DESK, "t")} aria-hidden>
+    <svg viewBox={`${DX0} ${DZ0} ${DESK.s[0]} ${DESK.s[2]}`}>
+      <defs>
+        <linearGradient id="rc-cable-fade" gradientUnits="userSpaceOnUse" x1="-10.9" y1="6.6" x2="-9.9" y2="3.6">
+          <stop offset="0" stopOpacity="0" />
+          <stop offset="1" stopOpacity="1" />
+        </linearGradient>
+      </defs>
+      <path className="rc-cable" d={CABLE_D} pathLength={1} />
+      <path className="rc-cable-hi" d={CABLE_D} pathLength={1} />
+    </svg>
+  </span>
+);
+
 const SCENE = (
   <>
     <span className="rc-face rc-floor" style={SHADOW} aria-hidden />
+    {CABLE}
+    <span className="rc-plugwrap">
+      <Box b={PLUG} cls="rc-plug" faces={["k", "l", "t", "f"]} />
+    </span>
+    <Box b={REAR3} cls="rc-shell rc-rear3" />
     <Box b={REAR2} cls="rc-shell rc-rear2" />
     <Box b={REAR1} cls="rc-shell rc-rear1" />
     <Box b={CASE} cls="rc-shell rc-case" faces={["l", "t"]} />
@@ -174,6 +204,15 @@ type Page = "home" | "sys" | "fit" | "speed";
 const TAB: Record<Page, string> = { home: "HOME", sys: "SYS", fit: "FIT", speed: "SPD" };
 
 let bootedOnce = false;
+
+/** True the first time the empty state shows in this app session (and motion is allowed). */
+export function introPending() {
+  return !bootedOnce && !reducedMotion();
+}
+
+// Power-up timeline (ms from mount), first show only.
+export const T_WARM = 1150; // plug seated → LED on, tube warms
+export const T_POST = 1800; // tube lit → POST types
 
 function clock() {
   const d = new Date();
@@ -228,6 +267,17 @@ export function RetroComputer({
   ];
   const total = post.reduce((n, l) => n + l.length, 0);
   const [boot, setBoot] = useState(() => (bootedOnce || reducedMotion() ? total + 1 : 0));
+  const [phase, setPhase] = useState<"cable" | "warm" | "post" | "on">(() => (boot > total ? "on" : "cable"));
+  useEffect(() => {
+    if (phase !== "cable") return;
+    const a = setTimeout(() => setPhase("warm"), T_WARM);
+    const b = setTimeout(() => setPhase("post"), T_POST);
+    return () => {
+      clearTimeout(a);
+      clearTimeout(b);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [page, setPage] = useState<Page>("home");
   const [hidden, setHidden] = useState(typeof document !== "undefined" && document.hidden);
   const [now, setNow] = useState(clock);
@@ -235,11 +285,13 @@ export function RetroComputer({
   useEffect(() => {
     if (boot > total) {
       bootedOnce = true;
+      if (phase === "post") setPhase("on");
       return;
     }
+    if (phase === "cable" || phase === "warm") return;
     const t = setTimeout(() => setBoot((n) => n + 2), boot >= total - 1 ? 520 : 22);
     return () => clearTimeout(t);
-  }, [boot, total]);
+  }, [boot, total, phase]);
 
   useEffect(() => {
     const on = () => setHidden(document.hidden);
@@ -379,7 +431,7 @@ export function RetroComputer({
   };
 
   return (
-    <span ref={rootRef} className={`rc ${hidden ? "paused" : ""}`} onPointerMove={onMove} onPointerLeave={onLeave}>
+    <span ref={rootRef} className={`rc phase-${phase} ${hidden ? "paused" : ""}`} onPointerMove={onMove} onPointerLeave={onLeave}>
       <span className="rc-stage">
         <span className="rc-obj">
           {SCENE}
@@ -419,30 +471,33 @@ export function RetroComputer({
   );
 }
 
-/** Split a word into letter spans for the staggered entrance and the idle wave. */
-function Letters({ word, from }: { word: string; from: number }) {
+/** One word written by hand, stroke after stroke, like the Mac "hello". */
+function Hello({ word, start, dur, writing, label }: { word: HelloWord; start: number; dur: number; writing: boolean; label: string }) {
+  const total = word.paths.reduce((n, p) => n + p.len, 0);
+  const gap = 45; // pen lift between strokes
+  const spend = dur - gap * (word.paths.length - 1);
+  let at = start;
   return (
-    <>
-      {[...word].map((ch, i) => (
-        <span key={i} className="wm-l" style={{ "--i": from + i } as CSSProperties}>
-          {ch}
-        </span>
-      ))}
-    </>
+    <svg className={`hello ${writing ? "writing" : ""}`} viewBox={`0 0 ${word.w} ${word.h}`} aria-hidden data-word={label}>
+      {word.paths.map((p, i) => {
+        const t = Math.max(60, (p.len / total) * spend);
+        const st = { "--d": `${Math.round(at)}ms`, "--t": `${Math.round(t)}ms` } as CSSProperties;
+        at += t + gap;
+        return <path key={i} d={p.d} pathLength={1} style={st} />;
+      })}
+    </svg>
   );
 }
 
-/** "EIGEN [computer] CORE": the empty-chat heading. */
+/** "Eigen [computer] Core": the empty-chat heading. On the first show the
+ * computer powers up, then each word writes itself. */
 export function Wordmark(props: Parameters<typeof RetroComputer>[0]) {
+  const [writing] = useState(introPending);
   return (
-    <div className="ec-wordmark" role="group" aria-label="EigenCore">
-      <span className="wm-word" aria-hidden>
-        <Letters word="EIGEN" from={0} />
-      </span>
+    <div className="ec-wordmark script" role="group" aria-label="EigenCore">
+      <Hello word={HELLO.Eigen} label="Eigen" start={T_POST + 150} dur={1500} writing={writing} />
       <RetroComputer {...props} />
-      <span className="wm-word" aria-hidden>
-        <Letters word="CORE" from={6} />
-      </span>
+      <Hello word={HELLO.Core} label="Core" start={T_POST + 1750} dur={1150} writing={writing} />
     </div>
   );
 }
