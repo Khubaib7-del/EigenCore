@@ -9,6 +9,8 @@ retries or validation loops.
 
 from __future__ import annotations
 
+import re
+
 from eigencore.agent.tool import Tool, ToolRegistry
 
 
@@ -16,10 +18,13 @@ class GBNFBuilder:
     """Builds GBNF grammars that constrain model output to valid structures."""
 
     # reusable primitives
-    _WS = "ws ::= [ \\t\\n]*"
-    _STRING = r'string ::= "\"" ([^"\\] | "\\" .)* "\""'
-    _INTEGER = 'integer ::= "-"? [0-9]+'
-    _NUMBER = 'number ::= "-"? [0-9]+ ("." [0-9]+)?'
+    _WS = 'ws ::= | " " | "\\n" [ \\t]{0,8}'
+    # JSON string: no raw control characters, standard escapes only (as in llama.cpp json.gbnf)
+    _STRING = (
+        r'string ::= "\"" ([^"\\\x7F\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4}))* "\""'
+    )
+    _INTEGER = 'integer ::= "-"? [0-9]{1,15}'
+    _NUMBER = 'number ::= "-"? [0-9]{1,15} ("." [0-9]{1,15})?'
     _BOOLEAN = 'boolean ::= "true" | "false"'
 
     @classmethod
@@ -31,12 +36,12 @@ class GBNFBuilder:
         tool_alternatives: list[str] = []
 
         for tool in registry.tools:
-            rule_name = f"call_{tool.name}"
+            rule_name = cls._rule_name(tool.name)
             tool_alternatives.append(rule_name)
             rules.append(cls._tool_rule(tool, rule_name))
 
-        root = 'root ::= ws "{" ws tool_call ws "}" ws'
-        tool_union = "tool_call ::= " + " | ".join(tool_alternatives)
+        root = 'root ::= ws "{" ws tool-call ws "}" ws'
+        tool_union = "tool-call ::= " + " | ".join(tool_alternatives)
 
         parts = [
             root,
@@ -78,18 +83,28 @@ class GBNFBuilder:
             args_part = '"\\"args\\"" ws ":" ws "{" ws "}"'
             return f'{rule_name} ::= {tool_name_part} ws "," ws {args_part}'
 
-        param_pairs: list[str] = []
-        for param in tool.parameters:
+        def pair(param) -> str:
             type_rule = cls._type_to_rule(param.type)
             if param.enum:
-                enum_alts = " | ".join(f'"\\"{v}\\""' for v in param.enum)
-                type_rule = f"({enum_alts})"
-            param_pair = f'"\\"{param.name}\\"" ws ":" ws {type_rule}'
-            param_pairs.append(param_pair)
+                type_rule = "(" + " | ".join(f'"\\"{v}\\""' for v in param.enum) + ")"
+            return f'"\\"{param.name}\\"" ws ":" ws {type_rule}'
 
-        args_body = ' ws "," ws '.join(param_pairs)
-        args_part = f'"\\"args\\"" ws ":" ws "{{" ws {args_body} ws "}}"'
+        required = [pair(p) for p in tool.parameters if p.required]
+        optional = [pair(p) for p in tool.parameters if not p.required]
+        sep = 'ws "," ws'
+        if required:
+            body = f" {sep} ".join(required) + "".join(f" ({sep} {o})?" for o in optional)
+        else:
+            # all optional: either "{}" or the optional keys in declared order
+            chain = optional[0] + "".join(f" ({sep} {o})?" for o in optional[1:])
+            body = f"({chain})?"
+        args_part = f'"\\"args\\"" ws ":" ws "{{" ws {body} ws "}}"'
         return f'{rule_name} ::= {tool_name_part} ws "," ws {args_part}'
+
+    @staticmethod
+    def _rule_name(tool_name: str) -> str:
+        """llama.cpp rule names allow only letters, digits and '-'."""
+        return "call-" + re.sub(r"[^A-Za-z0-9-]", "-", tool_name)
 
     @staticmethod
     def _type_to_rule(type_name: str) -> str:
@@ -105,17 +120,37 @@ class GBNFBuilder:
         return rule
 
     @classmethod
+    def react_grammar(cls, registry: ToolRegistry) -> str:
+        """Grammar for one ReAct step, matching ReActAgent.parse_step exactly:
+
+        {"type": "thought", "content": "..."}
+        {"type": "action", "tool": "<name>", "args": {...}}
+        {"type": "final", "content": "..."}
+        """
+        content = '"\\"content\\"" ws ":" ws string'
+        lines = [
+            'root ::= "{" ws (thought | action | final) ws "}"',
+            f'thought ::= "\\"type\\"" ws ":" ws "\\"thought\\"" ws "," ws {content}',
+            'action ::= "\\"type\\"" ws ":" ws "\\"action\\"" ws "," ws tool-call',
+            f'final ::= "\\"type\\"" ws ":" ws "\\"final\\"" ws "," ws {content}',
+        ]
+        if registry.tools:
+            tool_rules = []
+            alternatives = []
+            for tool in registry.tools:
+                rule_name = cls._rule_name(tool.name)
+                alternatives.append(rule_name)
+                tool_rules.append(cls._tool_rule(tool, rule_name))
+            lines.append("tool-call ::= " + " | ".join(alternatives))
+            lines.extend(tool_rules)
+        else:
+            # no tools: the action branch can never match
+            lines[0] = 'root ::= "{" ws (thought | final) ws "}"'
+            lines.pop(2)
+        lines += [cls._WS, cls._STRING, cls._INTEGER, cls._NUMBER, cls._BOOLEAN]
+        return "\n".join(lines)
+
+    @classmethod
     def thought_or_action_grammar(cls, registry: ToolRegistry) -> str:
-        """Grammar for ReAct: model must output either a thought or a tool call."""
-        tool_grammar = cls.tool_call_grammar(registry)
-
-        thought_rule = 'thought ::= "\\"thought\\"" ws ":" ws string'
-        action_rule = 'action ::= "\\"action\\"" ws ":" ws "{" ws tool_call ws "}"'
-
-        new_root = 'root ::= ws "{" ws (thought_block | action_block) ws "}" ws'
-        thought_block = 'thought_block ::= "\\"type\\"" ws ":" ws "\\"thought\\"" ws "," ws thought'
-        action_block = 'action_block ::= "\\"type\\"" ws ":" ws "\\"action\\"" ws "," ws action'
-
-        remaining = "\n".join(tool_grammar.split("\n")[1:])
-        parts = [new_root, thought_block, action_block, thought_rule, action_rule, remaining]
-        return "\n".join(parts)
+        """Deprecated name for react_grammar (it now also allows "final")."""
+        return cls.react_grammar(registry)

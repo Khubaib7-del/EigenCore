@@ -19,6 +19,7 @@ from enum import Enum, auto
 from typing import Any, Optional
 
 from eigencore.agent.executor import ToolExecutor, ToolResult
+from eigencore.agent.grammar import GBNFBuilder
 from eigencore.agent.tool import ToolRegistry
 
 
@@ -123,6 +124,12 @@ class ReActAgent:
         self.max_steps = max_steps
         self.max_tokens_per_step = max_tokens_per_step
         self._system_prompt = system_prompt
+
+    @property
+    def grammar(self) -> str:
+        """GBNF for one step; pass it as GenerationConfig.grammar so every
+        model output parses as a thought, a tool call or a final answer."""
+        return GBNFBuilder.react_grammar(self.registry)
 
     @property
     def system_prompt(self) -> str:
