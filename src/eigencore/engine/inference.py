@@ -10,7 +10,6 @@ the `optimization_stats` property.
 from __future__ import annotations
 
 import time
-import warnings
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,23 +26,24 @@ from eigencore.models.registry import ModelSpec
 # ggml.h: GGML_TYPE_F32 = 0, GGML_TYPE_F16 = 1, GGML_TYPE_Q8_0 = 8.
 GGML_TYPE_F16 = 1
 GGML_TYPE_Q8_0 = 8
+KV_NEEDS_FLASH = (
+    "--kv {kv_type} needs flash attention (llama.cpp only quantizes the V cache "
+    "with flash attention on). Drop --no-flash, or use --kv fp16."
+)
+
 _KV_TYPE_MAP = {"fp16": GGML_TYPE_F16, "q8_0": GGML_TYPE_Q8_0}
 
 
 def kv_cache_types(kv_type: str, flash_attn: bool) -> tuple[int, int]:
     """(type_k, type_v) ggml enums for a --kv choice.
 
-    llama.cpp only supports a quantized V cache with flash attention, so with
-    flash attention off a q8_0 request keeps K at q8_0 and V at f16.
+    llama.cpp only supports a quantized V cache with flash attention. Asking
+    for a quantized KV cache with flash attention off is a contradiction, so it
+    raises instead of quietly keeping half the cache at f16.
     """
     k = v = _KV_TYPE_MAP[kv_type]
     if v != GGML_TYPE_F16 and not flash_attn:
-        warnings.warn(
-            f"kv_type={kv_type!r} needs flash attention for the V cache; "
-            "V cache stays f16 because flash attention is off",
-            stacklevel=2,
-        )
-        v = GGML_TYPE_F16
+        raise ValueError(KV_NEEDS_FLASH.format(kv_type=kv_type))
     return k, v
 
 

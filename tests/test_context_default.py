@@ -36,6 +36,14 @@ def test_q8_kv_doubles_context():
     assert default_context_length(GEO, 4.0, 32768, kv_quant="q8_0", file_size_bytes=0) == 16384
 
 
+def test_capped_at_16k_on_big_machines():
+    assert default_context_length(GEO, 64.0, 131072, file_size_bytes=0) == 16384
+
+
+def test_cap_is_adjustable():
+    assert default_context_length(GEO, 64.0, 131072, file_size_bytes=0, cap=65536) == 65536
+
+
 def test_clamped_to_model_max():
     assert default_context_length(GEO, 64.0, 4096, file_size_bytes=0) == 4096
 

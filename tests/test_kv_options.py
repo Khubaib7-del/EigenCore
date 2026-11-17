@@ -76,12 +76,19 @@ def test_q8_0_kv_maps_to_ggml_q8_0():
     assert kwargs["flash_attn"] is True
 
 
-def test_q8_0_without_flash_keeps_v_f16():
-    with pytest.warns(UserWarning, match="flash attention"):
-        kwargs = _load_with(kv_type="q8_0", flash_attn=False)
-    assert kwargs["type_k"] == 8
-    assert kwargs["type_v"] == 1  # quantized V needs flash_attn
-    assert kwargs["flash_attn"] is False
+def test_q8_0_without_flash_is_an_error():
+    with pytest.raises(ValueError, match="needs flash attention"):
+        _load_with(kv_type="q8_0", flash_attn=False)
+
+
+def test_cli_rejects_q8_0_with_no_flash():
+    from click.testing import CliRunner
+
+    from eigencore.cli.main import cli
+
+    r = CliRunner().invoke(cli, ["run", "-p", "hi", "--kv", "q8_0", "--no-flash"])
+    assert r.exit_code == 2
+    assert "needs flash attention" in r.output
 
 
 def test_no_flash():

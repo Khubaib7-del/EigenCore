@@ -21,7 +21,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from eigencore.engine.inference import GenerationConfig, InferenceEngine
+from eigencore.engine.inference import KV_NEEDS_FLASH, GenerationConfig, InferenceEngine
 from eigencore.fit import (
     FitVerdict,
     estimate_fit,
@@ -336,6 +336,8 @@ def run(
     pld: bool,
 ):
     """Run inference with a prompt."""
+    if kv_type != "fp16" and no_flash:
+        raise click.UsageError(KV_NEEDS_FLASH.format(kv_type=kv_type))
     hw = profile_hardware()
     registry = ModelRegistry()
 
@@ -424,6 +426,8 @@ def chat(
 ):
     """Start an interactive chat session (full-screen TUI on a TTY, streaming, slash
     commands; --plain or piped stdin gives the line-mode UI)."""
+    if kv_type != "fp16" and no_flash:
+        raise click.UsageError(KV_NEEDS_FLASH.format(kv_type=kv_type))
     hw = profile_hardware()
     registry = ModelRegistry()
     from eigencore.tui.theme import probe_terminal

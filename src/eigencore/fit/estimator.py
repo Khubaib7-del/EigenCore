@@ -42,6 +42,11 @@ DEFAULT_RUNTIME_RESERVE_GB = 2.0
 # Smallest context the engine opens a model with when the RAM budget says less
 # (or nothing) fits; still clamped to the model's own maximum.
 MIN_DEFAULT_CONTEXT = 2048
+# Default ceiling on CPU. llama.cpp reserves the whole KV cache up front, so an
+# uncapped default would take several GB of RAM on bigger machines before a
+# single token is typed. 16K covers an everyday coding session (a few source
+# files + the conversation).
+DEFAULT_CONTEXT_CAP = 16384
 DEFAULT_SAFETY_MARGIN_GB = 1.0
 
 
@@ -374,12 +379,14 @@ def default_context_length(
     params_b: float = 0.0,
     quant: str = "Q4_K_M",
     floor: int = MIN_DEFAULT_CONTEXT,
+    cap: int = DEFAULT_CONTEXT_CAP,
 ) -> int | None:
     """Context length to open a model with, from real GGUF geometry.
 
     The largest power-of-two context whose KV cache fits the RAM budget
     (`max_context_for_budget`), clamped to the model's maximum context and
-    raised to `floor` (itself never above the model's maximum). Returns None
+    to `cap` (16K by default), and raised to `floor` (itself never above the
+    model's maximum). Returns None
     when geometry is unknown, so the caller keeps its own fallback.
     """
     if geometry is None or not geometry.is_complete:
@@ -394,4 +401,4 @@ def default_context_length(
         kv_quant=kv_quant,
         file_size_bytes=file_size_bytes,
     )
-    return min(max(ctx, floor), limit)
+    return min(max(min(ctx, cap), floor), limit)
