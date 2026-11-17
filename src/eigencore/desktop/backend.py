@@ -32,7 +32,8 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from eigencore.engine.inference import GenerationConfig, InferenceEngine
+from eigencore.engine.inference import GenerationConfig
+from eigencore.forge import open_engine
 from eigencore.fit import FitVerdict, estimate_fit, read_gguf_model_info
 from eigencore.hal.profiler import HardwareProfile, profile_hardware
 from eigencore.models.registry import ModelRegistry, ModelSpec
@@ -235,8 +236,8 @@ class DesktopBackend:
 
     # ----- engine -------------------------------------------------------------
     def _default_engine_factory(self, spec: ModelSpec):
-        path = spec.local_path(self.registry.cache_dir)
-        return InferenceEngine(path, self.profile, spec)
+        # same load path as the CLI/TUI and Forge (one place for engine options)
+        return open_engine(spec, self.profile, self.registry)
 
     def switch_model(self, name: str) -> None:
         """Load a downloaded model as the active engine (worker thread)."""

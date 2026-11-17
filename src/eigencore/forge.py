@@ -39,6 +39,47 @@ from eigencore.models.registry import ModelRegistry, ModelSpec
 from eigencore.router.classifier import RoutingDecision, TaskRouter
 
 
+def open_engine(
+    spec: ModelSpec,
+    profile: HardwareProfile,
+    registry: ModelRegistry,
+    *,
+    kv_type: str = "fp16",
+    flash_attn: bool = True,
+    n_gpu_layers: int = 0,
+) -> InferenceEngine:
+    """Build (not load) the engine for a downloaded model.
+
+    This is the one place every frontend (CLI, TUI, desktop) and Forge itself
+    create an InferenceEngine, so load options and defaults stay in sync.
+    """
+    return InferenceEngine(
+        spec.local_path(registry.cache_dir),
+        profile,
+        spec,
+        kv_type=kv_type,
+        flash_attn=flash_attn,
+        n_gpu_layers=n_gpu_layers,
+    )
+
+
+def pick_model(
+    profile: HardwareProfile,
+    registry: ModelRegistry,
+    prompt: Optional[str] = None,
+    task: str = "general",
+) -> tuple[ModelSpec, Optional[RoutingDecision]]:
+    """Model for a request when the user did not name one.
+
+    With a prompt and the default "general" task the TaskRouter classifies the
+    prompt (a coding prompt gets the coding model). An explicit task skips it.
+    """
+    if prompt and task == "general":
+        decision = TaskRouter(profile, registry).route(prompt)
+        return decision.model, decision
+    return registry.recommend(profile, task), None
+
+
 class Forge:
     """
     Main entry point for the EigenCore framework.
@@ -53,9 +94,13 @@ class Forge:
         task: str = "general",
         cache_dir: Optional[Path] = None,
         context_db: Optional[Path] = None,
+        profile: Optional[HardwareProfile] = None,
+        registry: Optional[ModelRegistry] = None,
     ):
-        self.profile: HardwareProfile = profile_hardware()
-        self.registry = ModelRegistry(cache_dir)
+        # Frontends that already profiled the machine pass profile/registry in,
+        # so creating a Forge does not re-scan hardware.
+        self.profile: HardwareProfile = profile or profile_hardware()
+        self.registry = registry or ModelRegistry(cache_dir)
         self.router = TaskRouter(self.profile, self.registry)
         self.context = ContextManager(
             max_context_tokens=self.profile.recommended_context_length,
@@ -84,10 +129,33 @@ class Forge:
         if not self.registry.is_downloaded(spec):
             self.registry.download(spec)
 
-        model_path = spec.local_path(self.registry.cache_dir)
-        self._engine = InferenceEngine(model_path, self.profile, spec)
+        self._engine = open_engine(spec, self.profile, self.registry)
         self._engine.load()
         self._current_model = spec
+
+    def engine_for(
+        self,
+        spec: ModelSpec,
+        *,
+        kv_type: str = "fp16",
+        flash_attn: bool = True,
+        n_gpu_layers: int = 0,
+    ) -> InferenceEngine:
+        """Build (not load) an engine for `spec` with explicit load options."""
+        return open_engine(
+            spec,
+            self.profile,
+            self.registry,
+            kv_type=kv_type,
+            flash_attn=flash_attn,
+            n_gpu_layers=n_gpu_layers,
+        )
+
+    def pick_model(
+        self, prompt: Optional[str] = None, task: str = "general"
+    ) -> tuple[ModelSpec, Optional[RoutingDecision]]:
+        """See the module-level pick_model."""
+        return pick_model(self.profile, self.registry, prompt, task)
 
     def _ensure_loaded(self, prompt: Optional[str] = None) -> None:
         """Ensure a model is loaded, using routing if prompt is provided."""
@@ -194,9 +262,12 @@ class Forge:
         """Run an agent task end-to-end using this Forge's model."""
         self._ensure_loaded(task)
         react = self.agent(tools, max_steps=max_steps)
+        grammar = react.grammar  # GBNF: every step is valid thought/action/final JSON
 
         def generate_fn(messages, max_tokens):
-            config = GenerationConfig(max_tokens=max_tokens, temperature=0.3, stream=False)
+            config = GenerationConfig(
+                max_tokens=max_tokens, temperature=0.3, stream=False, grammar=grammar
+            )
             result = self._engine.chat(messages, config)
             return result.text
 
