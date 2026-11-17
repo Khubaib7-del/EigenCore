@@ -471,20 +471,42 @@ export function RetroComputer({
   );
 }
 
-/** One word written by hand, stroke after stroke, like the Mac "hello". */
-function Hello({ word, start, dur, writing, label }: { word: HelloWord; start: number; dur: number; writing: boolean; label: string }) {
-  const total = word.paths.reduce((n, p) => n + p.len, 0);
-  const gap = 45; // pen lift between strokes
-  const spend = dur - gap * (word.paths.length - 1);
-  let at = start;
+/** One word written by hand, like the Mac "hello": the letters are a smooth
+ * script font, revealed by a round pen that travels along their centre lines. */
+function Hello({ word, start, dur, writing: intro, label }: { word: HelloWord; start: number; dur: number; writing: boolean; label: string }) {
+  const id = `hello-${label}`;
+  // Drop the mask once the word is written, so the letters render untouched.
+  const [writing, setWriting] = useState(intro);
+  useEffect(() => {
+    if (!intro) return;
+    const t = setTimeout(() => setWriting(false), start + dur + 250);
+    return () => clearTimeout(t);
+  }, [intro, start, dur]);
+  const total = word.guides.reduce((n, g) => n + g.len, 0);
+  // Pen speed eases in and out over the whole word, like a real flourish.
+  const ease = (u: number) => (1 - Math.cos(Math.PI * u)) / 2;
+  let done = 0;
+  const size = { "--hk": (word.h / (word.base - 4)).toFixed(3), "--desc": ((word.h - word.base) / word.h).toFixed(3) } as CSSProperties;
   return (
-    <svg className={`hello ${writing ? "writing" : ""}`} viewBox={`0 0 ${word.w} ${word.h}`} aria-hidden data-word={label}>
-      {word.paths.map((p, i) => {
-        const t = Math.max(60, (p.len / total) * spend);
-        const st = { "--d": `${Math.round(at)}ms`, "--t": `${Math.round(t)}ms` } as CSSProperties;
-        at += t + gap;
-        return <path key={i} d={p.d} pathLength={1} style={st} />;
-      })}
+    <svg className={`hello ${writing ? "writing" : ""}`} viewBox={`0 0 ${word.w} ${word.h}`} style={size} aria-hidden data-word={label}>
+      {writing && (
+        <defs>
+          <mask id={id} maskUnits="userSpaceOnUse" x={0} y={0} width={word.w} height={word.h}>
+            <g className="hello-pen">
+              {word.guides.map((g, i) => {
+                const t0 = start + dur * ease(done / total);
+                done += g.len;
+                const t = Math.max(30, start + dur * ease(done / total) - t0);
+                const st = { "--d": `${Math.round(t0)}ms`, "--t": `${Math.round(t)}ms` } as CSSProperties;
+                return <path key={i} d={g.d} pathLength={1} style={st} />;
+              })}
+            </g>
+          </mask>
+        </defs>
+      )}
+      <g mask={writing ? `url(#${id})` : undefined}>
+        <path className="hello-ink" d={word.glyph} transform={`translate(${word.tx} ${word.ty})`} strokeWidth={word.thick} />
+      </g>
     </svg>
   );
 }
@@ -495,9 +517,9 @@ export function Wordmark(props: Parameters<typeof RetroComputer>[0]) {
   const [writing] = useState(introPending);
   return (
     <div className="ec-wordmark script" role="group" aria-label="EigenCore">
-      <Hello word={HELLO.Eigen} label="Eigen" start={T_POST + 150} dur={1500} writing={writing} />
+      <Hello word={HELLO.Eigen} label="Eigen" start={T_POST + 150} dur={1700} writing={writing} />
       <RetroComputer {...props} />
-      <Hello word={HELLO.Core} label="Core" start={T_POST + 1750} dur={1150} writing={writing} />
+      <Hello word={HELLO.Core} label="Core" start={T_POST + 1950} dur={1250} writing={writing} />
     </div>
   );
 }

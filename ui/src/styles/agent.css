@@ -1676,27 +1676,30 @@
 
 /* ── "Eigen [pc] Core" handwritten, Mac hello style ─────────────────────── */
 .hello {
-  --hh: calc(var(--wm) * 1.62);
+  --hh: calc(var(--wm) * 1.12 * var(--hk));
   display: block;
   flex: none;
   height: var(--hh);
   width: auto;
-  margin-bottom: calc(var(--hh) * -0.376); /* baseline on the desk line */
+  margin-bottom: calc(var(--hh) * var(--desc) * -1); /* baseline on the desk line */
   overflow: visible;
 }
-.hello path {
-  fill: none;
+.hello-ink {
+  fill: var(--ink);
   stroke: var(--ink);
-  stroke-width: 7.2;
-  stroke-linecap: round;
   stroke-linejoin: round;
 }
-.hello.writing path {
+.hello-pen path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   stroke-dasharray: 1 1.05;
   stroke-dashoffset: 1;
   opacity: 0;
   animation:
-    rc-draw var(--t) cubic-bezier(0.45, 0.05, 0.4, 1) var(--d) forwards,
+    rc-draw var(--t) linear var(--d) forwards,
     hello-show 1ms linear var(--d) forwards;
 }
 @keyframes hello-show {
@@ -1706,13 +1709,14 @@
 }
 .ec-wordmark.script {
   gap: calc(var(--wm) * 0.28);
-  margin-bottom: calc(var(--wm) * 0.62);
+  margin-bottom: calc(var(--wm) * 1.05);
   align-items: flex-end;
 }
 @media (prefers-reduced-motion: reduce) {
-  .hello.writing path {
+  .hello-pen path {
     animation: none;
     stroke-dashoffset: 0;
+    opacity: 1;
   }
 }
 
