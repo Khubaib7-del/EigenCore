@@ -19,6 +19,7 @@ with a fake backend; only :func:`run` imports pywebview.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -511,6 +512,17 @@ class WebBridge:
             if self._maximized:
                 w.restore()
                 self._maximized = False
+                # The window is created at full-screen size (see run()), so a
+                # restore alone would not shrink it: go back to the default size.
+                with contextlib.suppress(Exception):
+                    w.resize(DEFAULT_SIZE[0], DEFAULT_SIZE[1])
+                    area = primary_screen_area()
+                    if area is not None:
+                        x, y, sw, sh = area
+                        w.move(
+                            x + max(0, (sw - DEFAULT_SIZE[0]) // 2),
+                            y + max(0, (sh - DEFAULT_SIZE[1]) // 2),
+                        )
             else:
                 w.maximize()
                 self._maximized = True
@@ -579,6 +591,26 @@ def _require_webview2() -> None:
         raise WebUIUnavailable("Microsoft Edge WebView2 Runtime not found")
 
 
+DEFAULT_SIZE = (1180, 760)  # the restored (not maximized) window size
+
+
+def primary_screen_area() -> Optional[tuple[int, int, int, int]]:
+    """(x, y, width, height) of the primary screen in logical pixels, or None."""
+    try:
+        import webview
+
+        screens = list(webview.screens)
+    except Exception:
+        return None
+    if not screens:
+        return None
+    primary = next((sc for sc in screens if sc.x == 0 and sc.y == 0), screens[0])
+    try:
+        return int(primary.x), int(primary.y), int(primary.width), int(primary.height)
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
 def run(debug: bool = False) -> None:
     """Open the web UI window and block until it closes.
 
@@ -607,12 +639,18 @@ def run(debug: bool = False) -> None:
 
     webview.settings["DRAG_REGION_SELECTOR"] = DRAG_SELECTOR
     webview.settings["DRAG_REGION_DIRECT_TARGET_ONLY"] = True
+    area = primary_screen_area()
     window = webview.create_window(
         f"EigenCore {__version__}",
         url,
         js_api=bridge,
-        width=1180,
-        height=760,
+        # Created at the full size of the primary screen and maximized, so it
+        # never flashes at the 1180x760 default (0.4.9 opened offset and then
+        # jumped to maximized on Windows).
+        x=area[0] if area else None,
+        y=area[1] if area else None,
+        width=area[2] if area else DEFAULT_SIZE[0],
+        height=area[3] if area else DEFAULT_SIZE[1],
         min_size=(860, 560),
         maximized=True,
         frameless=True,

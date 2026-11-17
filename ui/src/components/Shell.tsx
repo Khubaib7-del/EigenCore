@@ -22,7 +22,7 @@ export function TitleBar() {
       <div className="titlebar-brand">
         <span className="wordmark">EigenCore</span>
         <span className="titlebar-sep" />
-        <span className={`engine-dot ${engine.phase}`} aria-hidden />
+        <span className={`engine-dot ${engine.phase === "idle" && !state.activeModel ? "none" : engine.phase}`} aria-hidden />
         <span className="titlebar-status">{status}</span>
         {state.activeModel && <span className="mono titlebar-model">{state.activeModel}</span>}
       </div>

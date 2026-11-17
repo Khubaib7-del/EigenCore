@@ -1707,6 +1707,60 @@
     opacity: 1;
   }
 }
+/* Hover: the word lifts and leans toward the pointer while a phosphor light
+   sweeps across the ink. Click writes it again (see Hello). */
+.hello {
+  --lean: 0;
+  --sheen: #9df5c4;
+  cursor: pointer;
+  transform-origin: 50% 85%;
+  transition:
+    transform 0.5s cubic-bezier(0.2, 0.9, 0.25, 1.25),
+    filter 0.35s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-theme="light"] .hello {
+  --sheen: #ffffff;
+}
+[data-theme="light"] .hello:not(.writing):hover {
+  filter: drop-shadow(0 0.12em 0.18em rgba(0, 0, 0, 0.16));
+}
+.hello:not(.writing):hover {
+  transform: translateY(calc(var(--hh) * -0.05)) rotate(calc(var(--lean) * -2deg)) skewX(calc(var(--lean) * -5deg));
+  filter: drop-shadow(0 0.25em 0.4em rgba(0, 0, 0, 0.35));
+}
+.hello-ink-mask {
+  fill: #fff;
+  stroke: #fff;
+  stroke-linejoin: round;
+}
+.hello-sheen {
+  opacity: 0;
+  transform-box: fill-box;
+}
+.hello:hover .hello-sheen {
+  animation: hello-sheen 1.15s cubic-bezier(0.45, 0, 0.2, 1) both;
+}
+@keyframes hello-sheen {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(390%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hello,
+  .hello:not(.writing):hover {
+    transform: none;
+    transition: none;
+  }
+  .hello:hover .hello-sheen {
+    animation: none;
+  }
+}
 .ec-wordmark.script {
   gap: calc(var(--wm) * 0.28);
   margin-bottom: calc(var(--wm) * 1.05);

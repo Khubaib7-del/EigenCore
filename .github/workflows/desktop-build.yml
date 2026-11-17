@@ -44,7 +44,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[desktop]"
           python -m pip install "flet-cli>=1.0,<2" "flet-desktop>=1.0,<2" pyinstaller
-          python -m pip install "llama-cpp-python>=0.3.0" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+          # Prebuilt CPU wheel only (AVX2 baseline). Never build it from source here:
+          # a source build targets the runner's CPU (often AVX-512) and crashes on
+          # most PCs with Windows error 0xC000001D (it did in 0.4.9).
+          python -m pip install "llama-cpp-python==0.3.36" --only-binary=llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+          python -m pip install pefile capstone
 
       - name: Build app folder
         shell: bash
@@ -52,6 +56,8 @@ jobs:
           pyinstaller packaging/windows/EigenCore.spec --noconfirm --clean \
             --distpath dist --workpath build/onedir
           test -f dist/EigenCore/_internal/ui/index.html
+          # no AVX-512 in the bundled llama.cpp (see the script)
+          python packaging/windows/check_cpu_baseline.py dist/EigenCore/_internal
 
       - name: Build installer (EigenCore-Setup.exe)
         shell: pwsh

@@ -33,6 +33,46 @@ KV_NEEDS_FLASH = (
 _KV_TYPE_MAP = {"fp16": GGML_TYPE_F16, "q8_0": GGML_TYPE_Q8_0}
 
 
+# Windows NTSTATUS for "illegal instruction" (0xC000001D), as ctypes reports it.
+_ILLEGAL_INSTRUCTION_CODES = ("0xc000001d", "-1073741795")
+
+
+def missing_cpu_features(profile: HardwareProfile) -> list[str]:
+    """["AVX2"] when this x86 CPU lacks it, else [].
+
+    The bundled llama.cpp build targets an AVX2 + FMA + F16C baseline (every
+    AVX2 CPU has FMA and F16C, and the Windows detector cannot see those two
+    separately). Nothing is blocked when detection failed (NONE = unknown) or
+    on other architectures.
+    """
+    arch = (profile.arch or "").lower()
+    if arch not in ("x86_64", "amd64", "x86", "i386", "i686"):
+        return []
+    isa = profile.instruction_sets
+    if isa == InstructionSet.NONE or InstructionSet.AVX2 in isa:
+        return []
+    return ["AVX2"]
+
+
+def is_illegal_instruction(err: BaseException) -> bool:
+    text = str(err).lower()
+    return any(code in text for code in _ILLEGAL_INSTRUCTION_CODES)
+
+
+def cpu_unsupported_message(missing: list[str] | None = None) -> str:
+    """User-facing reason a model cannot run on this CPU."""
+    if missing:
+        return (
+            f"this CPU lacks {', '.join(missing)}. The inference engine needs AVX2, "
+            "FMA and F16C (most PCs from 2013 on)."
+        )
+    return (
+        "the inference engine used a CPU instruction this PC does not have "
+        "(Windows error 0xC000001D). Update to the latest EigenCore; "
+        "if it still happens, please report your CPU model."
+    )
+
+
 def kv_cache_types(kv_type: str, flash_attn: bool) -> tuple[int, int]:
     """(type_k, type_v) ggml enums for a --kv choice.
 
@@ -123,6 +163,10 @@ class InferenceEngine:
                 "--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu"
             )
 
+        missing = missing_cpu_features(self.profile)
+        if missing:
+            raise RuntimeError(cpu_unsupported_message(missing))
+
         type_k, type_v = kv_cache_types(self.kv_type, self.flash_attn)
         ctx_length = self._default_context_length(type_v)
         self.n_ctx = ctx_length
@@ -130,18 +174,23 @@ class InferenceEngine:
         n_threads = self.profile.recommended_threads
         n_batch = self._compute_batch_size()
 
-        self._llm = Llama(
-            model_path=str(self.model_path),
-            n_ctx=ctx_length,
-            n_threads=n_threads,
-            n_threads_batch=n_threads,
-            n_batch=n_batch,
-            n_gpu_layers=self.n_gpu_layers,
-            type_k=type_k,
-            type_v=type_v,
-            flash_attn=self.flash_attn,
-            verbose=False,
-        )
+        try:
+            self._llm = Llama(
+                model_path=str(self.model_path),
+                n_ctx=ctx_length,
+                n_threads=n_threads,
+                n_threads_batch=n_threads,
+                n_batch=n_batch,
+                n_gpu_layers=self.n_gpu_layers,
+                type_k=type_k,
+                type_v=type_v,
+                flash_attn=self.flash_attn,
+                verbose=False,
+            )
+        except OSError as e:
+            if is_illegal_instruction(e):
+                raise RuntimeError(cpu_unsupported_message()) from e
+            raise
 
         self._init_optimizers()
 
