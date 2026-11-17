@@ -75,13 +75,13 @@
 .rc {
   --tx: 0;
   --ty: 0;
-  font-size: calc(var(--wm) * 0.098); /* 1em = one unit */
+  font-size: calc(var(--wm) * 0.145); /* 1em = one unit */
   position: relative;
   display: block;
   flex: none;
-  width: 15em;
-  height: 12em;
-  margin: 0 -0.3em -0.1em;
+  width: 18em;
+  height: 14.6em;
+  margin: 0 -0.2em -0.1em;
   line-height: 1;
   letter-spacing: 0;
   font-weight: 400;
@@ -359,11 +359,10 @@
 }
 .rc-glass {
   position: absolute;
-  inset: 0.25em 0.55em;
+  inset: 0.34em 0.5em 0.3em 0.95em;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.78em;
+  flex-direction: column;
+  font-size: 0.66em;
   text-shadow: 0 0 0.3em var(--phosphor-glow);
   animation: rc-flicker 5s steps(1) infinite;
 }
@@ -1407,4 +1406,175 @@
 }
 .pop-attach {
   width: 330px;
+}
+
+/* ── Monitor v2: status bar, pages, tab strip ───────────────────────────── */
+.rc-bar,
+.rc-tabs {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: none;
+  font-size: 0.78em;
+  letter-spacing: 0.08em;
+  color: var(--phosphor-dim);
+}
+.rc-bar {
+  padding-bottom: 0.25em;
+  border-bottom: 0.06em solid rgba(127, 240, 220, 0.22);
+}
+.rc-bar > span {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.rc-dot {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: var(--phosphor-dim);
+}
+.rc-dot.on {
+  background: var(--phosphor);
+  box-shadow: 0 0 0.4em var(--phosphor-glow);
+}
+.rc-dot.busy {
+  background: var(--phosphor);
+  animation: rc-blink 0.6s steps(1) infinite;
+}
+.rc-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25em 0;
+}
+.rc-tabs {
+  justify-content: flex-start;
+  gap: 0.3em;
+  padding-top: 0.25em;
+  border-top: 0.06em solid rgba(127, 240, 220, 0.22);
+}
+.rc-tabs i {
+  font-style: normal;
+  padding: 0.05em 0.35em;
+  border-radius: 0.15em;
+}
+.rc-tabs i.on {
+  background: var(--phosphor);
+  color: var(--crt-bg);
+  text-shadow: none;
+  box-shadow: 0 0 0.4em var(--phosphor-glow);
+}
+.rc-post > div {
+  font-size: 0.92em;
+}
+.rc-table b {
+  display: inline-block;
+  width: 2.6em;
+  font-weight: 700;
+  color: var(--phosphor);
+}
+.rc-meter {
+  display: flex;
+  gap: 0.15em;
+}
+.rc-meter i {
+  width: 0.55em;
+  height: 0.7em;
+  background: rgba(127, 240, 220, 0.16);
+}
+.rc-meter i.on {
+  background: var(--phosphor);
+  box-shadow: 0 0 0.3em var(--phosphor-glow);
+}
+.rc-speed {
+  gap: 0.2em;
+}
+.rc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.rc-speed .rc-big {
+  font-size: 1.5em;
+}
+.rc-spark {
+  width: 100%;
+  height: 1.7em;
+  display: block;
+  overflow: visible;
+}
+.rc-spark-line {
+  fill: none;
+  stroke: var(--phosphor);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 1px var(--phosphor-glow));
+}
+.rc-spark-fill {
+  fill: rgba(127, 240, 220, 0.12);
+}
+.rc-markpage .rc-mark {
+  height: 3.6em;
+}
+.rc-badge {
+  position: absolute;
+  left: 0.85em;
+  bottom: 0.48em;
+  font-family: var(--font-mono);
+  font-size: 0.42em;
+  letter-spacing: 0.22em;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.32);
+  text-shadow: 0 0.05em 0 rgba(255, 255, 255, 0.5);
+}
+
+/* ── Animated wordmark: staggered rise-in, then a slow light wave ─────── */
+.wm-l {
+  display: inline-block;
+  animation:
+    wm-in 760ms cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    wm-wave 7s ease-in-out infinite;
+  animation-delay:
+    calc(120ms + var(--i) * 60ms),
+    calc(2.2s + var(--i) * 90ms);
+}
+@keyframes wm-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.38em);
+    filter: blur(0.12em);
+  }
+}
+@keyframes wm-wave {
+  0%,
+  12%,
+  100% {
+    transform: none;
+    text-shadow: none;
+  }
+  5% {
+    transform: translateY(-0.06em);
+    text-shadow: 0 0 0.28em color-mix(in srgb, var(--ink) 45%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wm-l {
+    animation: none;
+  }
+}
+
+/* Lean in: hovering the computer brings it a little closer. */
+.rc-stage {
+  transform-origin: 50% 85%;
+  transition: transform 380ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.rc:hover .rc-stage {
+  transform: scale(1.12);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rc-stage { transition: none; }
+  .rc:hover .rc-stage { transform: none; }
 }

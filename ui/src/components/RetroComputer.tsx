@@ -46,15 +46,15 @@ const box = (c: V3, s: V3): BoxDef => ({ c, s });
 
 // Desktop case, a low foot, the monitor's front shell, and the stepped CRT
 // housing behind it; a keyboard slab in front.
-const CASE = box([0, -0.95, -0.2], [12, 1.9, 7.2]);
+const CASE = box([0, -0.95, -0.2], [13.6, 1.9, 7.6]);
 const FOOT = box([0, -2.1, 0.4], [4.6, 0.4, 3]);
-const MON = box([0, -5.95, 1.5], [9.8, 7.3, 1.8]);
-const REAR1 = box([0, -6.0, -0.45], [8.6, 6.5, 2.1]);
-const REAR2 = box([0, -5.9, -2.85], [6.6, 5.2, 2.7]);
-const KEYS = box([0.6, -0.2, 4.55], [9.2, 0.4, 2.1]);
+const MON = box([0, -6.9, 1.5], [12.6, 9.2, 1.8]);
+const REAR1 = box([0, -6.95, -0.45], [11.2, 8.3, 2.1]);
+const REAR2 = box([0, -6.8, -2.85], [8.6, 6.6, 2.7]);
+const KEYS = box([0.6, -0.2, 4.75], [11, 0.4, 2.1]);
 
 // The screen opening in the bezel, and how deep the glass sits.
-const HOLE = { l: 0.85, r: 0.85, t: 0.78, b: 1.55 };
+const HOLE = { l: 0.72, r: 0.72, t: 0.66, b: 1.42 };
 const RECESS = 0.62;
 const front = MON.c[2] + MON.s[2] / 2;
 const holeW = MON.s[0] - HOLE.l - HOLE.r;
@@ -131,8 +131,8 @@ const WALLS = (["l", "r", "t", "bt"] as FaceKey[]).map((k) => {
 });
 
 const SHADOW: CSSProperties = {
-  width: "17em",
-  height: "11em",
+  width: "20em",
+  height: "12em",
   transform: "translate(-50%,-50%) translate3d(0.2em,0.02em,0.6em) rotateX(90deg)",
 };
 
@@ -170,9 +170,31 @@ const EC_PATH = GLYPHS.flatMap((rows, g) =>
   rows.flatMap((row, y) => [...row].map((on, x) => (on === "1" ? `M${g * 7 + x} ${y}h1v1h-1z` : ""))),
 ).join("");
 
-type Page = "mark" | "system" | "fit";
+type Page = "home" | "sys" | "fit" | "speed";
+const TAB: Record<Page, string> = { home: "HOME", sys: "SYS", fit: "FIT", speed: "SPD" };
 
 let bootedOnce = false;
+
+function clock() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** A phosphor sparkline of recent generation speeds (tok/s), scaled to the peak. */
+function Spark({ data }: { data: number[] }) {
+  const pts = data.slice(-24);
+  const peak = Math.max(...pts, 1);
+  const w = 48;
+  const h = 14;
+  const step = pts.length > 1 ? w / (pts.length - 1) : w;
+  const d = pts.map((v, i) => `${i ? "L" : "M"}${(i * step).toFixed(2)} ${(h - (v / peak) * (h - 1) - 0.5).toFixed(2)}`).join("");
+  return (
+    <svg className="rc-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden>
+      <path d={`${d}L${w} ${h}L0 ${h}Z`} className="rc-spark-fill" />
+      <path d={d} className="rc-spark-line" />
+    </svg>
+  );
+}
 
 export function RetroComputer({
   version,
@@ -181,6 +203,8 @@ export function RetroComputer({
   threads,
   loading,
   typed,
+  tps = [],
+  ram,
 }: {
   version: string;
   model: { name: string; quant: string; context: number; fit: FitVerdict } | null;
@@ -189,98 +213,142 @@ export function RetroComputer({
   loading: boolean;
   /** What is in the message box right now (echoed on the screen). */
   typed: string;
+  /** Recent generation speeds in tok/s, oldest first (real samples only). */
+  tps?: number[];
+  /** Installed RAM, e.g. "16 GB". */
+  ram?: string;
 }) {
-  const bootLine = `EIGENCORE v${version}`;
-  const [boot, setBoot] = useState(() => (bootedOnce || reducedMotion() ? bootLine.length + 1 : 0));
-  const [page, setPage] = useState<Page>("mark");
+  // A short POST: each line types in, then the screen settles on HOME.
+  const post = [
+    `EIGENCORE BIOS v${version}`,
+    `CPU  ${cpu}`,
+    ram ? `MEM  ${ram} OK` : "MEM  OK",
+    `LLM  ${loading ? "loading" : model ? model.name : "none"}`,
+    "BOOT OK",
+  ];
+  const total = post.reduce((n, l) => n + l.length, 0);
+  const [boot, setBoot] = useState(() => (bootedOnce || reducedMotion() ? total + 1 : 0));
+  const [page, setPage] = useState<Page>("home");
   const [hidden, setHidden] = useState(typeof document !== "undefined" && document.hidden);
+  const [now, setNow] = useState(clock);
 
-  // Boot: type one line, then hold "OK" briefly. Runs once per app session.
   useEffect(() => {
-    if (boot > bootLine.length) {
+    if (boot > total) {
       bootedOnce = true;
       return;
     }
-    const t = setTimeout(() => setBoot((n) => n + 1), boot === bootLine.length ? 420 : 38);
+    const t = setTimeout(() => setBoot((n) => n + 2), boot >= total - 1 ? 520 : 22);
     return () => clearTimeout(t);
-  }, [boot, bootLine.length]);
+  }, [boot, total]);
 
   useEffect(() => {
     const on = () => setHidden(document.hidden);
     document.addEventListener("visibilitychange", on);
-    return () => document.removeEventListener("visibilitychange", on);
+    const t = setInterval(() => setNow(clock()), 15_000);
+    return () => {
+      document.removeEventListener("visibilitychange", on);
+      clearInterval(t);
+    };
   }, []);
 
-  // Typing always brings the echo back into view.
   useEffect(() => {
-    if (typed) setPage("mark");
+    if (typed) setPage("home");
   }, [typed]);
 
   const hasFit = !!model && !loading && model.fit !== "unknown";
-  const pages: Page[] = hasFit ? ["mark", "system", "fit"] : ["mark", "system"];
-  const cur = pages.includes(page) ? page : "mark";
+  const pages: Page[] = ["home", "sys", ...(hasFit ? (["fit"] as Page[]) : []), "speed"];
+  const cur = pages.includes(page) ? page : "home";
   const next = () => setPage(pages[(pages.indexOf(cur) + 1) % pages.length]);
 
-  const booting = boot <= bootLine.length;
+  const booting = boot <= total;
   const echo = typed.replace(/\s+/g, " ");
-  const status = loading ? "loading model" : model ? "ready" : "no model";
+  const status = loading ? "LOADING" : model ? "READY" : "NO MODEL";
+  const last = tps.length ? tps[tps.length - 1] : null;
 
   let body;
   if (booting) {
+    let left = boot;
     body = (
-      <div className="rc-lines">
-        <div className="rc-hi">{bootLine.slice(0, boot)}</div>
-        {boot >= bootLine.length && <div>boot ok</div>}
+      <div className="rc-lines rc-post">
+        {post.map((l, i) => {
+          const n = Math.max(0, Math.min(l.length, left));
+          left -= l.length;
+          return n > 0 ? (
+            <div key={i} className={i === 0 || i === post.length - 1 ? "rc-hi" : ""}>
+              {l.slice(0, n)}
+            </div>
+          ) : null;
+        })}
       </div>
     );
-  } else if (cur === "system") {
+  } else if (cur === "sys") {
     body = (
-      <div className="rc-lines">
-        <div className="rc-hi">v{version}</div>
-        <div>{cpu}</div>
-        <div>{threads}</div>
-        <div className={loading || !model ? "rc-hi" : ""}>{loading ? "loading…" : model ? model.name : "no model"}</div>
-        {model && !loading && <div>ctx {model.context.toLocaleString()}</div>}
+      <div className="rc-lines rc-table">
+        <div><b>VER</b> {version}</div>
+        <div><b>CPU</b> {cpu} · {threads.split(" ")[0]}</div>
+        {ram && <div><b>RAM</b> {ram}</div>}
+        <div className="rc-hi"><b>LLM</b> {loading ? "loading…" : model ? `${model.name}` : "none"}</div>
+        {model && !loading && <div><b>CTX</b> {model.context.toLocaleString()} · {model.quant}</div>}
       </div>
     );
   } else if (cur === "fit" && model && model.fit !== "unknown") {
     const [word, sub] = FIT_WORD[model.fit];
+    const lvl = model.fit === "fits_with_margin" ? 8 : model.fit === "tight" ? 5 : 2;
     body = (
       <div className="rc-lines rc-fit">
         <div>fit on this pc</div>
         <div className="rc-big">{word}</div>
+        <div className="rc-meter" aria-hidden>
+          {Array.from({ length: 10 }, (_, i) => (
+            <i key={i} className={i < lvl ? "on" : ""} />
+          ))}
+        </div>
         <div>{sub}</div>
+      </div>
+    );
+  } else if (cur === "speed") {
+    body = tps.length ? (
+      <div className="rc-lines rc-speed">
+        <div className="rc-row">
+          <span>tok/s</span>
+          <span className="rc-big">{last!.toFixed(1)}</span>
+        </div>
+        <Spark data={tps} />
+        <div className="rc-row">
+          <span>peak {Math.max(...tps).toFixed(1)}</span>
+          <span>{tps.length} runs</span>
+        </div>
+      </div>
+    ) : (
+      <div className="rc-lines rc-fit">
+        <div>tok/s</div>
+        <div className="rc-big">--</div>
+        <div>no runs yet</div>
       </div>
     );
   } else {
     body = (
       <div className="rc-lines rc-markpage">
-        <div className="rc-top" aria-hidden>
-          eigencore
-        </div>
         <svg className="rc-mark" viewBox="0 0 13 7" aria-hidden shapeRendering="crispEdges">
           <path d={EC_PATH} />
         </svg>
         {echo ? (
           <div className="rc-prompt">
-            &gt;{echo.length > 11 ? "…" + echo.slice(-10) : echo}
+            &gt; {echo.length > 18 ? "…" + echo.slice(-17) : echo}
             <i className="rc-cursor" />
           </div>
-        ) : loading || !model ? (
-          <div className="rc-prompt rc-hi">{loading ? "loading…" : "no model"}</div>
         ) : (
           <div className="rc-prompt">
-            &gt;<i className="rc-cursor" />
+            &gt; {loading ? "loading model…" : model ? "ask me anything" : "pick a model"}
+            <i className="rc-cursor" />
           </div>
         )}
       </div>
     );
   }
 
-  const where = booting ? "booting" : cur === "system" ? "system details" : cur === "fit" ? "model fit" : "EigenCore mark";
+  const where = booting ? "booting" : { home: "home", sys: "system details", fit: "model fit", speed: "speed" }[cur];
 
-  // Hover tilt: a few degrees toward the pointer, set as CSS vars, one write
-  // per animation frame, only while the pointer is over the computer.
   const rootRef = useRef<HTMLSpanElement>(null);
   const rafRef = useRef(0);
   const ptRef = useRef({ x: 0, y: 0 });
@@ -316,11 +384,6 @@ export function RetroComputer({
         <span className="rc-obj">
           {SCENE}
           <span className="rc-face rc-bezel" style={face(BEZEL, "f")} aria-hidden>
-            <span className="rc-dots">
-              {pages.map((p) => (
-                <i key={p} className={!booting && p === cur ? "on" : ""} />
-              ))}
-            </span>
           </span>
           <Box b={LED} cls={`rc-bump rc-led ${loading ? "busy" : model ? "on" : ""}`} />
           <button
@@ -328,11 +391,25 @@ export function RetroComputer({
             className="rc-face rc-screen"
             style={face(GLASS, "f")}
             onClick={next}
-            aria-label={`EigenCore screen, showing ${where}. Model: ${status}. Press to show the next page.`}
-            title="Click for system details"
+            aria-label={`EigenCore screen, showing ${where}. Model: ${status.toLowerCase()}. Press to show the next page.`}
+            title="Click to flip pages"
           >
             <span className="rc-glass mono" aria-live="off">
-              {body}
+              <span className="rc-bar">
+                <span>
+                  <i className={`rc-dot ${loading ? "busy" : model ? "on" : ""}`} />
+                  {booting ? "POST" : status}
+                </span>
+                <span>{now}</span>
+              </span>
+              <span className="rc-body">{body}</span>
+              <span className="rc-tabs">
+                {pages.map((p) => (
+                  <i key={p} className={!booting && p === cur ? "on" : ""}>
+                    {TAB[p]}
+                  </i>
+                ))}
+              </span>
             </span>
             <span className="rc-scan" aria-hidden />
           </button>
@@ -342,16 +419,29 @@ export function RetroComputer({
   );
 }
 
+/** Split a word into letter spans for the staggered entrance and the idle wave. */
+function Letters({ word, from }: { word: string; from: number }) {
+  return (
+    <>
+      {[...word].map((ch, i) => (
+        <span key={i} className="wm-l" style={{ "--i": from + i } as CSSProperties}>
+          {ch}
+        </span>
+      ))}
+    </>
+  );
+}
+
 /** "EIGEN [computer] CORE": the empty-chat heading. */
 export function Wordmark(props: Parameters<typeof RetroComputer>[0]) {
   return (
     <div className="ec-wordmark" role="group" aria-label="EigenCore">
       <span className="wm-word" aria-hidden>
-        EIGEN
+        <Letters word="EIGEN" from={0} />
       </span>
       <RetroComputer {...props} />
       <span className="wm-word" aria-hidden>
-        CORE
+        <Letters word="CORE" from={6} />
       </span>
     </div>
   );
