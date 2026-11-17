@@ -5,6 +5,7 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 ## [Unreleased]
 
 ### Fixed
+- GGUF metadata: the gguf-package reader opened files with an invalid mode (`"no"`) and returned strings and scalars as raw arrays, so it never worked and every geometry read fell back to loading the model through llama.cpp. It now opens read-only and decodes strings and scalars.
 - `--kv`: the engine passed `type_kv`, which llama-cpp-python does not have (it was silently ignored), and mapped `fp16`/`q8_0` to 0/1, which are ggml F32/F16. It now passes `type_k`/`type_v` with ggml F16=1 and Q8_0=8. A q8_0 V cache needs flash attention, so with `--no-flash` the V cache stays f16 (with a warning).
 
 ## [0.4.8] - 2026-11-15

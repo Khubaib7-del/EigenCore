@@ -28,11 +28,22 @@ class GGUFModelInfo:
 
 
 def _field_value(field) -> object | None:
+    """Scalar value of a GGUFReader field: str for strings, int/float/bool otherwise.
+
+    Arrays (e.g. the tokenizer vocab) are not needed here and return None.
+    """
     try:
+        from gguf import GGUFValueType
+
+        if not field.types or field.types[0] == GGUFValueType.ARRAY:
+            return None
         part = field.parts[field.data[0]]
         if part is None:
             return None
-        return part.tolist()
+        if field.types[0] == GGUFValueType.STRING:
+            return bytes(part).decode("utf-8")
+        value = part.tolist()
+        return value[0] if isinstance(value, list) and len(value) == 1 else value
     except Exception:
         return None
 
@@ -43,7 +54,7 @@ def _from_gguf_package(path: Path) -> GGUFModelInfo | None:
     except ImportError:
         return None
     try:
-        reader = GGUFReader(str(path), mode="no")
+        reader = GGUFReader(str(path), mode="r")
     except Exception:
         return None
     fields = {f.name: f for f in reader.fields.values()}
