@@ -4,6 +4,10 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.4.11] - 2026-11-17
+
+A new look for chat and the composer, colour across the app, a smoother minimize on Windows, and a verified model list with two new 8B models.
+
 ### Added
 - Desktop app: one grid loader for the whole app (`ui/src/components/GridLoader.tsx`). It is a 3×3 grid with 19 patterns (drive, orbit, pulse, snake, rain, scan, checker, spiral, cross, diagonal, sparkle, heartbeat, leap, fill, wave, breathe, and static check, fail and halt) and one colour per job: thinking, reasoning, writing, writing code, tools, approval, loading a model, downloading, checking for updates, searching, live, idle, done, error and stopped. It replaces the orb, the equaliser and the two pixel loaders. Every loader shares one clock, and reduced motion holds a still frame.
 - Chat: a "jump to latest" button. Scrolling up while a reply streams frees the view instead of pinning it to the bottom. The arrow brings it back, and sending a message sticks to the bottom again.
