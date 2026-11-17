@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from eigencore.fit.estimator import ModelGeometry
+from eigencore.fit.estimator import ModelGeometry, is_expert_tensor, moe_active_weight_bytes
 
 
 @dataclass
@@ -26,6 +26,22 @@ class GGUFModelInfo:
     context_length: int | None
     file_size_bytes: int | None
     param_count: int | None
+    tensor_bytes: int | None = None  # sum of all tensor data bytes
+    expert_tensor_bytes: int | None = None  # sum of routed-expert (*_exps) tensor bytes
+
+    @property
+    def active_weight_bytes(self) -> int | None:
+        """Weight bytes read per decode token: all tensors for dense models;
+        never-routed tensors + used/count × expert tensors for MoE. None when
+        tensor sizes are unknown."""
+        if self.tensor_bytes is None:
+            return None
+        g = self.geometry
+        if g.is_moe and self.expert_tensor_bytes:
+            return moe_active_weight_bytes(
+                self.tensor_bytes, self.expert_tensor_bytes, g.expert_used_count, g.expert_count
+            )
+        return self.tensor_bytes
 
 
 def _field_value(field) -> object | None:
@@ -93,12 +109,25 @@ def _from_gguf_package(path: Path) -> GGUFModelInfo | None:
     ctx = arch_int("context_length") or arch_int("attention.context_length")
     params = get("general.parameter_count")
     file_size = path.stat().st_size if path.exists() else None
+    tensor_bytes: int | None = None
+    expert_bytes: int | None = None
+    try:
+        tensor_bytes = expert_bytes = 0
+        for t in reader.tensors:
+            n = int(t.n_bytes)
+            tensor_bytes += n
+            if is_expert_tensor(t.name):
+                expert_bytes += n
+    except Exception:
+        tensor_bytes = expert_bytes = None
     return GGUFModelInfo(
         architecture=architecture,
         geometry=geometry,
         context_length=ctx,
         file_size_bytes=file_size,
         param_count=int(params) if params is not None else None,
+        tensor_bytes=tensor_bytes,
+        expert_tensor_bytes=expert_bytes,
     )
 
 

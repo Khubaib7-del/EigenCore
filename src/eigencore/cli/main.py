@@ -82,9 +82,7 @@ def _fit_for_spec(spec, hw, registry, kv_quant: str = "fp16"):
         bandwidth_gbps=hw.estimated_bandwidth_gbps,
         kv_quant=kv_quant,
         available_vram_gb=hw.available_vram_gb,
-        active_params_b=(
-            spec.params_b * spec.experts_active / spec.experts_total if spec.is_moe else None
-        ),
+        active_weight_bytes=info.active_weight_bytes if info else None,
     )
     gpu_layers = 0
     if hw.available_vram_gb > 0 and geometry is not None and geometry.num_layers and file_size:

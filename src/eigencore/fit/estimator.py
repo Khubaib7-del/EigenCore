@@ -184,6 +184,31 @@ def estimate_kv_cache_gib(
     return per_token * context_length / 1024**3, None
 
 
+def is_expert_tensor(name: str) -> bool:
+    """True for routed-expert tensors (`blk.N.ffn_{gate,up,down,gate_up}_exps.*`).
+
+    Shared experts (`*_shexp`) and the router (`ffn_gate_inp`) run for every
+    token, so they are not routed.
+    """
+    return any(part.endswith("_exps") for part in name.split("."))
+
+
+def moe_active_weight_bytes(
+    total_tensor_bytes: int,
+    expert_tensor_bytes: int,
+    expert_used_count: int,
+    expert_count: int,
+) -> int:
+    """Weight bytes read per decode token for an MoE model.
+
+    Every never-routed tensor (attention, embeddings, norms, router, shared
+    experts, dense layers) counts in full; routed-expert tensors count by the
+    fraction of experts used per token.
+    """
+    dense = total_tensor_bytes - expert_tensor_bytes
+    return int(dense + expert_tensor_bytes * expert_used_count / expert_count)
+
+
 def decode_ceiling_tok_s(bandwidth_gbps: float, active_weights_gib: float) -> float:
     """Optimistic decode ceiling: bandwidth / bytes streamed per token.
 
@@ -210,27 +235,34 @@ def estimate_fit(
     bandwidth_gbps: float | None = None,
     active_params_b: float | None = None,
     available_vram_gb: float = 0.0,
+    active_weight_bytes: int | None = None,
 ) -> FitEstimate:
     """Full memory fit estimate (GiB) for loading + running a model at a context length.
 
-    MoE: pass `active_params_b` (params activated per token) — resident memory
-    still uses the full file size, but the decode ceiling uses active weights.
+    MoE: pass `active_weight_bytes` (from GGUF tensor sizes, see
+    `moe_active_weight_bytes`) or an explicit `active_params_b` — resident
+    memory still uses the full file size, but the decode ceiling uses active
+    weights. Without either, the ceiling uses the full weights.
     """
     notes: list[str] = []
     weights_gb, note = estimate_weights_gib(params_b, quant, file_size_bytes)
     if note:
         notes.append(note)
-    if geometry is not None and geometry.is_moe and active_params_b is None:
-        # derive active params from expert ratio when geometry is present
-        assert geometry.expert_count and geometry.expert_used_count
-        active_params_b = params_b * geometry.expert_used_count / geometry.expert_count
-        notes.append(
-            f"MoE: {geometry.expert_count} experts, {geometry.expert_used_count} active/token "
-            f"→ active ≈ {active_params_b:.1f}B params"
-        )
     active_weights_gb: float | None = None
-    if active_params_b is not None and active_params_b < params_b:
+    if active_weight_bytes is not None:
+        active_weights_gb = active_weight_bytes / 1024**3
+        if geometry is not None and geometry.is_moe:
+            notes.append(
+                f"MoE: {geometry.expert_count} experts, {geometry.expert_used_count} active/token "
+                f"→ ≈ {active_weights_gb:.1f} GiB of weights read per token (GGUF tensor sizes)"
+            )
+    elif active_params_b is not None and active_params_b < params_b:
         active_weights_gb, _ = estimate_weights_gib(active_params_b, quant)
+    elif geometry is not None and geometry.is_moe:
+        notes.append(
+            "MoE: active weights unknown without GGUF tensor sizes; "
+            "decode ceiling uses the full weights"
+        )
     kv_gb_raw, note = estimate_kv_cache_gib(context_length, geometry, params_b, kv_quant)
     if note:
         notes.append(note)
