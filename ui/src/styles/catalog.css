@@ -27,6 +27,14 @@
 .catalog-search input::placeholder {
   color: var(--ink-3);
 }
+.catalog-community {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
 .catalog-results {
   margin-top: 20px;
 }

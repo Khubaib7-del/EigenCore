@@ -36,6 +36,7 @@ def _profile(ram_gb: float) -> HardwareProfile:
     from unittest.mock import MagicMock
 
     p = MagicMock(spec=HardwareProfile)
+    p.total_ram_gb = ram_gb
     p.available_ram_gb = ram_gb
     return p
 

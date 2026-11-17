@@ -84,18 +84,20 @@ export class MockApi implements EigenCoreApi {
     return { ...this.settings };
   }
 
-  /** SAMPLE results (MOCK_SEARCH), filtered by the words of the query; all of them when nothing matches. */
-  async searchModels(query: string): Promise<ModelSearch> {
+  /** SAMPLE results (MOCK_SEARCH), filtered by the words of the query; all of them when nothing matches.
+   * Trusted uploaders only unless allUploaders (the "Community uploads" toggle), like the desktop. */
+  async searchModels(query: string, allUploaders = false): Promise<ModelSearch> {
     const q = query.trim().toLowerCase();
-    if (!q) return { query: q, results: [], error: null };
+    if (!q) return { query: q, results: [], error: null, all_uploaders: allUploaders };
     const words = q.split(/\s+/);
-    const hit = MOCK_SEARCH.filter((m) => words.every((w) => m.name.toLowerCase().includes(w)));
-    const rows = (hit.length ? hit : MOCK_SEARCH).map((m) => {
+    const pool = MOCK_SEARCH.filter((m) => allUploaders || m.trusted);
+    const hit = pool.filter((m) => words.every((w) => m.name.toLowerCase().includes(w)));
+    const rows = (hit.length ? hit : pool).map((m) => {
       const known = this.models.find((x) => x.name === m.name);
       return { ...(known ?? m) };
     });
     await new Promise((r) => this.later(450, () => r(null)));
-    return { query: q, results: rows, error: null };
+    return { query: q, results: rows, error: null, all_uploaders: allUploaders };
   }
 
   async checkFit(name: string): Promise<FitCheck> {

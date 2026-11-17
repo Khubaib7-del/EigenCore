@@ -4,7 +4,11 @@ Per-machine fit verdict for a model, before it is downloaded.
 ``fit_report(spec, profile)`` answers, for this machine:
 
 * **verdict** – ``fits`` / ``tight`` / ``too_big`` (or ``unknown`` when the
-  model's shape is not known yet), at ``CHECK_CONTEXT`` tokens of context;
+  model's shape is not known yet), at ``CHECK_CONTEXT`` tokens of context,
+  against the machine's **RAM budget**: total installed RAM minus a fixed
+  reserve for the OS and other apps (``system_reserve_gb``). Free RAM at the
+  moment of the check is not used for the verdict (it swings with whatever
+  else is open); it is kept in the report as a hint only;
 * **max_context** – the largest power-of-two context whose KV cache still
   fits next to the weights (capped at the model's own maximum);
 * **decode ceiling** – memory bandwidth / bytes read per token. An optimistic
@@ -44,6 +48,15 @@ CHECK_CONTEXT = 8192
 #: Bundled arch / tokenizer -> first llama-cpp-python release that loads it.
 RUNTIME_SUPPORT_JSON = Path(__file__).with_name("runtime_support.json")
 
+#: RAM kept back for the OS and other apps when judging fit: 20 % of total RAM,
+#: at least 1.5 GiB (8 GB -> 1.6, 16 GB -> 3.2, 32 GB -> 6.4, 64 GB -> 12.8).
+#: The llama.cpp runtime reserve (DEFAULT_RUNTIME_RESERVE_GB, 2 GiB) and the
+#: 1 GiB "fits" margin come on top, inside the estimate. With these numbers a
+#: model's RAM class (8/16/32/64 GB) is exactly "fits in the budget of a
+#: machine with that much RAM".
+SYSTEM_RESERVE_SHARE = 0.20
+SYSTEM_RESERVE_MIN_GB = 1.5
+
 FITS, TIGHT, TOO_BIG, UNKNOWN = "fits", "tight", "too_big", "unknown"
 _VERDICT = {
     FitVerdict.FITS_WITH_MARGIN: FITS,
@@ -52,6 +65,32 @@ _VERDICT = {
     FitVerdict.UNKNOWN: UNKNOWN,
 }
 _UNSET: Any = object()
+
+
+def _num(v: Any) -> Optional[float]:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 else None
+
+
+def system_reserve_gb(total_ram_gb: float) -> float:
+    """GiB kept back for the OS and other apps on a machine with ``total_ram_gb``."""
+    return max(SYSTEM_RESERVE_MIN_GB, SYSTEM_RESERVE_SHARE * total_ram_gb)
+
+
+def ram_budget_gb(total_ram_gb: float) -> float:
+    """RAM a model (weights + KV cache + runtime) may use: total minus the system reserve."""
+    return max(total_ram_gb - system_reserve_gb(total_ram_gb), 0.0)
+
+
+def machine_ram(profile: Any) -> tuple[float, float, Optional[float]]:
+    """``(total_ram_gb, budget_gb, free_ram_gb)`` for a hardware profile.
+
+    The verdict uses the budget (total minus the system reserve). A profile
+    without a total (old callers, minimal test doubles) falls back to free RAM
+    as the total. ``free_ram_gb`` is informational only.
+    """
+    free = _num(getattr(profile, "available_ram_gb", None))
+    total = _num(getattr(profile, "total_ram_gb", None)) or free or 0.0
+    return total, ram_budget_gb(total), free
 
 
 @lru_cache(maxsize=1)
@@ -90,7 +129,10 @@ class FitReport:
     weights_gb: float  # GiB
     kv_cache_gb: Optional[float]  # GiB at context_checked
     total_gb: Optional[float]  # GiB: weights + KV + runtime reserve
-    available_ram_gb: float
+    total_ram_gb: float  # installed RAM (GiB)
+    system_reserve_gb: float  # kept back for the OS and other apps
+    budget_gb: float  # total_ram_gb - system_reserve_gb: what the verdict is judged against
+    available_ram_gb: Optional[float]  # free RAM right now: a hint only, not used for the verdict
     decode_ceiling_tok_s: Optional[float]  # ESTIMATE (bandwidth / active bytes)
     active_weights_gb: Optional[float]
     runtime_ok: bool
@@ -133,7 +175,8 @@ def fit_report(
     ``geometry`` / ``active_bytes`` override the curated ``spec.geometry``
     (pass what a downloaded file or a remote header said).
     """
-    avail = float(getattr(profile, "available_ram_gb", 0.0) or 0.0)
+    total_ram, budget, free = machine_ram(profile)
+    reserve = round(total_ram - budget, 2)
     bandwidth = getattr(profile, "estimated_bandwidth_gbps", None)
     if not isinstance(bandwidth, (int, float)) or bandwidth <= 0:
         bandwidth = None
@@ -158,10 +201,13 @@ def fit_report(
     if geometry is None or not geometry.is_complete:
         weights_gb = size_bytes / 1024**3
         total = weights_gb + DEFAULT_RUNTIME_RESERVE_GB
-        verdict = TOO_BIG if total > avail else UNKNOWN
+        verdict = TOO_BIG if total > budget else UNKNOWN
         notes = ["model shape not read yet; KV cache not counted"]
         if verdict == TOO_BIG:
-            notes = [f"the file alone ({weights_gb:.1f} GiB) plus runtime does not fit"]
+            notes = [
+                f"the file alone ({weights_gb:.1f} GiB) plus runtime does not fit in "
+                f"{budget:.1f} GiB ({total_ram:.1f} GiB RAM minus {reserve:.1f} GiB for the system)"
+            ]
         return FitReport(
             verdict=verdict,
             context_checked=ctx,
@@ -170,7 +216,10 @@ def fit_report(
             weights_gb=round(weights_gb, 2),
             kv_cache_gb=None,
             total_gb=None,
-            available_ram_gb=round(avail, 2),
+            total_ram_gb=round(total_ram, 2),
+            system_reserve_gb=reserve,
+            budget_gb=round(budget, 2),
+            available_ram_gb=round(free, 2) if free is not None else None,
             decode_ceiling_tok_s=None,
             active_weights_gb=None,
             runtime_ok=runtime_ok,
@@ -184,7 +233,7 @@ def fit_report(
         spec.params_b,
         spec.quant,
         ctx,
-        avail,
+        budget,
         geometry=geometry,
         kv_quant=kv_quant,
         file_size_bytes=size_bytes,
@@ -194,7 +243,7 @@ def fit_report(
     max_ctx = max_context_for_budget(
         spec.params_b,
         spec.quant,
-        avail,
+        budget,
         geometry=geometry,
         model_context_limit=model_max or 128 * 1024,
         kv_quant=kv_quant,
@@ -214,7 +263,10 @@ def fit_report(
         weights_gb=round(est.weights_gb, 2),
         kv_cache_gb=round(est.kv_cache_gb, 2),
         total_gb=round(est.total_gb, 2),
-        available_ram_gb=round(avail, 2),
+        total_ram_gb=round(total_ram, 2),
+        system_reserve_gb=reserve,
+        budget_gb=round(budget, 2),
+        available_ram_gb=round(free, 2) if free is not None else None,
         decode_ceiling_tok_s=ceiling,
         active_weights_gb=(
             round(est.active_weights_gb, 2) if est.active_weights_gb is not None else None
@@ -223,8 +275,43 @@ def fit_report(
         min_runtime=need,
         installed_runtime=installed,
         basis=basis,
-        notes=list(est.notes),
+        notes=_budget_notes(est.notes, est.total_gb, budget, free),
     )
+
+
+def _budget_notes(
+    notes: list[str], need_gb: float, budget: float, free: Optional[float]
+) -> list[str]:
+    """The estimator's notes, worded for the RAM budget, plus a free-RAM hint when
+    the model fits the budget but not what is free right now."""
+    out = []
+    for n in notes:
+        # the estimator says "available RAM"; here that number is the budget
+        out.append(n.replace("exceeds available RAM", "exceeds the RAM budget"))
+    if free is not None and free < need_gb <= budget:
+        out.append(
+            f"only {free:.1f} GiB free right now: close other apps before loading "
+            "(the verdict uses total RAM, not what is free at the moment)"
+        )
+    return out
+
+
+def fit_report_for(spec: ModelSpec, registry: Any, profile: Any) -> FitReport:
+    """Fit verdict for a registry model: from the downloaded file's own GGUF header
+    when it is there, otherwise from the curated geometry (or the file size)."""
+    if registry.is_downloaded(spec):
+        from eigencore.fit import read_gguf_model_info
+
+        info = read_gguf_model_info(spec.local_path(registry.cache_dir))
+        if info is not None and info.geometry is not None and info.geometry.is_complete:
+            return fit_report(
+                spec,
+                profile,
+                geometry=info.geometry,
+                active_bytes=info.active_weight_bytes,
+                basis="file",
+            )
+    return fit_report(spec, profile)
 
 
 _RANK = {FITS: 0, TIGHT: 1, UNKNOWN: 2, TOO_BIG: 3}
@@ -237,13 +324,12 @@ def verdict_rank(verdict: str) -> int:
 
 # RAM classes for the curated table (GB of installed RAM).
 RAM_CLASSES = (8, 16, 32, 64)
-#: Share of installed RAM a model may use (the OS and other apps keep the rest).
-RAM_CLASS_SHARE = 0.8
 
 
 def ram_class(spec: ModelSpec, geometry: Optional[ModelGeometry] = None) -> Optional[int]:
     """Smallest RAM class (8/16/32/64 GB) where file + KV at CHECK_CONTEXT + runtime
-    reserve stays within ``RAM_CLASS_SHARE`` of installed RAM. None when > 64 GB."""
+    reserve stays within the RAM budget of a machine with that much RAM
+    (``ram_budget_gb``: 80 % of it for every class). None when > 64 GB."""
     geometry = geometry or geometry_from_dict(getattr(spec, "geometry", None))
     size_bytes = spec.size_bytes or int(spec.size_gb * 1e9)
     need = size_bytes / 1024**3 + DEFAULT_RUNTIME_RESERVE_GB
@@ -253,6 +339,6 @@ def ram_class(spec: ModelSpec, geometry: Optional[ModelGeometry] = None) -> Opti
         ctx = min(CHECK_CONTEXT, spec.context_length or CHECK_CONTEXT)
         need += kv_bytes_per_token(geometry) * ctx / 1024**3
     for c in RAM_CLASSES:
-        if need <= c * RAM_CLASS_SHARE:
+        if need <= ram_budget_gb(c):
             return c
     return None

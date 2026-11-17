@@ -455,44 +455,6 @@
       "description": "DeepSeek-R1-0528 distilled into Qwen3 8B (dense). Always thinks step by step before answering; long replies. MIT."
     },
     {
-      "name": "deepseek-coder-v2-lite",
-      "repo_id": "bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF",
-      "filename": "DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf",
-      "params_b": 15.7,
-      "quant": "Q4_K_M",
-      "size_bytes": 10364416768,
-      "size_gb": 10.36,
-      "task": "code",
-      "tags": [
-        "code",
-        "moe"
-      ],
-      "ram_class": 32,
-      "priority": 40,
-      "context_length": 163840,
-      "arch": "deepseek2",
-      "license": "other",
-      "license_name": "deepseek-license",
-      "license_url": "https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/blob/main/LICENSE",
-      "noncommercial": false,
-      "min_runtime": "0.3.0",
-      "experts_total": 64,
-      "experts_active": 6,
-      "geometry": {
-        "block_count": 27,
-        "embedding_length": 2048,
-        "head_count": 16,
-        "head_count_kv": 16,
-        "key_length": 192,
-        "value_length": 128,
-        "expert_count": 64,
-        "expert_used_count": 6,
-        "active_bytes": 1726248960
-      },
-      "verified_at": "2026-11-17",
-      "description": "DeepSeek-Coder-V2-Lite: MoE coder (about 2.4B active per token), fast decode on CPU for its size. Older (2024). DeepSeek licence: commercial use allowed with use restrictions."
-    },
-    {
       "name": "gpt-oss-20b",
       "repo_id": "ggml-org/gpt-oss-20b-GGUF",
       "filename": "gpt-oss-20b-MXFP4.gguf",

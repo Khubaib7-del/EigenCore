@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import type { FitDetail, ModelRow, ModelSearch } from "../api";
 import { Icon } from "../components/Icon";
-import { Button, Chip, Dialog, FitChip, IconButton, Progress, Segmented } from "../components/primitives";
+import { Button, Chip, Dialog, FitChip, IconButton, Progress, Segmented, Switch } from "../components/primitives";
 import { ProviderLogo, PROVIDER_NAME } from "../components/ProviderLogo";
 import { useStore } from "../state/store";
 import "../styles/catalog.css";
@@ -25,10 +25,14 @@ function displayName(m: ModelRow): string {
 function fitTitle(f: FitDetail | null | undefined): string {
   if (!f) return "Fit is estimated once the model's shape is known";
   if (f.verdict === "unknown") return "Fit from the file size only. Check fit reads the model's header (a few MB) for the full estimate.";
-  const parts = [`Estimate at ${ctxLabel(f.context_checked)} context, ${f.available_ram_gb} GB free RAM.`];
+  const parts = [
+    `Estimate at ${ctxLabel(f.context_checked)} context against ${f.budget_gb} GB: ${f.total_ram_gb} GB RAM minus ${f.system_reserve_gb} GB kept for the OS and other apps.`,
+  ];
   if (f.total_gb != null) parts.push(`Weights ${f.weights_gb} GB + KV cache ${f.kv_cache_gb} GB + runtime ≈ ${f.total_gb} GB.`);
   else parts.push(`The file alone is ${f.weights_gb} GB.`);
   if (f.decode_ceiling_tok_s != null) parts.push(`Decode ceiling ≈ ${f.decode_ceiling_tok_s} tok/s (memory bandwidth ÷ weights read per token; real speed is lower).`);
+  if (f.available_ram_gb != null && f.total_gb != null && f.total_gb > f.available_ram_gb && f.verdict !== "too_big")
+    parts.push(`Only ${f.available_ram_gb} GB is free right now: close other apps before loading it.`);
   return parts.join(" ");
 }
 
@@ -78,6 +82,11 @@ function ModelCard({
           {m.task === "code" && <Chip icon="terminal">Code</Chip>}
           {(m.active_params_b || m.tags?.includes("moe")) && <Chip>MoE</Chip>}
           <LicenceChip m={m} />
+          {m.trusted === false && (
+            <span title="Community upload: not from a trusted quantiser or the model maker, and not reviewed by EigenCore">
+              <Chip tone="warn">Community</Chip>
+            </span>
+          )}
           {m.fit_detail && !m.fit_detail.runtime_ok && (
             <span title={m.fit_detail.runtime_note ?? "Needs a newer llama-cpp-python"}>
               <Chip tone="warn" icon="alert">
@@ -93,7 +102,7 @@ function ModelCard({
           <span>{m.size_gb.toFixed(m.size_gb < 1 ? 2 : 1)} GB</span>
           <span>ctx {m.context_length.toLocaleString()}</span>
           {m.fit_detail?.max_context ? (
-            <span className="fit-ctx" title="Largest context whose KV cache fits next to the weights in free RAM (estimate)">
+            <span className="fit-ctx" title="Largest context whose KV cache fits next to the weights in this machine's RAM budget (estimate)">
               ≈{ctxLabel(m.fit_detail.max_context)} ctx fits here
             </span>
           ) : null}
@@ -156,7 +165,7 @@ function ModelCard({
 }
 
 /** Hugging Face search: debounced, latest query wins, results keep their own fit checks. */
-function useHfSearch(query: string) {
+function useHfSearch(query: string, community: boolean) {
   const [res, setRes] = useState<ModelSearch | null>(null);
   const [busy, setBusy] = useState(false);
   const seq = useRef(0);
@@ -171,13 +180,13 @@ function useHfSearch(query: string) {
     setBusy(true);
     const t = window.setTimeout(() => {
       api
-        .searchModels(q)
+        .searchModels(q, community)
         .then((r) => n === seq.current && setRes(r))
         .catch((e) => n === seq.current && setRes({ query: q, results: [], error: String(e) }))
         .finally(() => n === seq.current && setBusy(false));
     }, 450);
     return () => window.clearTimeout(t);
-  }, [query]);
+  }, [query, community]);
   return { res, busy, setRes };
 }
 
@@ -186,7 +195,8 @@ export function ModelsScreen({ confirmDelete }: { confirmDelete?: string }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [toDelete, setToDelete] = useState<string | null>(confirmDelete ?? null);
   const [query, setQuery] = useState("");
-  const { res, busy, setRes } = useHfSearch(query);
+  const [community, setCommunity] = useState(false);
+  const { res, busy, setRes } = useHfSearch(query, community);
   const [checking, setChecking] = useState<Record<string, boolean>>({});
   const checkFit = (name: string) => {
     setChecking((c) => ({ ...c, [name]: true }));
@@ -210,7 +220,10 @@ export function ModelsScreen({ confirmDelete }: { confirmDelete?: string }) {
       <header className="page-head">
         <div>
           <h1>Models</h1>
-          <p className="muted">GGUF models from Hugging Face: a curated list, or search for any model. Fit is an estimate for this machine, checked before you download.</p>
+          <p className="muted">
+            GGUF models from Hugging Face: a curated list, or search for any model. Fit is an estimate for this machine's RAM (minus a share kept for the OS and other apps), checked before you
+            download.
+          </p>
         </div>
       </header>
       <div className="toolbar">
@@ -236,6 +249,10 @@ export function ModelsScreen({ confirmDelete }: { confirmDelete?: string }) {
             onKeyDown={(e) => e.key === "Escape" && setQuery("")}
           />
         </label>
+        <span className="catalog-community" title="Search shows uploads from trusted quantisers and model makers. Turn on to include community uploads (not reviewed by EigenCore).">
+          <Switch checked={community} onChange={setCommunity} label="Include community uploads in search" />
+          <span>Community uploads</span>
+        </span>
         <span className="grow" />
         <span className="muted storage">
           <Icon name="folder" size={13} />
@@ -268,7 +285,11 @@ export function ModelsScreen({ confirmDelete }: { confirmDelete?: string }) {
               ))}
             </div>
           )}
-          <p className="muted catalog-note">Community uploads are not reviewed by EigenCore. Check the licence and the model card before using one.</p>
+          <p className="muted catalog-note">
+            {community
+              ? "Community uploads are included. They are not reviewed by EigenCore: check the licence and the model card before using one."
+              : "Showing trusted uploaders only (known quantisers and the model makers). Turn on Community uploads to see the rest."}
+          </p>
         </section>
       )}
       <Dialog

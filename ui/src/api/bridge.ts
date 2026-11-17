@@ -25,7 +25,7 @@ export interface PyApi {
   save_chats(chats: unknown[]): Promise<boolean>;
   load_ui_prefs(): Promise<Record<string, unknown>>;
   save_ui_prefs(patch: Record<string, unknown>): Promise<boolean>;
-  search_models(query: string): Promise<ModelSearch>;
+  search_models(query: string, all_uploaders: boolean): Promise<ModelSearch>;
   check_fit(name: string): Promise<FitCheck>;
   download(name: string): Promise<void>;
   delete(name: string): Promise<boolean>;
@@ -126,8 +126,8 @@ export class BridgeApi implements EigenCoreApi {
   saveUiPrefs(patch: Record<string, unknown>) {
     this.py.save_ui_prefs(patch).catch(report);
   }
-  searchModels(query: string) {
-    return this.py.search_models(query);
+  searchModels(query: string, allUploaders = false) {
+    return this.py.search_models(query, allUploaders);
   }
   checkFit(name: string) {
     return this.py.check_fit(name);

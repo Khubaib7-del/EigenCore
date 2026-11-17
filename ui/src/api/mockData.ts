@@ -3,8 +3,9 @@ import type { FitCheck, HardwareProfile, ModelRow, Settings } from "./types";
 /**
  * Curated rows generated from src/eigencore/models/models.json, with
  * fit_detail computed by eigencore.models.fit_check for MOCK_PROFILE below
- * (9.2 GB free, llama-cpp-python 0.3.36, no bandwidth figure, so no decode
- * ceiling). Download and active state are MOCK.
+ * (15.8 GB RAM, so a 12.6 GB budget after the 20 % system reserve; the 9.2 GB
+ * free is a hint only; llama-cpp-python 0.3.36, no bandwidth figure, so no
+ * decode ceiling). Download and active state are MOCK.
  */
 export const MOCK_MODELS: ModelRow[] = [
   {
@@ -26,6 +27,9 @@ export const MOCK_MODELS: ModelRow[] = [
       weights_gb: 0.62,
       kv_cache_gb: 0.04,
       total_gb: 2.67,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 0.62,
@@ -68,6 +72,9 @@ export const MOCK_MODELS: ModelRow[] = [
       weights_gb: 2.23,
       kv_cache_gb: 1.5,
       total_gb: 5.73,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 2.23,
@@ -110,6 +117,9 @@ export const MOCK_MODELS: ModelRow[] = [
       weights_gb: 1.04,
       kv_cache_gb: 0.22,
       total_gb: 3.26,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 1.04,
@@ -152,6 +162,9 @@ export const MOCK_MODELS: ModelRow[] = [
       weights_gb: 1.96,
       kv_cache_gb: 0.28,
       total_gb: 4.24,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 1.95,
@@ -194,6 +207,9 @@ export const MOCK_MODELS: ModelRow[] = [
       weights_gb: 1.04,
       kv_cache_gb: 0.22,
       total_gb: 3.26,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 1.04,
@@ -231,11 +247,14 @@ export const MOCK_MODELS: ModelRow[] = [
     fit_detail: {
       verdict: "fits",
       context_checked: 8192,
-      max_context: 32768,
+      max_context: 65536,
       model_max_context: 131072,
       weights_gb: 4.36,
       kv_cache_gb: 0.44,
       total_gb: 6.8,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: null,
@@ -278,6 +297,9 @@ export const MOCK_MODELS: ModelRow[] = [
       weights_gb: 17.28,
       kv_cache_gb: 0.75,
       total_gb: 20.03,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 1.95,
@@ -287,8 +309,8 @@ export const MOCK_MODELS: ModelRow[] = [
       basis: "curated",
       notes: [
         "MoE: 128 experts, 8 active/token → ≈ 2.0 GiB of weights read per token (GGUF tensor sizes)",
-        "short by 10.8 GB at context 8192",
-        "model file (17.3 GiB) exceeds available RAM (9.2 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
+        "short by 7.4 GB at context 8192",
+        "model file (17.3 GiB) exceeds the RAM budget (12.6 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
       ],
       runtime_note: null,
       estimate: true
@@ -317,16 +339,19 @@ export const MOCK_MODELS: ModelRow[] = [
     context_length: 131072,
     description: "IBM Granite 4.2 8B (dense). Reasoning, code generation and tool calling, with thinking and non-thinking modes. Apache-2.0.",
     downloaded: false,
-    fit: "tight",
+    fit: "fits_with_margin",
     is_active: false,
     fit_detail: {
-      verdict: "tight",
+      verdict: "fits",
       context_checked: 8192,
-      max_context: 4096,
+      max_context: 16384,
       model_max_context: 131072,
       weights_gb: 4.98,
       kv_cache_gb: 1.25,
       total_gb: 8.23,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 4.98,
@@ -334,9 +359,7 @@ export const MOCK_MODELS: ModelRow[] = [
       min_runtime: "0.3.17",
       installed_runtime: "0.3.36",
       basis: "curated",
-      notes: [
-        "only 1.0 GB headroom; expect swapping/slowdown under load"
-      ],
+      notes: [],
       runtime_note: null,
       estimate: true
     },
@@ -363,16 +386,19 @@ export const MOCK_MODELS: ModelRow[] = [
     context_length: 131072,
     description: "TwIL-8B (balanced variant): Granite 4.2 8B post-trained by webAI for math, code and instruction following; thinks before answering. webAI Non-Commercial License: research and education only.",
     downloaded: false,
-    fit: "tight",
+    fit: "fits_with_margin",
     is_active: false,
     fit_detail: {
-      verdict: "tight",
+      verdict: "fits",
       context_checked: 8192,
-      max_context: 4096,
+      max_context: 16384,
       model_max_context: 131072,
       weights_gb: 4.98,
       kv_cache_gb: 1.25,
       total_gb: 8.23,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 4.98,
@@ -380,9 +406,7 @@ export const MOCK_MODELS: ModelRow[] = [
       min_runtime: "0.3.17",
       installed_runtime: "0.3.36",
       basis: "curated",
-      notes: [
-        "only 1.0 GB headroom; expect swapping/slowdown under load"
-      ],
+      notes: [],
       runtime_note: null,
       estimate: true
     },
@@ -414,11 +438,14 @@ export const MOCK_MODELS: ModelRow[] = [
     fit_detail: {
       verdict: "fits",
       context_checked: 8192,
-      max_context: 32768,
+      max_context: 65536,
       model_max_context: 131072,
       weights_gb: 2.09,
       kv_cache_gb: 0.62,
       total_gb: 4.71,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 2.09,
@@ -458,11 +485,14 @@ export const MOCK_MODELS: ModelRow[] = [
     fit_detail: {
       verdict: "fits",
       context_checked: 8192,
-      max_context: 262144,
+      max_context: 524288,
       model_max_context: 1048576,
       weights_gb: 3.94,
       kv_cache_gb: 0.06,
       total_gb: 6.0,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 0.85,
@@ -506,11 +536,14 @@ export const MOCK_MODELS: ModelRow[] = [
     fit_detail: {
       verdict: "fits",
       context_checked: 8192,
-      max_context: 65536,
+      max_context: 131072,
       model_max_context: 262144,
       weights_gb: 2.55,
       kv_cache_gb: 0.25,
       total_gb: 4.8,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 2.54,
@@ -550,11 +583,14 @@ export const MOCK_MODELS: ModelRow[] = [
     fit_detail: {
       verdict: "fits",
       context_checked: 8192,
-      max_context: 16384,
+      max_context: 131072,
       model_max_context: 262144,
       weights_gb: 5.29,
       kv_cache_gb: 0.25,
       total_gb: 7.54,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 5.28,
@@ -594,11 +630,14 @@ export const MOCK_MODELS: ModelRow[] = [
     fit_detail: {
       verdict: "fits",
       context_checked: 8192,
-      max_context: 8192,
+      max_context: 32768,
       model_max_context: 131072,
       weights_gb: 4.68,
       kv_cache_gb: 1.12,
       total_gb: 7.81,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 4.68,
@@ -623,54 +662,6 @@ export const MOCK_MODELS: ModelRow[] = [
     source: "curated"
   },
   {
-    name: "deepseek-coder-v2-lite",
-    params_b: 15.7,
-    quant: "Q4_K_M",
-    size_gb: 10.36,
-    task: "code",
-    context_length: 163840,
-    description: "DeepSeek-Coder-V2-Lite: MoE coder (about 2.4B active per token), fast decode on CPU for its size. Older (2024). DeepSeek licence: commercial use allowed with use restrictions.",
-    downloaded: false,
-    fit: "does_not_fit",
-    is_active: false,
-    fit_detail: {
-      verdict: "too_big",
-      context_checked: 8192,
-      max_context: 0,
-      model_max_context: 163840,
-      weights_gb: 9.65,
-      kv_cache_gb: 2.11,
-      total_gb: 13.76,
-      available_ram_gb: 9.2,
-      decode_ceiling_tok_s: null,
-      active_weights_gb: 1.61,
-      runtime_ok: true,
-      min_runtime: "0.3.0",
-      installed_runtime: "0.3.36",
-      basis: "curated",
-      notes: [
-        "MoE: 64 experts, 6 active/token → ≈ 1.6 GiB of weights read per token (GGUF tensor sizes)",
-        "short by 4.6 GB at context 8192",
-        "model file (9.7 GiB) exceeds available RAM (9.2 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
-      ],
-      runtime_note: null,
-      estimate: true
-    },
-    repo_id: "bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF",
-    provider: "deepseek",
-    license: "deepseek-license",
-    noncommercial: false,
-    licence_kind: "restricted",
-    license_url: "https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/blob/main/LICENSE",
-    tags: [
-      "code",
-      "moe"
-    ],
-    ram_class: 32,
-    source: "curated",
-    active_params_b: 2.4
-  },
-  {
     name: "gpt-oss-20b",
     params_b: 20.9,
     quant: "MXFP4",
@@ -689,6 +680,9 @@ export const MOCK_MODELS: ModelRow[] = [
       weights_gb: 11.28,
       kv_cache_gb: 0.38,
       total_gb: 13.65,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 2.97,
@@ -698,8 +692,7 @@ export const MOCK_MODELS: ModelRow[] = [
       basis: "curated",
       notes: [
         "MoE: 32 experts, 4 active/token → ≈ 3.0 GiB of weights read per token (GGUF tensor sizes)",
-        "short by 4.5 GB at context 8192",
-        "model file (11.3 GiB) exceeds available RAM (9.2 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
+        "short by 1.0 GB at context 8192"
       ],
       runtime_note: null,
       estimate: true
@@ -738,6 +731,9 @@ export const MOCK_MODELS: ModelRow[] = [
       weights_gb: 17.28,
       kv_cache_gb: 0.75,
       total_gb: 20.03,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 1.95,
@@ -747,8 +743,8 @@ export const MOCK_MODELS: ModelRow[] = [
       basis: "curated",
       notes: [
         "MoE: 128 experts, 8 active/token → ≈ 2.0 GiB of weights read per token (GGUF tensor sizes)",
-        "short by 10.8 GB at context 8192",
-        "model file (17.3 GiB) exceeds available RAM (9.2 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
+        "short by 7.4 GB at context 8192",
+        "model file (17.3 GiB) exceeds the RAM budget (12.6 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
       ],
       runtime_note: null,
       estimate: true
@@ -787,6 +783,9 @@ export const MOCK_MODELS: ModelRow[] = [
       weights_gb: 20.61,
       kv_cache_gb: 0.16,
       total_gb: 22.77,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 2.95,
@@ -796,8 +795,8 @@ export const MOCK_MODELS: ModelRow[] = [
       basis: "curated",
       notes: [
         "MoE: 256 experts, 8 active/token → ≈ 2.9 GiB of weights read per token (GGUF tensor sizes)",
-        "short by 13.6 GB at context 8192",
-        "model file (20.6 GiB) exceeds available RAM (9.2 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
+        "short by 10.1 GB at context 8192",
+        "model file (20.6 GiB) exceeds the RAM budget (12.6 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
       ],
       runtime_note: null,
       estimate: true
@@ -837,6 +836,9 @@ export const MOCK_MODELS: ModelRow[] = [
       weights_gb: 45.09,
       kv_cache_gb: 0.19,
       total_gb: 47.27,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 2.34,
@@ -846,8 +848,8 @@ export const MOCK_MODELS: ModelRow[] = [
       basis: "curated",
       notes: [
         "MoE: 512 experts, 10 active/token → ≈ 2.3 GiB of weights read per token (GGUF tensor sizes)",
-        "short by 38.1 GB at context 8192",
-        "model file (45.1 GiB) exceeds available RAM (9.2 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
+        "short by 34.6 GB at context 8192",
+        "model file (45.1 GiB) exceeds the RAM budget (12.6 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
       ],
       runtime_note: null,
       estimate: true
@@ -886,6 +888,9 @@ export const MOCK_MODELS: ModelRow[] = [
       weights_gb: 45.2,
       kv_cache_gb: 0.19,
       total_gb: 47.38,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 2.45,
@@ -895,8 +900,8 @@ export const MOCK_MODELS: ModelRow[] = [
       basis: "curated",
       notes: [
         "MoE: 512 experts, 10 active/token → ≈ 2.4 GiB of weights read per token (GGUF tensor sizes)",
-        "short by 38.2 GB at context 8192",
-        "model file (45.2 GiB) exceeds available RAM (9.2 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
+        "short by 34.7 GB at context 8192",
+        "model file (45.2 GiB) exceeds the RAM budget (12.6 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
       ],
       runtime_note: null,
       estimate: true
@@ -923,6 +928,8 @@ export const MOCK_MODELS: ModelRow[] = [
  * SAMPLE Hugging Face search results for the browser preview: real repos,
  * files, sizes and licences read from the HF API on 2026-11-17. The fit is
  * from the file size only, as the desktop app shows it before "Check fit".
+ * The last two are community uploads (trusted: false): the preview shows them
+ * only with the "Community uploads" toggle on, like the desktop app.
  */
 export const MOCK_SEARCH: ModelRow[] = [
   {
@@ -944,6 +951,9 @@ export const MOCK_SEARCH: ModelRow[] = [
       weights_gb: 4.98,
       kv_cache_gb: null,
       total_gb: null,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: null,
@@ -991,6 +1001,9 @@ export const MOCK_SEARCH: ModelRow[] = [
       weights_gb: 1.81,
       kv_cache_gb: null,
       total_gb: null,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: null,
@@ -1039,6 +1052,9 @@ export const MOCK_SEARCH: ModelRow[] = [
       weights_gb: 16.5,
       kv_cache_gb: null,
       total_gb: null,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: null,
@@ -1047,7 +1063,7 @@ export const MOCK_SEARCH: ModelRow[] = [
       installed_runtime: "0.3.36",
       basis: "size-only",
       notes: [
-        "the file alone (16.5 GiB) plus runtime does not fit"
+        "the file alone (16.5 GiB) plus runtime does not fit in 12.6 GiB (15.8 GiB RAM minus 3.2 GiB for the system)"
       ],
       runtime_note: null,
       estimate: true
@@ -1086,6 +1102,9 @@ export const MOCK_SEARCH: ModelRow[] = [
       weights_gb: 4.36,
       kv_cache_gb: null,
       total_gb: null,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: null,
@@ -1133,6 +1152,9 @@ export const MOCK_SEARCH: ModelRow[] = [
       weights_gb: 4.58,
       kv_cache_gb: null,
       total_gb: null,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: null,
@@ -1180,6 +1202,9 @@ export const MOCK_SEARCH: ModelRow[] = [
       weights_gb: 12.42,
       kv_cache_gb: null,
       total_gb: null,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: null,
@@ -1188,7 +1213,7 @@ export const MOCK_SEARCH: ModelRow[] = [
       installed_runtime: "0.3.36",
       basis: "size-only",
       notes: [
-        "the file alone (12.4 GiB) plus runtime does not fit"
+        "the file alone (12.4 GiB) plus runtime does not fit in 12.6 GiB (15.8 GiB RAM minus 3.2 GiB for the system)"
       ],
       runtime_note: null,
       estimate: true
@@ -1227,6 +1252,9 @@ export const MOCK_SEARCH: ModelRow[] = [
       weights_gb: 6.63,
       kv_cache_gb: null,
       total_gb: null,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: null,
@@ -1275,6 +1303,9 @@ export const MOCK_SEARCH: ModelRow[] = [
       weights_gb: 15.78,
       kv_cache_gb: null,
       total_gb: null,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: null,
@@ -1283,7 +1314,7 @@ export const MOCK_SEARCH: ModelRow[] = [
       installed_runtime: "0.3.36",
       basis: "size-only",
       notes: [
-        "the file alone (15.8 GiB) plus runtime does not fit"
+        "the file alone (15.8 GiB) plus runtime does not fit in 12.6 GiB (15.8 GiB RAM minus 3.2 GiB for the system)"
       ],
       runtime_note: null,
       estimate: true
@@ -1304,6 +1335,106 @@ export const MOCK_SEARCH: ModelRow[] = [
     downloads: 2061013,
     trusted: true,
     gated: false
+  },
+  {
+    name: "NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Hermes-3-Llama-3.1-8B.Q4_K_M.gguf",
+    params_b: 8.0,
+    quant: "Q4_K_M",
+    size_gb: 4.92,
+    task: "general",
+    context_length: 131072,
+    description: "Hugging Face search result: Hermes-3-Llama-3.1-8B.Q4_K_M.gguf",
+    downloaded: false,
+    fit: "unknown",
+    is_active: false,
+    fit_detail: {
+      verdict: "unknown",
+      context_checked: 8192,
+      max_context: null,
+      model_max_context: 131072,
+      weights_gb: 4.58,
+      kv_cache_gb: null,
+      total_gb: null,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
+      available_ram_gb: 9.2,
+      decode_ceiling_tok_s: null,
+      active_weights_gb: null,
+      runtime_ok: true,
+      min_runtime: "0.3.0",
+      installed_runtime: "0.3.36",
+      basis: "size-only",
+      notes: [
+        "model shape not read yet; KV cache not counted"
+      ],
+      runtime_note: null,
+      estimate: true
+    },
+    repo_id: "NousResearch/Hermes-3-Llama-3.1-8B-GGUF",
+    provider: "meta",
+    license: "llama3",
+    noncommercial: false,
+    licence_kind: "restricted",
+    license_url: "https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF",
+    tags: [
+      "chat"
+    ],
+    ram_class: null,
+    source: "hf-search",
+    downloads: 66443,
+    trusted: false,
+    gated: false
+  },
+  {
+    name: "QuantFactory/Qwen2.5-Coder-7B-GGUF:Qwen2.5-Coder-7B.Q4_K_M.gguf",
+    params_b: 7.6,
+    quant: "Q4_K_M",
+    size_gb: 4.68,
+    task: "code",
+    context_length: 32768,
+    description: "Hugging Face search result: Qwen2.5-Coder-7B.Q4_K_M.gguf",
+    downloaded: false,
+    fit: "unknown",
+    is_active: false,
+    fit_detail: {
+      verdict: "unknown",
+      context_checked: 8192,
+      max_context: null,
+      model_max_context: 32768,
+      weights_gb: 4.36,
+      kv_cache_gb: null,
+      total_gb: null,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
+      available_ram_gb: 9.2,
+      decode_ceiling_tok_s: null,
+      active_weights_gb: null,
+      runtime_ok: true,
+      min_runtime: "0.3.0",
+      installed_runtime: "0.3.36",
+      basis: "size-only",
+      notes: [
+        "model shape not read yet; KV cache not counted"
+      ],
+      runtime_note: null,
+      estimate: true
+    },
+    repo_id: "QuantFactory/Qwen2.5-Coder-7B-GGUF",
+    provider: "qwen",
+    license: "apache-2.0",
+    noncommercial: false,
+    licence_kind: "permissive",
+    license_url: "https://huggingface.co/Qwen/Qwen2.5-Coder-7B/blob/main/LICENSE",
+    tags: [
+      "code"
+    ],
+    ram_class: null,
+    source: "hf-search",
+    downloads: 4161,
+    trusted: false,
+    gated: false
   }
 ];
 
@@ -1311,15 +1442,18 @@ export const MOCK_SEARCH: ModelRow[] = [
 export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
   "ibm-granite/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf": {
     name: "ibm-granite/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf",
-    fit: "tight",
+    fit: "fits_with_margin",
     fit_detail: {
-      verdict: "tight",
+      verdict: "fits",
       context_checked: 8192,
-      max_context: 4096,
+      max_context: 16384,
       model_max_context: 131072,
       weights_gb: 4.98,
       kv_cache_gb: 1.25,
       total_gb: 8.23,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 4.98,
@@ -1327,9 +1461,7 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
       min_runtime: "0.3.0",
       installed_runtime: "0.3.36",
       basis: "header",
-      notes: [
-        "only 1.0 GB headroom; expect swapping/slowdown under load"
-      ],
+      notes: [],
       runtime_note: null,
       estimate: true
     },
@@ -1346,6 +1478,9 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
       weights_gb: 1.81,
       kv_cache_gb: 0.06,
       total_gb: 3.87,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 1.81,
@@ -1370,6 +1505,9 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
       weights_gb: 16.5,
       kv_cache_gb: 2.0,
       total_gb: 20.5,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 16.5,
@@ -1378,8 +1516,8 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
       installed_runtime: "0.3.36",
       basis: "header",
       notes: [
-        "short by 11.3 GB at context 8192",
-        "model file (16.5 GiB) exceeds available RAM (9.2 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
+        "short by 7.9 GB at context 8192",
+        "model file (16.5 GiB) exceeds the RAM budget (12.6 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
       ],
       runtime_note: null,
       estimate: true
@@ -1392,11 +1530,14 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
     fit_detail: {
       verdict: "fits",
       context_checked: 8192,
-      max_context: 32768,
+      max_context: 65536,
       model_max_context: 131072,
       weights_gb: 4.36,
       kv_cache_gb: 0.44,
       total_gb: 6.8,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 4.36,
@@ -1416,11 +1557,14 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
     fit_detail: {
       verdict: "fits",
       context_checked: 8192,
-      max_context: 8192,
+      max_context: 32768,
       model_max_context: 131072,
       weights_gb: 4.58,
       kv_cache_gb: 1.0,
       total_gb: 7.58,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 4.58,
@@ -1445,6 +1589,9 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
       weights_gb: 12.42,
       kv_cache_gb: 1.75,
       total_gb: 16.17,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 12.42,
@@ -1453,8 +1600,7 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
       installed_runtime: "0.3.36",
       basis: "header",
       notes: [
-        "short by 7.0 GB at context 8192",
-        "model file (12.4 GiB) exceeds available RAM (9.2 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
+        "short by 3.5 GB at context 8192"
       ],
       runtime_note: null,
       estimate: true
@@ -1463,15 +1609,18 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
   },
   "unsloth/gemma-4-12b-it-GGUF:gemma-4-12b-it-Q4_K_M.gguf": {
     name: "unsloth/gemma-4-12b-it-GGUF:gemma-4-12b-it-Q4_K_M.gguf",
-    fit: "does_not_fit",
+    fit: "fits_with_margin",
     fit_detail: {
-      verdict: "too_big",
+      verdict: "fits",
       context_checked: 8192,
-      max_context: 0,
+      max_context: 8192,
       model_max_context: 262144,
       weights_gb: 6.63,
       kv_cache_gb: 2.62,
       total_gb: 11.26,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 6.62,
@@ -1480,7 +1629,7 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
       installed_runtime: "0.3.36",
       basis: "header",
       notes: [
-        "short by 2.1 GB at context 8192"
+        "only 9.2 GiB free right now: close other apps before loading (the verdict uses total RAM, not what is free at the moment)"
       ],
       runtime_note: null,
       estimate: true
@@ -1498,6 +1647,9 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
       weights_gb: 15.78,
       kv_cache_gb: 1.72,
       total_gb: 19.5,
+      total_ram_gb: 15.8,
+      system_reserve_gb: 3.16,
+      budget_gb: 12.64,
       available_ram_gb: 9.2,
       decode_ceiling_tok_s: null,
       active_weights_gb: 3.24,
@@ -1507,8 +1659,8 @@ export const MOCK_FIT_CHECKS: Record<string, FitCheck> = {
       basis: "header",
       notes: [
         "MoE: 128 experts, 8 active/token → ≈ 3.2 GiB of weights read per token (GGUF tensor sizes)",
-        "short by 10.3 GB at context 8192",
-        "model file (15.8 GiB) exceeds available RAM (9.2 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
+        "short by 6.9 GB at context 8192",
+        "model file (15.8 GiB) exceeds the RAM budget (12.6 GiB): would run via mmap/SSD paging — expect severe decode slowdown (SSD read rate, not RAM bandwidth)"
       ],
       runtime_note: null,
       estimate: true

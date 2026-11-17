@@ -409,29 +409,49 @@ def test_search_filters_hidden_ranks_trusted_and_caches(tmp_path):
     http = FakeHttp(_search_routes())
     clock = [1000.0]
     cat = HFCatalog(tmp_path / "c.json", http=http, clock=lambda: clock[0])
-    res = cat.search("granite")
+    res = cat.search("granite", trusted_only=False)
     assert [e.repo_id for e in res] == [
         "ibm-granite/granite-4.2-3b-GGUF",
         "randomuser/Granite-GGUF",
     ]
+    assert [e.trusted for e in res] == [True, False]
     assert "filter=gguf" in http.calls[0] and "search=granite" in http.calls[0]
     assert not any("abliterated" in c for c in http.calls)
     n = len(http.calls)
     cat2 = HFCatalog(tmp_path / "c.json", http=http, clock=lambda: clock[0])
-    assert [e.repo_id for e in cat2.search("granite")] == [e.repo_id for e in res]
+    assert [e.repo_id for e in cat2.search("granite", trusted_only=False)] == [
+        e.repo_id for e in res
+    ]
     assert len(http.calls) == n  # served from the disk cache
     saved = json.loads((tmp_path / "c.json").read_text())
     assert all("chat_template" not in json.dumps(v) for v in saved.values())
+
+
+def test_search_trusted_uploaders_only_by_default(tmp_path):
+    http = FakeHttp(_search_routes())
+    cat = HFCatalog(tmp_path / "c.json", http=http)
+    res = cat.search("granite")
+    assert [e.repo_id for e in res] == ["ibm-granite/granite-4.2-3b-GGUF"]
+    assert all(e.trusted for e in res)
+    # the community repo is not even fetched
+    assert not any("randomuser" in c for c in http.calls)
+    # same query with the toggle on: served from the cached search, community added after
+    more = cat.search("granite", trusted_only=False)
+    assert [e.repo_id for e in more] == [
+        "ibm-granite/granite-4.2-3b-GGUF",
+        "randomuser/Granite-GGUF",
+    ]
 
 
 def test_search_offline_uses_stale_cache_then_reports_error(tmp_path):
     http = FakeHttp(_search_routes())
     clock = [0.0]
     cat = HFCatalog(tmp_path / "c.json", http=http, clock=lambda: clock[0])
-    assert cat.search("granite")
+    assert cat.search("granite", trusted_only=False)
     clock[0] += 10 * 24 * 3600  # cache is stale
     http.offline = True
-    assert len(cat.search("granite")) == 2  # stale copy beats nothing
+    assert len(cat.search("granite", trusted_only=False)) == 2  # stale copy beats nothing
+    assert len(cat.search("granite")) == 1
     assert cat.search("something else") == []
     assert "offline" in cat.last_error
     assert cat.search("  ") == []
@@ -448,8 +468,13 @@ def test_entry_offline_returns_none_with_error(tmp_path):
 # ----- fit verdicts ----------------------------------------------------------------------
 
 
-def _prof(ram, bw=50.0):
-    return SimpleNamespace(available_ram_gb=ram, estimated_bandwidth_gbps=bw)
+def _prof(ram, bw=50.0, free=None):
+    """``ram`` is the machine's TOTAL RAM; ``free`` (default: half of it) is only a hint."""
+    return SimpleNamespace(
+        total_ram_gb=ram,
+        available_ram_gb=ram / 2 if free is None else free,
+        estimated_bandwidth_gbps=bw,
+    )
 
 
 def _granite8b():
@@ -459,9 +484,44 @@ def _granite8b():
 def test_fit_report_verdicts_scale_with_ram():
     s = _granite8b()
     assert fit_report(s, _prof(32), installed_runtime="0.3.36").verdict == FITS
-    assert fit_report(s, _prof(8.5), installed_runtime="0.3.36").verdict == TIGHT
-    big = fit_report(s, _prof(4), installed_runtime="0.3.36")
+    assert fit_report(s, _prof(11), installed_runtime="0.3.36").verdict == TIGHT
+    big = fit_report(s, _prof(8), installed_runtime="0.3.36")
     assert big.verdict == TOO_BIG and big.max_context == 0
+
+
+def test_system_reserve_is_20_percent_with_a_floor():
+    assert fit_check.system_reserve_gb(4) == 1.5  # floor
+    assert fit_check.system_reserve_gb(8) == pytest.approx(1.6)
+    assert fit_check.system_reserve_gb(16) == pytest.approx(3.2)
+    assert fit_check.ram_budget_gb(32) == pytest.approx(25.6)
+    assert fit_check.ram_budget_gb(1) == 0.0
+
+
+def test_verdict_uses_total_ram_not_free_ram():
+    s = _granite8b()
+    busy = fit_report(s, _prof(16, free=2.0), installed_runtime="0.3.36")
+    idle = fit_report(s, _prof(16, free=14.0), installed_runtime="0.3.36")
+    assert busy.verdict == idle.verdict == FITS
+    assert busy.max_context == idle.max_context
+    assert busy.total_ram_gb == 16 and busy.budget_gb == pytest.approx(12.8)
+    assert busy.system_reserve_gb == pytest.approx(3.2)
+    # free RAM stays as a hint only
+    assert busy.available_ram_gb == 2.0 and any("free right now" in n for n in busy.notes)
+    assert not any("free right now" in n for n in idle.notes)
+    d = busy.to_dict()
+    assert d["budget_gb"] == busy.budget_gb and d["available_ram_gb"] == 2.0
+
+
+def test_profile_without_total_falls_back_to_free():
+    s = _granite8b()
+    rep = fit_report(s, SimpleNamespace(available_ram_gb=16.0), installed_runtime="0.3.36")
+    assert rep.total_ram_gb == 16.0 and rep.budget_gb == pytest.approx(12.8)
+
+
+def test_every_curated_model_fits_or_is_tight_on_its_ram_class():
+    for s in REGISTRY:
+        rep = fit_report(s, _prof(s.ram_class), installed_runtime="0.3.36")
+        assert rep.verdict in (FITS, TIGHT), (s.name, rep.verdict)
 
 
 def test_fit_report_details_are_estimates():
@@ -561,12 +621,16 @@ def runtime_36(monkeypatch):
 @pytest.mark.parametrize(
     "ram,task,want",
     [
+        # ram = total installed RAM (GB); the budget is 80 % of it
         (8, "code", "granite-4.2-3b"),
         (16, "code", "granite-4.2-8b"),
-        (24, "code", "qwen3-coder-30b-a3b"),
-        (60, "code", "qwen3-coder-next-80b-a3b"),
+        (32, "code", "qwen3-coder-30b-a3b"),
+        (64, "code", "qwen3-coder-next-80b-a3b"),
+        (8, "general", "qwen3.5-4b"),
         (16, "general", "qwen3.5-9b"),
-        (24, "general", "qwen3.6-35b-a3b"),
+        (24, "general", "qwen3.5-9b"),  # 19.2 GB budget: a 30B-A3B does not fit
+        (32, "general", "qwen3.6-35b-a3b"),
+        (64, "general", "qwen3-next-80b-a3b"),
     ],
 )
 def test_recommend_by_fit_then_priority(tmp_path, runtime_36, ram, task, want):
@@ -576,7 +640,7 @@ def test_recommend_by_fit_then_priority(tmp_path, runtime_36, ram, task, want):
 
 def test_recommend_prefers_fits_over_tight(tmp_path, runtime_36):
     r = ModelRegistry(cache_dir=tmp_path)
-    pick = r.recommend(_prof(8.5), "code")  # granite-4.2-8b is only tight here
+    pick = r.recommend(_prof(11), "code")  # granite-4.2-8b is only tight here
     assert pick.name == "granite-4.2-3b"
 
 
@@ -600,6 +664,7 @@ class FakeCatalog:
         return self._entry
 
     def search(self, q, **kw):
+        self.search_kw = kw
         return [self._entry] if self._entry else []
 
 
@@ -702,6 +767,10 @@ def test_bridge_search_and_check_fit(tmp_path, monkeypatch):
     assert row["name"] == entry.name and row["source"] == "hf-search"
     assert row["licence_kind"] == "noncommercial" and row["noncommercial"] is True
     assert row["fit"] == "unknown"  # size only, before the header is read
+    assert registry.catalog.search_kw == {"trusted_only": True}  # trusted uploaders by default
+    assert out["all_uploaders"] is False
+    out = br.search_models("codestral", True)  # the "Community uploads" toggle
+    assert registry.catalog.search_kw == {"trusted_only": False} and out["all_uploaders"] is True
     assert br.search_models("  ")["results"] == []
 
     kv = {
@@ -797,3 +866,26 @@ def test_refresh_entry_fills_facts_without_network(monkeypatch):
     info["cardData"]["license"] = "apache-2.0"
     new, notes = mod.refresh_entry(dict(entry, noncommercial=True), "2026-11-17")
     assert new["noncommercial"] is True and notes
+
+
+# ----- CLI ------------------------------------------------------------------------------
+
+
+def test_cli_search_trusted_by_default_all_uploaders_flag(tmp_path, monkeypatch):
+    from click.testing import CliRunner
+
+    from eigencore.cli import main as cli_main
+
+    cat = FakeCatalog(_codestral_entry())
+    monkeypatch.setattr(
+        cli_main, "ModelRegistry", lambda: ModelRegistry(cache_dir=tmp_path, catalog=cat)
+    )
+    monkeypatch.setattr(cli_main, "profile_hardware", lambda: _prof(64))
+    res = CliRunner().invoke(cli_main.cli, ["search", "codestral"])
+    assert res.exit_code == 0, res.output
+    assert cat.search_kw["trusted_only"] is True
+    assert "--all-uploaders" in res.output
+    res = CliRunner().invoke(cli_main.cli, ["search", "codestral", "--all-uploaders"])
+    assert res.exit_code == 0, res.output
+    assert cat.search_kw["trusted_only"] is False
+    assert "Uploader" in res.output and "not reviewed" in res.output

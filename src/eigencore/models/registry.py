@@ -271,7 +271,9 @@ class ModelRegistry:
         """Best curated model for the task on this machine.
 
         Candidates have the task as their main task or as a tag. They are
-        ranked by fit verdict at 8K context (fits, then tight), then the
+        ranked by fit verdict at 8K context (fits, then tight) against the
+        machine's RAM budget (total RAM minus the system reserve, see
+        ``fit_check.ram_budget_gb``; free RAM at the moment is not used), then the
         curated priority, then whether the task is the model's main task,
         then size. Auto-pick never lands on a non-commercial licence or on an arch
         the installed runtime can't load; those stay available by name.
@@ -430,10 +432,17 @@ class ModelRegistry:
                     f"Unknown model: {name}. Available: {', '.join(m.name for m in REGISTRY)} "
                     "(or any Hugging Face GGUF repo as org/repo[:file.gguf])"
                 )
-            if model.size_gb > profile.available_ram_gb - 1.0:
+            from eigencore.models.fit_check import machine_ram
+
+            # by name, only refuse a file that alone exceeds the budget (a tight
+            # model is the user's call; the fit chip and `models` say so)
+            total_ram, budget, _free = machine_ram(profile)
+            need = model.size_gb * 1e9 / 1024**3
+            if need > budget:
                 raise ValueError(
-                    f"Model {name} needs ~{model.size_gb:.1f}GB but only "
-                    f"{profile.available_ram_gb:.1f}GB RAM available. "
+                    f"Model {name} needs ~{need:.1f} GB for the file alone but this machine's "
+                    f"RAM budget is {budget:.1f} GB ({total_ram:.1f} GB RAM minus "
+                    f"{total_ram - budget:.1f} GB for the OS and other apps). "
                     f"Try a smaller model."
                 )
             return model

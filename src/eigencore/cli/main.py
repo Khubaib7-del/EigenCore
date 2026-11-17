@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import click
 from rich.console import Console
@@ -188,12 +187,25 @@ def profile():
         FitVerdict.DOES_NOT_FIT: "red",
         FitVerdict.UNKNOWN: "dim",
     }[est.verdict]
-    console.print(
-        f"  Fit estimate at ctx {est.context_length}: weights {est.weights_gb:.1f} GB + "
-        f"reserve {est.runtime_reserve_gb:.1f} GB + KV {est.kv_cache_gb:.2f} GB = "
-        f"{est.total_gb:.1f} GB of {est.available_ram_gb:.1f} GB available "
-        f"[{verdict_style}]{est.verdict.value}[/] (headroom {est.headroom_gb:.1f} GB)"
-    )
+    from eigencore.models.fit_check import fit_report_for
+
+    rep = fit_report_for(rec, registry, hw)
+    if rep.total_gb is not None:
+        style = {"fits": "green", "tight": "yellow", "too_big": "red"}.get(rep.verdict, "dim")
+        console.print(
+            f"  Fit estimate at ctx {rep.context_checked}: weights {rep.weights_gb:.1f} GB + "
+            f"runtime + KV {rep.kv_cache_gb:.2f} GB = {rep.total_gb:.1f} GB of a "
+            f"{rep.budget_gb:.1f} GB budget ({rep.total_ram_gb:.1f} GB RAM minus "
+            f"{rep.system_reserve_gb:.1f} GB for the OS and other apps) "
+            f"[{style}]{rep.verdict.replace('_', ' ')}[/]"
+        )
+    else:
+        console.print(
+            f"  Fit estimate at ctx {est.context_length}: weights {est.weights_gb:.1f} GB + "
+            f"reserve {est.runtime_reserve_gb:.1f} GB + KV {est.kv_cache_gb:.2f} GB = "
+            f"{est.total_gb:.1f} GB of {est.available_ram_gb:.1f} GB available "
+            f"[{verdict_style}]{est.verdict.value}[/] (headroom {est.headroom_gb:.1f} GB)"
+        )
     if est.active_weights_gb is not None:
         console.print(
             f"  MoE: active weights/token ≈ {est.active_weights_gb:.1f} GiB "
@@ -209,7 +221,10 @@ def profile():
             f"  [dim]GPU offload recommendation: {gpu_layers} layers to "
             f"{hw.gpu_name} ({hw.available_vram_gb:.1f} GiB VRAM free)[/]"
         )
-    for note in est.notes:
+    notes = rep.notes if rep.total_gb is not None else est.notes
+    if rep.total_gb is not None and rep.max_context:
+        max_ctx = rep.max_context  # curated geometry (or the file's): known before download
+    for note in notes:
         console.print(f"    [dim]* {note}[/]")
     if max_ctx > 0:
         console.print(f"  [dim]Max context that fits this budget: {max_ctx} tokens[/]")
@@ -245,25 +260,22 @@ def models(task: str | None):
     table.add_column("Downloaded?", justify="center")
     table.add_column("Description")
 
-    from eigencore.models.fit_check import fit_report
+    from eigencore.models.fit_check import fit_report_for, machine_ram
 
-    pre = {"fits": "fits_with_margin", "tight": "tight", "too_big": "does_not_fit"}
+    labels = {
+        "fits": ("fits", "green"),
+        "tight": ("tight", "yellow"),
+        "too_big": ("no", "red"),
+        "unknown": ("unknown*", "dim"),
+    }
     for m in sorted(available, key=lambda x: x.params_b):
-        est, _, _ = _fit_for_spec(m, hw, registry)
         downloaded = registry.is_downloaded(m)
-        if est.verdict == FitVerdict.UNKNOWN and not downloaded:
-            # curated entries carry their GGUF geometry: verdict before download
-            v = pre.get(fit_report(m, hw).verdict)
-            if v:
-                est = SimpleNamespace(verdict=FitVerdict(v))
-        if est.verdict == FitVerdict.FITS_WITH_MARGIN:
-            fits_label, fits_style = "fits", "green"
-        elif est.verdict == FitVerdict.TIGHT:
-            fits_label, fits_style = "tight", "yellow"
-        elif est.verdict == FitVerdict.UNKNOWN:
-            fits_label, fits_style = "unknown*", "dim"
-        else:
-            fits_label, fits_style = "no", "red"
+        # downloaded: the file's own header; curated: models.json geometry (before download)
+        try:
+            verdict = fit_report_for(m, registry, hw).verdict
+        except Exception:
+            verdict = "unknown"
+        fits_label, fits_style = labels.get(verdict, labels["unknown"])
         table.add_row(
             m.name,
             f"{m.params_b:.1f}B",
@@ -277,9 +289,12 @@ def models(task: str | None):
         )
 
     console.print(table)
+    total_ram, budget, free = machine_ram(hw)
     console.print(
-        "[dim]Fit is an estimate at 8K context. * 'unknown*' = needs the GGUF geometry "
-        "(download it, or see `eigencore search`)[/]"
+        f"[dim]Fit is an estimate at 8K context against {budget:.1f} GB: {total_ram:.1f} GB RAM "
+        f"minus {total_ram - budget:.1f} GB kept for the OS and other apps"
+        + (f" ({free:.1f} GB free right now)" if free is not None else "")
+        + ". * 'unknown*' = needs the GGUF geometry (download it, or see `eigencore search`)[/]"
     )
 
 
@@ -317,16 +332,25 @@ def download(name: str):
 @cli.command()
 @click.argument("query")
 @click.option("--limit", default=10, show_default=True, help="Max results")
-def search(query: str, limit: int):
-    """Search Hugging Face for GGUF models and show the fit on this machine."""
+@click.option(
+    "--all-uploaders",
+    is_flag=True,
+    help="Include community uploaders (default: trusted quantisers and model makers only)",
+)
+def search(query: str, limit: int, all_uploaders: bool):
+    """Search Hugging Face for GGUF models and show the fit on this machine.
+
+    By default only uploads from trusted quantisers and model makers are shown;
+    --all-uploaders adds community uploads (not reviewed by EigenCore)."""
     from eigencore.models.fit_check import fit_report, min_runtime_for
 
     registry = ModelRegistry()
     hw = profile_hardware()
-    entries = registry.catalog.search(query, limit=limit)
+    entries = registry.catalog.search(query, limit=limit, trusted_only=not all_uploaders)
     if not entries:
         why = registry.catalog.last_error
-        console.print(f"[yellow]No GGUF models found[/]{f' ({why})' if why else ''}.")
+        hint = "" if all_uploaders or why else " Try --all-uploaders for community uploads"
+        console.print(f"[yellow]No GGUF models found[/]{f' ({why})' if why else ''}.{hint}")
         return
     table = Table(title=f"Hugging Face: {query}")
     table.add_column("Download as", style="cyan", overflow="fold")
@@ -334,6 +358,8 @@ def search(query: str, limit: int):
     table.add_column("Ctx", justify="right")
     table.add_column("Licence")
     table.add_column("Fits?", justify="center")
+    if all_uploaders:
+        table.add_column("Uploader")
     for e in entries:
         spec = registry.find(e.name) or e.to_spec(min_runtime=min_runtime_for(e.arch))
         rep = fit_report(spec, hw)
@@ -347,12 +373,21 @@ def search(query: str, limit: int):
             f"{e.context_length:,}" if e.context_length else "?",
             lic,
             f"[{style}]{rep.verdict.replace('_', ' ')}[/]",
+            *(["trusted" if e.trusted else "[yellow]community[/]"] if all_uploaders else []),
         )
     console.print(table)
     console.print(
         "[dim]Fit is an estimate from the file size (and the model's shape for curated "
-        "models). Download with: eigencore download <name>[/]"
+        "models), against total RAM minus a reserve for the OS and other apps. "
+        "Download with: eigencore download <name>[/]"
     )
+    if all_uploaders:
+        console.print(
+            "[dim]Community uploads are not reviewed by EigenCore: check the licence "
+            "and the model card before using one.[/]"
+        )
+    else:
+        console.print("[dim]Trusted uploaders only; --all-uploaders adds community uploads.[/]")
 
 
 @cli.command()

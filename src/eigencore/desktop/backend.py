@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 from eigencore.engine.inference import GenerationConfig
-from eigencore.fit import FitVerdict, read_gguf_model_info
+from eigencore.fit import FitVerdict
 from eigencore.forge import open_engine
 from eigencore.hal.profiler import HardwareProfile, profile_hardware
 from eigencore.models.registry import ModelRegistry, ModelSpec
@@ -103,22 +103,13 @@ def fit_details(spec: ModelSpec, registry: ModelRegistry, profile: HardwareProfi
     A downloaded file is measured from its own GGUF header; otherwise the
     curated geometry from models.json is used, so the verdict is known before
     a download. Search results without geometry stay "unknown" unless the file
-    alone is too big.
+    alone is too big. The verdict is judged against total RAM minus the system
+    reserve (``fit_check.ram_budget_gb``), not the RAM free at the moment.
     """
-    from eigencore.models.fit_check import fit_report
+    from eigencore.models.fit_check import fit_report_for
 
     try:
-        if registry.is_downloaded(spec):
-            info = read_gguf_model_info(spec.local_path(registry.cache_dir))
-            if info is not None and info.geometry.is_complete:
-                return fit_report(
-                    spec,
-                    profile,
-                    geometry=info.geometry,
-                    active_bytes=info.active_weight_bytes,
-                    basis="file",
-                )
-        return fit_report(spec, profile)
+        return fit_report_for(spec, registry, profile)
     except Exception:
         return None
 

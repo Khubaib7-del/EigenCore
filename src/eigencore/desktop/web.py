@@ -428,8 +428,11 @@ class WebBridge:
         self._be().switch_model(name)
 
     # ----- Hugging Face catalog (second tier) ------------------------------------
-    def search_models(self, query: str = "") -> dict:
+    def search_models(self, query: str = "", all_uploaders: bool = False) -> dict:
         """Live Hugging Face search for GGUF models, with a fit verdict per row.
+
+        Trusted uploaders only (known quantisers and model makers) unless
+        ``all_uploaders`` is true (the "Community uploads" toggle).
 
         Rows have the ModelRow shape (``source: "hf-search"``, ``name`` =
         ``repo_id:file``) so the Models screen renders them like curated ones.
@@ -441,10 +444,11 @@ class WebBridge:
 
         be = self._be()
         q = str(query or "").strip()[:100]
+        community = bool(all_uploaders)
         if not q:
-            return {"query": q, "results": [], "error": None}
+            return {"query": q, "results": [], "error": None, "all_uploaders": community}
         catalog = be.registry.catalog
-        entries = catalog.search(q)
+        entries = catalog.search(q, trusted_only=not community)
         rows = []
         for e in entries:
             spec = be.registry.find(e.name) or e.to_spec(min_runtime=min_runtime_for(e.arch))
@@ -456,7 +460,12 @@ class WebBridge:
             d["trusted"] = e.trusted
             d["gated"] = e.gated
             rows.append(d)
-        return {"query": q, "results": rows, "error": catalog.last_error if not rows else None}
+        return {
+            "query": q,
+            "results": rows,
+            "error": catalog.last_error if not rows else None,
+            "all_uploaders": community,
+        }
 
     def check_fit(self, name: str) -> dict:
         """Fit verdict for one model before download: reads the GGUF header over

@@ -489,9 +489,14 @@ class HFCatalog:
         limit: int = 12,
         sort: str = "downloads",
         include_hidden: bool = False,
-        trusted_only: bool = False,
+        trusted_only: bool = True,
     ) -> list[CatalogEntry]:
         """GGUF repos matching ``query``, with the 4-bit file picked and sized.
+
+        By default only repos from ``TRUSTED_AUTHORS`` (known quantisers and the
+        model makers' own orgs) are returned; ``trusted_only=False`` adds
+        community uploaders (the UI's "Community uploads" toggle and
+        ``eigencore search --all-uploaders``), still ranked after trusted ones.
 
         Never raises: offline or on an HF error it returns the last cached
         result for this query, or ``[]`` with ``last_error`` set.

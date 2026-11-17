@@ -75,7 +75,13 @@ export interface FitDetail {
   weights_gb: number;
   kv_cache_gb: number | null;
   total_gb: number | null;
-  available_ram_gb: number;
+  /** Installed RAM. The verdict is judged against budget_gb = total_ram_gb - system_reserve_gb. */
+  total_ram_gb: number;
+  /** Kept back for the OS and other apps: 20 % of total RAM, at least 1.5 GB. */
+  system_reserve_gb: number;
+  budget_gb: number;
+  /** RAM free when the row was built: a hint only, never used for the verdict. */
+  available_ram_gb: number | null;
   /** Memory bandwidth / bytes read per token: an optimistic ceiling, not a measurement. */
   decode_ceiling_tok_s: number | null;
   active_weights_gb: number | null;
@@ -94,6 +100,8 @@ export interface ModelSearch {
   query: string;
   results: ModelRow[];
   error: string | null;
+  /** Community uploaders included (trusted quantisers and model makers only when false). */
+  all_uploaders?: boolean;
 }
 
 /** WebBridge.check_fit(): verdict after reading the GGUF header. */
@@ -237,7 +245,7 @@ export interface EigenCoreApi {
   getSettings(): Promise<Settings>;
   saveSettings(patch: Partial<Settings>): Promise<Settings>;
   /** Live Hugging Face search (desktop) or sample results (preview). */
-  searchModels(query: string): Promise<ModelSearch>;
+  searchModels(query: string, allUploaders?: boolean): Promise<ModelSearch>;
   /** Fit verdict before download (reads the GGUF header for search results). */
   checkFit(name: string): Promise<FitCheck>;
   download(name: string): void;
