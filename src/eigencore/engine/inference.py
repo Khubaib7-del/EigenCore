@@ -21,8 +21,30 @@ from eigencore.engine.speculative import SpeculativeDecoder
 from eigencore.hal.profiler import HardwareProfile, InstructionSet
 from eigencore.models.registry import ModelSpec
 
-# llama-cpp-python expects an int KV type; map our string names.
-_KV_TYPE_MAP = {"fp16": 0, "q8_0": 1}
+# llama-cpp-python takes the KV cache types as ggml_type enum values via
+# `type_k` / `type_v` (there is no `type_kv`; unknown kwargs are swallowed).
+# ggml.h: GGML_TYPE_F32 = 0, GGML_TYPE_F16 = 1, GGML_TYPE_Q8_0 = 8.
+GGML_TYPE_F16 = 1
+GGML_TYPE_Q8_0 = 8
+KV_NEEDS_FLASH = (
+    "--kv {kv_type} needs flash attention (llama.cpp only quantizes the V cache "
+    "with flash attention on). Drop --no-flash, or use --kv fp16."
+)
+
+_KV_TYPE_MAP = {"fp16": GGML_TYPE_F16, "q8_0": GGML_TYPE_Q8_0}
+
+
+def kv_cache_types(kv_type: str, flash_attn: bool) -> tuple[int, int]:
+    """(type_k, type_v) ggml enums for a --kv choice.
+
+    llama.cpp only supports a quantized V cache with flash attention. Asking
+    for a quantized KV cache with flash attention off is a contradiction, so it
+    raises instead of quietly keeping half the cache at f16.
+    """
+    k = v = _KV_TYPE_MAP[kv_type]
+    if v != GGML_TYPE_F16 and not flash_attn:
+        raise ValueError(KV_NEEDS_FLASH.format(kv_type=kv_type))
+    return k, v
 
 
 @dataclass
@@ -77,6 +99,7 @@ class InferenceEngine:
         # gpu_layers_for_vram when a VRAM budget exists.
         self.n_gpu_layers = n_gpu_layers
         self._llm = None
+        self.n_ctx: int | None = None  # context length chosen at load()
 
         self._layer_skipper: LayerSkipScheduler | None = None
         self._sparsity_predictor: SparsityPredictor | None = None
@@ -96,9 +119,9 @@ class InferenceEngine:
                 "--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu"
             )
 
-        ctx_length = self.profile.recommended_context_length
-        if self.model_spec and self.model_spec.context_length < ctx_length:
-            ctx_length = self.model_spec.context_length
+        type_k, type_v = kv_cache_types(self.kv_type, self.flash_attn)
+        ctx_length = self._default_context_length(type_v)
+        self.n_ctx = ctx_length
 
         n_threads = self.profile.recommended_threads
         n_batch = self._compute_batch_size()
@@ -110,12 +133,43 @@ class InferenceEngine:
             n_threads_batch=n_threads,
             n_batch=n_batch,
             n_gpu_layers=self.n_gpu_layers,
-            type_kv=_KV_TYPE_MAP[self.kv_type],
+            type_k=type_k,
+            type_v=type_v,
             flash_attn=self.flash_attn,
             verbose=False,
         )
 
         self._init_optimizers()
+
+    def _default_context_length(self, type_v: int) -> int:
+        """n_ctx from the fit estimator with the model's real GGUF geometry.
+
+        Falls back to the profiler's geometry-free recommendation (clamped to
+        the registry context) only when the GGUF geometry cannot be read.
+        """
+        from eigencore.fit.estimator import default_context_length
+        from eigencore.fit.gguf_meta import read_gguf_model_info
+
+        spec = self.model_spec
+        info = read_gguf_model_info(self.model_path)
+        if info is not None:
+            ctx = default_context_length(
+                info.geometry,
+                self.profile.available_ram_gb,
+                info.context_length or (spec.context_length if spec else None),
+                # a q8_0 request with V kept at f16 is sized as f16 (conservative)
+                kv_quant="q8_0" if type_v == GGML_TYPE_Q8_0 else "fp16",
+                file_size_bytes=info.file_size_bytes,
+                params_b=spec.params_b if spec else 0.0,
+                quant=spec.quant if spec else "Q4_K_M",
+            )
+            if ctx is not None:
+                return ctx
+
+        ctx_length = self.profile.recommended_context_length
+        if spec and spec.context_length < ctx_length:
+            ctx_length = spec.context_length
+        return ctx_length
 
     def _init_optimizers(self) -> None:
         """Initialize Phase 2 optimization modules based on loaded model.

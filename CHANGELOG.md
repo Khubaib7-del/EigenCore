@@ -4,6 +4,13 @@ All notable changes to EigenCore. Format based on [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Fixed
+- Context default: the engine opened every model with the profiler's geometry-free `0.002 × params` rule (falling back to 2048), clamped to the registry context. It now computes `n_ctx` with the fit estimator from the model's real GGUF geometry and the chosen KV type: the largest power-of-two context whose KV cache fits the RAM budget, capped at 16K on CPU by default (llama.cpp reserves the whole KV cache up front) and clamped to the GGUF maximum context, with a floor of 2048 (never above the model's maximum). The profiler figure is used only when the GGUF cannot be read. Benchmark snapshots record the `n_ctx` actually used. The CLI `run` line, the TUI header, context bar and `/context`, and the desktop settings now show this `n_ctx` the model actually opened with, instead of the profiler figure.
+- Fit estimator, MoE: active weights per token were `params × expert_used_count / expert_count`, which drops attention, embeddings and shared experts. They are now summed from the GGUF tensor sizes: every never-routed tensor in full plus `used/count` × the `*_exps` tensors. Without tensor sizes (model not downloaded) no active figure is guessed and the decode ceiling uses the full weights.
+- Fit estimator: the KV-cache size used `head_dim = hidden / heads`, which is wrong for Qwen3 and Gemma. It now reads `{arch}.attention.key_length` / `value_length` from the GGUF (K and V dims counted separately) and falls back to `hidden / heads` only when they are missing.
+- GGUF metadata: the gguf-package reader opened files with an invalid mode (`"no"`) and returned strings and scalars as raw arrays, so it never worked and every geometry read fell back to loading the model through llama.cpp. It now opens read-only and decodes strings and scalars.
+- `--kv`: the engine passed `type_kv`, which llama-cpp-python does not have (it was silently ignored), and mapped `fp16`/`q8_0` to 0/1, which are ggml F32/F16. It now passes `type_k`/`type_v` with ggml F16=1 and Q8_0=8. A q8_0 V cache needs flash attention, so `--kv q8_0 --no-flash` is now a clear usage error instead of quietly keeping V at f16.
+
 ## [0.4.8] - 2026-11-15
 
 A fix for the desktop app showing the old screens after an update.

@@ -30,12 +30,23 @@ BYTES_PER_PARAM: dict[str, float] = {
 }
 
 # KV cache per token, per layer, per KV head, in bytes at fp16.
-# kv_bytes_per_token = layers × kv_heads × head_dim × 2 (K+V) × 2 bytes
-# head_dim = hidden_size / n_heads; for grouped-query attention kv_heads < n_heads.
+# kv_bytes_per_token = layers × kv_heads × (key_dim + value_dim) × 2 bytes
+# key_dim/value_dim come from GGUF {arch}.attention.key_length/value_length;
+# only when those are absent is head_dim = hidden_size / n_heads (Qwen3 and
+# Gemma use a head_dim that differs from hidden/heads).
+# For grouped-query attention kv_heads < n_heads.
 FP16_BYTES_PER_ELEMENT = 2
 KV_BYTES_PER_ELEMENT_Q8 = 1  # q8_0 KV cache
 
 DEFAULT_RUNTIME_RESERVE_GB = 2.0
+# Smallest context the engine opens a model with when the RAM budget says less
+# (or nothing) fits; still clamped to the model's own maximum.
+MIN_DEFAULT_CONTEXT = 2048
+# Default ceiling on CPU. llama.cpp reserves the whole KV cache up front, so an
+# uncapped default would take several GB of RAM on bigger machines before a
+# single token is typed. 16K covers an everyday coding session (a few source
+# files + the conversation).
+DEFAULT_CONTEXT_CAP = 16384
 DEFAULT_SAFETY_MARGIN_GB = 1.0
 
 
@@ -60,6 +71,8 @@ class ModelGeometry:
     num_kv_heads: int | None = None  # GQA/MQA: defaults to num_attention_heads
     expert_count: int | None = None  # MoE: total experts per MoE layer
     expert_used_count: int | None = None  # MoE: experts activated per token
+    key_length: int | None = None  # GGUF {arch}.attention.key_length (per-head K dim)
+    value_length: int | None = None  # GGUF {arch}.attention.value_length (per-head V dim)
 
     @property
     def kv_heads(self) -> int | None:
@@ -67,9 +80,17 @@ class ModelGeometry:
 
     @property
     def head_dim(self) -> int | None:
+        """Per-head K dimension: GGUF key_length, else hidden_size / n_heads."""
+        if self.key_length:
+            return self.key_length
         if self.hidden_size and self.num_attention_heads:
             return self.hidden_size // self.num_attention_heads
         return None
+
+    @property
+    def head_dim_v(self) -> int | None:
+        """Per-head V dimension: GGUF value_length, else the K head dim."""
+        return self.value_length or self.head_dim
 
     @property
     def is_complete(self) -> bool:
@@ -80,6 +101,19 @@ class ModelGeometry:
     @property
     def is_moe(self) -> bool:
         return bool(self.expert_count and self.expert_used_count)
+
+
+def kv_bytes_per_token(geometry: ModelGeometry, kv_quant: str = "fp16") -> int:
+    """KV cache bytes per token: layers × kv_heads × (K dim + V dim) × bytes/element."""
+    bytes_per_elem = (
+        FP16_BYTES_PER_ELEMENT if kv_quant.lower() in ("fp16", "f16") else KV_BYTES_PER_ELEMENT_Q8
+    )
+    return int(
+        geometry.num_layers
+        * geometry.kv_heads
+        * (geometry.head_dim + geometry.head_dim_v)
+        * bytes_per_elem
+    )
 
 
 @dataclass
@@ -149,16 +183,38 @@ def estimate_kv_cache_gib(
 ) -> tuple[float | None, str | None]:
     """KV cache size in GiB for a context length.
 
-    layers × kv_heads × head_dim × 2 (K+V) × bytes-per-element × ctx.
+    layers × kv_heads × (K dim + V dim) × bytes-per-element × ctx.
     Returns (None, note) when geometry is incomplete — no heuristic.
     """
     if geometry is None or not geometry.is_complete:
         return None, "no GGUF geometry available; KV cache unknown"
-    bytes_per_elem = (
-        FP16_BYTES_PER_ELEMENT if kv_quant.lower() in ("fp16", "f16") else KV_BYTES_PER_ELEMENT_Q8
-    )
-    per_token = geometry.num_layers * geometry.kv_heads * geometry.head_dim * 2 * bytes_per_elem
+    per_token = kv_bytes_per_token(geometry, kv_quant)
     return per_token * context_length / 1024**3, None
+
+
+def is_expert_tensor(name: str) -> bool:
+    """True for routed-expert tensors (`blk.N.ffn_{gate,up,down,gate_up}_exps.*`).
+
+    Shared experts (`*_shexp`) and the router (`ffn_gate_inp`) run for every
+    token, so they are not routed.
+    """
+    return any(part.endswith("_exps") for part in name.split("."))
+
+
+def moe_active_weight_bytes(
+    total_tensor_bytes: int,
+    expert_tensor_bytes: int,
+    expert_used_count: int,
+    expert_count: int,
+) -> int:
+    """Weight bytes read per decode token for an MoE model.
+
+    Every never-routed tensor (attention, embeddings, norms, router, shared
+    experts, dense layers) counts in full; routed-expert tensors count by the
+    fraction of experts used per token.
+    """
+    dense = total_tensor_bytes - expert_tensor_bytes
+    return int(dense + expert_tensor_bytes * expert_used_count / expert_count)
 
 
 def decode_ceiling_tok_s(bandwidth_gbps: float, active_weights_gib: float) -> float:
@@ -187,27 +243,34 @@ def estimate_fit(
     bandwidth_gbps: float | None = None,
     active_params_b: float | None = None,
     available_vram_gb: float = 0.0,
+    active_weight_bytes: int | None = None,
 ) -> FitEstimate:
     """Full memory fit estimate (GiB) for loading + running a model at a context length.
 
-    MoE: pass `active_params_b` (params activated per token) — resident memory
-    still uses the full file size, but the decode ceiling uses active weights.
+    MoE: pass `active_weight_bytes` (from GGUF tensor sizes, see
+    `moe_active_weight_bytes`) or an explicit `active_params_b` — resident
+    memory still uses the full file size, but the decode ceiling uses active
+    weights. Without either, the ceiling uses the full weights.
     """
     notes: list[str] = []
     weights_gb, note = estimate_weights_gib(params_b, quant, file_size_bytes)
     if note:
         notes.append(note)
-    if geometry is not None and geometry.is_moe and active_params_b is None:
-        # derive active params from expert ratio when geometry is present
-        assert geometry.expert_count and geometry.expert_used_count
-        active_params_b = params_b * geometry.expert_used_count / geometry.expert_count
-        notes.append(
-            f"MoE: {geometry.expert_count} experts, {geometry.expert_used_count} active/token "
-            f"→ active ≈ {active_params_b:.1f}B params"
-        )
     active_weights_gb: float | None = None
-    if active_params_b is not None and active_params_b < params_b:
+    if active_weight_bytes is not None:
+        active_weights_gb = active_weight_bytes / 1024**3
+        if geometry is not None and geometry.is_moe:
+            notes.append(
+                f"MoE: {geometry.expert_count} experts, {geometry.expert_used_count} active/token "
+                f"→ ≈ {active_weights_gb:.1f} GiB of weights read per token (GGUF tensor sizes)"
+            )
+    elif active_params_b is not None and active_params_b < params_b:
         active_weights_gb, _ = estimate_weights_gib(active_params_b, quant)
+    elif geometry is not None and geometry.is_moe:
+        notes.append(
+            "MoE: active weights unknown without GGUF tensor sizes; "
+            "decode ceiling uses the full weights"
+        )
     kv_gb_raw, note = estimate_kv_cache_gib(context_length, geometry, params_b, kv_quant)
     if note:
         notes.append(note)
@@ -296,10 +359,7 @@ def max_context_for_budget(
     budget_gb = available_ram_gb - runtime_reserve_gb - safety_margin_gb - weights_gb
     if budget_gb <= 0:
         return 0
-    bytes_per_elem = (
-        FP16_BYTES_PER_ELEMENT if kv_quant.lower() in ("fp16", "f16") else KV_BYTES_PER_ELEMENT_Q8
-    )
-    per_token = geometry.num_layers * geometry.kv_heads * geometry.head_dim * 2 * bytes_per_elem
+    per_token = kv_bytes_per_token(geometry, kv_quant)
     if per_token <= 0:
         return 0
     max_ctx = int(budget_gb * 1024**3 / per_token)
@@ -308,3 +368,37 @@ def max_context_for_budget(
     while ctx * 2 <= max_ctx and ctx * 2 <= model_context_limit:
         ctx *= 2
     return max(ctx, 0)
+
+
+def default_context_length(
+    geometry: ModelGeometry | None,
+    available_ram_gb: float,
+    model_context_limit: int | None,
+    kv_quant: str = "fp16",
+    file_size_bytes: int | None = None,
+    params_b: float = 0.0,
+    quant: str = "Q4_K_M",
+    floor: int = MIN_DEFAULT_CONTEXT,
+    cap: int = DEFAULT_CONTEXT_CAP,
+) -> int | None:
+    """Context length to open a model with, from real GGUF geometry.
+
+    The largest power-of-two context whose KV cache fits the RAM budget
+    (`max_context_for_budget`), clamped to the model's maximum context and
+    to `cap` (16K by default), and raised to `floor` (itself never above the
+    model's maximum). Returns None
+    when geometry is unknown, so the caller keeps its own fallback.
+    """
+    if geometry is None or not geometry.is_complete:
+        return None
+    limit = model_context_limit or 128 * 1024
+    ctx = max_context_for_budget(
+        params_b,
+        quant,
+        available_ram_gb,
+        geometry=geometry,
+        model_context_limit=limit,
+        kv_quant=kv_quant,
+        file_size_bytes=file_size_bytes,
+    )
+    return min(max(min(ctx, cap), floor), limit)

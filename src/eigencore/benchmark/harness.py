@@ -176,9 +176,12 @@ def model_snapshot(spec: ModelSpec, model_path: Path | None) -> dict[str, Any]:
 def engine_snapshot(engine: InferenceEngine, config: GenerationConfig) -> dict[str, Any]:
     p = engine.profile
     return {
-        "n_ctx": min(p.recommended_context_length, engine.model_spec.context_length)
-        if engine.model_spec
-        else p.recommended_context_length,
+        "n_ctx": getattr(engine, "n_ctx", None)
+        or (
+            min(p.recommended_context_length, engine.model_spec.context_length)
+            if engine.model_spec
+            else p.recommended_context_length
+        ),
         "n_threads": p.recommended_threads,
         "n_gpu_layers": 0,
         "backend": "llama-cpp-python",

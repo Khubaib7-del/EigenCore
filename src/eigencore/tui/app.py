@@ -256,7 +256,7 @@ class ContextOverlay(Overlay):
     def render(self, width: int, height: int):
         app = self.app
         used = app.estimated_context_tokens()
-        limit = app.profile.recommended_context_length
+        limit = app.context_limit()
         table = Table.grid(padding=(0, 3))
         table.add_column(style=T.MUTED, no_wrap=True)
         table.add_column()
@@ -552,7 +552,7 @@ class ChatApp:
         est = estimate_fit(
             spec.params_b,
             spec.quant,
-            self.profile.recommended_context_length,
+            self.context_limit(),
             self.profile.available_ram_gb,
             geometry=geometry,
             file_size_bytes=file_size,
@@ -909,7 +909,7 @@ class ChatApp:
         used = self.estimated_context_tokens()
         head = (
             f"{self.spec.name} ({self.spec.params_b:.1f}B {self.spec.quant}) | "
-            f"ctx ≈ {used} / {self.profile.recommended_context_length} tokens | "
+            f"ctx ≈ {used} / {self.context_limit()} tokens | "
             f"fit: {est.verdict.value}"
         )
         if est.verdict is not FitVerdict.UNKNOWN:
@@ -930,8 +930,17 @@ class ChatApp:
             return f"downloading {self._last_dl_pct:.0f}%", T.CAUTION
         return "ready", T.OK
 
+    def context_limit(self) -> int:
+        """The n_ctx the loaded engine opened with; the profiler figure only
+        when no engine (or no load) is available yet."""
+        try:
+            n = getattr(self._engine_getter(), "n_ctx", None)
+        except Exception:
+            n = None
+        return n if isinstance(n, int) and n > 0 else self.profile.recommended_context_length
+
     def _ctx_ratio(self) -> float:
-        limit = max(self.profile.recommended_context_length, 1)
+        limit = max(self.context_limit(), 1)
         return self.estimated_context_tokens() / limit
 
     def _header_render(self, width: int):
@@ -951,7 +960,7 @@ class ChatApp:
         row1.add_row(left, right)
         # row 2: model / ctx / fit / tools
         used = self.estimated_context_tokens()
-        limit = self.profile.recommended_context_length
+        limit = self.context_limit()
         ctx_color = T.CAUTION if self._ctx_ratio() >= 0.85 else ""
         short, fcolor, headroom = self._fit_parts()
         row2 = Text(no_wrap=True, overflow="ellipsis")
@@ -996,7 +1005,7 @@ class ChatApp:
         t.append(g["empty"] * (bar_w - filled), style=T.RULE)
         pct = f" {g['approx']}{ratio * 100:.0f}%" if ratio == 0 or ratio >= 0.01 else " <1%"
         if width >= 100:
-            pct += f" of {self.profile.recommended_context_length} tok"
+            pct += f" of {self.context_limit()} tok"
         t.append(pct, style=color if ratio >= 0.85 else T.MUTED)
         if ratio >= 0.85:
             t.append(f" {self.glyphs['sep']} /context to trim", style=T.CAUTION)

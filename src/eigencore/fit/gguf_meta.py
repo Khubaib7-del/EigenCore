@@ -3,7 +3,8 @@ GGUF metadata reader - architecture-aware model geometry.
 
 Reads general.architecture and the per-architecture keys
 ({arch}.block_count, {arch}.embedding_length, {arch}.attention.head_count,
-{arch}.attention.head_count_kv, {arch}.context_length) from a GGUF file.
+{arch}.attention.head_count_kv, {arch}.attention.key_length/value_length,
+{arch}.context_length) from a GGUF file.
 Prefers the pure-Python gguf package; falls back to llama_cpp.Llama.metadata
 when loadable that way. Returns None when neither is available.
 """
@@ -13,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from eigencore.fit.estimator import ModelGeometry
+from eigencore.fit.estimator import ModelGeometry, is_expert_tensor, moe_active_weight_bytes
 
 
 @dataclass
@@ -25,14 +26,41 @@ class GGUFModelInfo:
     context_length: int | None
     file_size_bytes: int | None
     param_count: int | None
+    tensor_bytes: int | None = None  # sum of all tensor data bytes
+    expert_tensor_bytes: int | None = None  # sum of routed-expert (*_exps) tensor bytes
+
+    @property
+    def active_weight_bytes(self) -> int | None:
+        """Weight bytes read per decode token: all tensors for dense models;
+        never-routed tensors + used/count × expert tensors for MoE. None when
+        tensor sizes are unknown."""
+        if self.tensor_bytes is None:
+            return None
+        g = self.geometry
+        if g.is_moe and self.expert_tensor_bytes:
+            return moe_active_weight_bytes(
+                self.tensor_bytes, self.expert_tensor_bytes, g.expert_used_count, g.expert_count
+            )
+        return self.tensor_bytes
 
 
 def _field_value(field) -> object | None:
+    """Scalar value of a GGUFReader field: str for strings, int/float/bool otherwise.
+
+    Arrays (e.g. the tokenizer vocab) are not needed here and return None.
+    """
     try:
+        from gguf import GGUFValueType
+
+        if not field.types or field.types[0] == GGUFValueType.ARRAY:
+            return None
         part = field.parts[field.data[0]]
         if part is None:
             return None
-        return part.tolist()
+        if field.types[0] == GGUFValueType.STRING:
+            return bytes(part).decode("utf-8")
+        value = part.tolist()
+        return value[0] if isinstance(value, list) and len(value) == 1 else value
     except Exception:
         return None
 
@@ -43,7 +71,7 @@ def _from_gguf_package(path: Path) -> GGUFModelInfo | None:
     except ImportError:
         return None
     try:
-        reader = GGUFReader(str(path), mode="no")
+        reader = GGUFReader(str(path), mode="r")
     except Exception:
         return None
     fields = {f.name: f for f in reader.fields.values()}
@@ -75,16 +103,31 @@ def _from_gguf_package(path: Path) -> GGUFModelInfo | None:
         num_kv_heads=arch_int("attention.head_count_kv"),
         expert_count=arch_int("expert_count"),
         expert_used_count=arch_int("expert_used_count"),
+        key_length=arch_int("attention.key_length"),
+        value_length=arch_int("attention.value_length"),
     )
     ctx = arch_int("context_length") or arch_int("attention.context_length")
     params = get("general.parameter_count")
     file_size = path.stat().st_size if path.exists() else None
+    tensor_bytes: int | None = None
+    expert_bytes: int | None = None
+    try:
+        tensor_bytes = expert_bytes = 0
+        for t in reader.tensors:
+            n = int(t.n_bytes)
+            tensor_bytes += n
+            if is_expert_tensor(t.name):
+                expert_bytes += n
+    except Exception:
+        tensor_bytes = expert_bytes = None
     return GGUFModelInfo(
         architecture=architecture,
         geometry=geometry,
         context_length=ctx,
         file_size_bytes=file_size,
         param_count=int(params) if params is not None else None,
+        tensor_bytes=tensor_bytes,
+        expert_tensor_bytes=expert_bytes,
     )
 
 
@@ -112,6 +155,8 @@ def _from_llama_metadata(path: Path) -> GGUFModelInfo | None:
         num_kv_heads=m("attention.head_count_kv"),
         expert_count=m("expert_count"),
         expert_used_count=m("expert_used_count"),
+        key_length=m("attention.key_length"),
+        value_length=m("attention.value_length"),
     )
     return GGUFModelInfo(
         architecture=arch,

@@ -113,11 +113,16 @@ class ChatUI:
         return input(prompt)
 
     # ----- header / status -------------------------------------------------
+    def context_limit(self) -> int:
+        """The n_ctx the engine opened with; the profiler figure only before load."""
+        n = getattr(self.engine, "n_ctx", None)
+        return n if isinstance(n, int) and n > 0 else self.profile.recommended_context_length
+
     def _fit(self):
         return estimate_fit(
             self.spec.params_b,
             self.spec.quant,
-            self.profile.recommended_context_length,
+            self.context_limit(),
             self.profile.available_ram_gb,
             self.geometry,
         )
@@ -131,7 +136,7 @@ class ChatUI:
             fit += f" ({est.headroom_gb:+.1f} GB est.)"
         return (
             f"EigenCore {__version__} | {self.spec.name} {self.spec.quant} | "
-            f"ctx {self.profile.recommended_context_length} | {fit} | tools: {self.policy_label}"
+            f"ctx {self.context_limit()} | {fit} | tools: {self.policy_label}"
         )
 
     def print_banner(self) -> None:
@@ -167,7 +172,7 @@ class ChatUI:
             self._print(self.header())
         elif cmd == "/context":
             used = sum(max(len(m["content"]) // 4, 1) for m in self.messages)
-            limit = self.profile.recommended_context_length
+            limit = self.context_limit()
             pct = 100 * used / max(limit, 1)
             warn = "[!] " if pct >= 85 else ""
             self._print(

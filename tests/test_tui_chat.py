@@ -196,3 +196,11 @@ def test_stream_error_does_not_regenerate():
 
 
 GEO = ModelGeometry(num_layers=28, hidden_size=3584, num_attention_heads=28, num_kv_heads=4)
+
+
+def test_header_shows_engine_n_ctx_not_profiler():
+    ui, out = _make_ui(["/exit"])
+    ui.engine.n_ctx = 12345
+    assert "ctx 12345 |" in ui.header()
+    ui.engine.n_ctx = None  # before load: profiler figure
+    assert f"ctx {ui.profile.recommended_context_length} |" in ui.header()

@@ -170,7 +170,7 @@ A dense 30–40B model at 4-bit is about 18–24 GB of weights, more than most l
 | Activation-sparsity experiment | REPORTED-ONLY (scaffolding) | `engine/sparsity_experiment.py`: mask plan + kill criterion. Dense-model sparsity is a poor near-term bet on bandwidth-bound CPUs (per review); MoE-native routing is the real path |
 | Speculative decoding | REPORTED-ONLY | Module not wired into generation; verifier now implements correct rejection sampling (distribution-preserving, tested) but no speedup is measured or claimed |
 | MoE-aware fit + SSD-paging warning + decode ceiling on active weights | SHIPPED | `qwen3-30b-a3b` registered; `estimate_fit` reports active/resident/ceiling |
-| KV cache type (`--kv fp16|q8_0`) + flash attention (`--no-flash`) on `run`/`chat` | SHIPPED | Engine passes `type_kv`/`flash_attn` to llama.cpp; q8_0 halves KV memory. GPU offload, prompt-lookup decoding PLANNED |
+| KV cache type (`--kv fp16|q8_0`) + flash attention (`--no-flash`) on `run`/`chat` | SHIPPED | Engine passes `type_k`/`type_v` (ggml F16=1, Q8_0=8) and `flash_attn` to llama.cpp; a q8_0 V cache needs flash attention; q8_0 halves KV memory. GPU offload, prompt-lookup decoding PLANNED |
 | GPU/VRAM detection + layer offload (`--gpu-layers`, auto-recommend on GPU machines) | SHIPPED | `nvidia-smi` VRAM probe (safe when absent); `gpu_layers_for_vram` fits layers after reserve+KV; `n_gpu_layers` wired into llama.cpp. Prompt-lookup decoding PLANNED |
 | Prompt-lookup decoding (`--pld`, default OFF) | SHIPPED (flag) | Copies prompt-verbatim spans and swallows covered backend tokens; copied chars counted. Default stays OFF until owner benchmark §9 item 9 |
 | SIMD / native kernels | PLANNED | Research track; decode is bandwidth-bound |

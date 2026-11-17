@@ -129,7 +129,8 @@ def test_moe_geometry_flag():
 
 
 def test_moe_fit_active_weights_and_ceiling():
-    # 30.5B total, 8/128 experts → 1.9125B active; file 18.6 GiB; 16 GiB RAM; 40 GB/s
+    # file 18.6 GiB; 16 GiB RAM; 40 GB/s; 2 GiB read per token (from tensor sizes)
+    active_bytes = 2 * 1024**3
     est = estimate_fit(
         30.5,
         "Q4_K_M",
@@ -138,16 +139,30 @@ def test_moe_fit_active_weights_and_ceiling():
         geometry=MOE_GEO,
         file_size_bytes=int(18.6 * 1024**3),
         bandwidth_gbps=40.0,
+        active_weight_bytes=active_bytes,
     )
-    assert est.active_weights_gb is not None
-    expected_active = 30.5 * 8 / 128 * 0.55
-    assert abs(est.active_weights_gb - expected_active) < 1e-6
+    assert est.active_weights_gb == 2.0
     # file (18.6 GiB) > RAM (16 GiB) → not resident, paging warning present
     assert est.resident is False
     assert any("SSD paging" in n for n in est.notes)
     # ceiling uses ACTIVE weights, not the resident file
     assert est.decode_ceiling_tok_s == 40.0 / est.active_weights_gb
-    assert est.decode_ceiling_tok_s > 10
+
+
+def test_moe_without_tensor_sizes_does_not_guess_from_params():
+    # No params × used/count guess: without tensor sizes the ceiling uses full weights.
+    est = estimate_fit(
+        30.5,
+        "Q4_K_M",
+        4096,
+        64.0,
+        geometry=MOE_GEO,
+        file_size_bytes=int(18.6 * 1024**3),
+        bandwidth_gbps=40.0,
+    )
+    assert est.active_weights_gb is None
+    assert est.decode_ceiling_tok_s == 40.0 / est.weights_gb
+    assert any("active weights unknown" in n for n in est.notes)
 
 
 def test_dense_ceiling_uses_full_weights():
