@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { Provider } from "../api";
 import ai2 from "../icons/providers/ai2.svg?raw";
 import deepseek from "../icons/providers/deepseek.svg?raw";
@@ -9,7 +10,15 @@ import mistral from "../icons/providers/mistral.svg?raw";
 import qwen from "../icons/providers/qwen.svg?raw";
 import tinyllama from "../icons/providers/tinyllama.svg?raw";
 
-/** Monochrome provider marks (fill="currentColor"); sources in ui/CREDITS.md. */
+/**
+ * Provider marks in their official colours: the `<name>-color.svg` variants
+ * from lobe-icons (`@lobehub/icons-static-svg`), saved as
+ * `src/icons/providers/<name>.svg`. TinyLlama is our own "TL" monogram
+ * (letters in currentColor, frame in one muted sage). Gradient ids are
+ * prefixed `ec-<name>-` per file and made unique per instance below, so
+ * several inline copies on one page never clash. Sources and trademark note
+ * in ui/CREDITS.md.
+ */
 export const PROVIDER_SVG: Record<Provider | "huggingface", string> = {
   tinyllama,
   microsoft,
@@ -46,10 +55,16 @@ export function ProviderLogo({
   tile?: boolean;
   title?: string;
 }) {
-  const svg = PROVIDER_SVG[provider].replace(/<title>[^<]*<\/title>/, "");
+  // Suffix every gradient id with this instance's id: a url(#id) that points
+  // at a copy inside a hidden popover would otherwise paint nothing.
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const svg = PROVIDER_SVG[provider]
+    .replace(/<title>[^<]*<\/title>/, "")
+    .replace(/\b(ec-[a-z0-9]+-c\d+)\b/g, `$1-${uid}`);
   const mark = (
     <span
       className="provider-mark"
+      data-provider={provider}
       role="img"
       aria-label={title ?? PROVIDER_NAME[provider]}
       style={{ width: size, height: size }}

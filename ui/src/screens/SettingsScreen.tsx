@@ -203,7 +203,7 @@ export function SettingsScreen() {
 
       <section className="set-section">
         <h2>About</h2>
-        <Row label="Provider marks" hint="Monochrome marks from lobe-icons (MIT). Trademarks belong to their owners.">
+        <Row label="Provider marks" hint="Colour marks from lobe-icons (MIT). Trademarks belong to their owners.">
           <div className="marks">
             {MARKS.map((p) => (
               <span key={p} className="mark-cell" title={PROVIDER_NAME[p]}>

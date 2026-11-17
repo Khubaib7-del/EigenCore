@@ -52,21 +52,23 @@ SOFTWARE.
 - Project: lobe-icons by LobeHub — https://github.com/lobehub/lobe-icons
 - Package: `@lobehub/icons-static-svg` 1.102.0 (npm), licence MIT,
   Copyright (c) 2023 LobeHub
-- Files were copied from the package's `icons/` folder; we removed the fixed
-  `1em` width/height and inline style so they size from CSS. They already use
-  `fill="currentColor"`, so they recolour with the theme.
+- Files are the package's colour variants, copied from its `icons/` folder
+  (`<name>-color.svg`) and saved as `<name>.svg`. We removed the fixed `1em`
+  width/height and inline style so they size from CSS, and renamed gradient
+  ids to `ec-<name>-c<n>` (the UI also adds a per-instance suffix) so several
+  inline copies on one page don't clash. The colours are otherwise unchanged.
 
 | File in `src/icons/providers/` | Source file | Used for |
 | --- | --- | --- |
-| `meta.svg` | `icons/meta.svg` | Meta / Llama |
-| `microsoft.svg` | `icons/microsoft.svg` (title changed from "Azure" to "Microsoft") | Phi-3 |
-| `qwen.svg` | `icons/qwen.svg` | Qwen (Alibaba) |
-| `mistral.svg` | `icons/mistral.svg` | Mistral |
-| `gemma.svg` | `icons/gemma.svg` | Google Gemma |
-| `deepseek.svg` | `icons/deepseek.svg` | DeepSeek |
-| `huggingface.svg` | `icons/huggingface.svg` | Hugging Face (download source) |
-| `ai2.svg` | `icons/ai2.svg` | Ai2 / OLMo |
-| `tinyllama.svg` | drawn for EigenCore (not from lobe-icons) | TinyLlama — a neutral "TL" monogram, because TinyLlama is a community model with no official mark and is not a Meta model |
+| `meta.svg` | `icons/meta-color.svg` | Meta / Llama |
+| `microsoft.svg` | `icons/microsoft-color.svg` (title changed from "Azure" to "Microsoft") | Phi-3 |
+| `qwen.svg` | `icons/qwen-color.svg` | Qwen (Alibaba) |
+| `mistral.svg` | `icons/mistral-color.svg` | Mistral |
+| `gemma.svg` | `icons/gemma-color.svg` | Google Gemma |
+| `deepseek.svg` | `icons/deepseek-color.svg` | DeepSeek |
+| `huggingface.svg` | `icons/huggingface-color.svg` | Hugging Face (download source) |
+| `ai2.svg` | `icons/ai2-color.svg` | Ai2 / OLMo |
+| `tinyllama.svg` | drawn for EigenCore (not from lobe-icons) | TinyLlama — a "TL" monogram (letters in the text colour, frame in one muted sage), because TinyLlama is a community model with no official mark and is not a Meta model |
 
 Company and model names and logos are trademarks of their owners. They are
 used only to say where a model comes from, and do not mean the owners endorse
