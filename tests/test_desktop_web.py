@@ -479,16 +479,19 @@ def test_window_controls():
     assert br.window_control("minimize") is False  # no window yet
     win = FakeWindow()
     br._attach(win)
+    assert br.is_maximized()  # the window opens maximized
     assert br.window_control("minimize")
     assert br.window_control("toggle_maximize")
-    assert br.is_maximized()
-    assert br.window_control("toggle_maximize")
     assert not br.is_maximized()
+    assert br.window_control("toggle_maximize")
+    assert br.is_maximized()
     assert br.window_control("resize", 100, 2000)
     assert not br.window_control("explode")
     assert br.window_control("close")
-    assert win.calls == ["minimize", "maximize", "restore", ("resize", 860, 2000), "destroy"]
-    # maximize/restore done with the OS (e.g. Win+Up) keeps the state in sync
+    assert win.calls == ["minimize", "restore", "maximize", ("resize", 860, 2000), "destroy"]
+    # maximize/restore done with the OS (e.g. Win+Down / Win+Up) keeps the state in sync
+    win.events.restored.handlers[0]()
+    assert not br.is_maximized()
     win.events.maximized.handlers[0]()
     assert br.is_maximized()
 
