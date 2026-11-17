@@ -10,6 +10,7 @@ the `optimization_stats` property.
 from __future__ import annotations
 
 import time
+import warnings
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,8 +22,29 @@ from eigencore.engine.speculative import SpeculativeDecoder
 from eigencore.hal.profiler import HardwareProfile, InstructionSet
 from eigencore.models.registry import ModelSpec
 
-# llama-cpp-python expects an int KV type; map our string names.
-_KV_TYPE_MAP = {"fp16": 0, "q8_0": 1}
+# llama-cpp-python takes the KV cache types as ggml_type enum values via
+# `type_k` / `type_v` (there is no `type_kv`; unknown kwargs are swallowed).
+# ggml.h: GGML_TYPE_F32 = 0, GGML_TYPE_F16 = 1, GGML_TYPE_Q8_0 = 8.
+GGML_TYPE_F16 = 1
+GGML_TYPE_Q8_0 = 8
+_KV_TYPE_MAP = {"fp16": GGML_TYPE_F16, "q8_0": GGML_TYPE_Q8_0}
+
+
+def kv_cache_types(kv_type: str, flash_attn: bool) -> tuple[int, int]:
+    """(type_k, type_v) ggml enums for a --kv choice.
+
+    llama.cpp only supports a quantized V cache with flash attention, so with
+    flash attention off a q8_0 request keeps K at q8_0 and V at f16.
+    """
+    k = v = _KV_TYPE_MAP[kv_type]
+    if v != GGML_TYPE_F16 and not flash_attn:
+        warnings.warn(
+            f"kv_type={kv_type!r} needs flash attention for the V cache; "
+            "V cache stays f16 because flash attention is off",
+            stacklevel=2,
+        )
+        v = GGML_TYPE_F16
+    return k, v
 
 
 @dataclass
@@ -102,6 +124,7 @@ class InferenceEngine:
 
         n_threads = self.profile.recommended_threads
         n_batch = self._compute_batch_size()
+        type_k, type_v = kv_cache_types(self.kv_type, self.flash_attn)
 
         self._llm = Llama(
             model_path=str(self.model_path),
@@ -110,7 +133,8 @@ class InferenceEngine:
             n_threads_batch=n_threads,
             n_batch=n_batch,
             n_gpu_layers=self.n_gpu_layers,
-            type_kv=_KV_TYPE_MAP[self.kv_type],
+            type_k=type_k,
+            type_v=type_v,
             flash_attn=self.flash_attn,
             verbose=False,
         )

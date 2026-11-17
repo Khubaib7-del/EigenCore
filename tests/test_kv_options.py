@@ -5,9 +5,11 @@ import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from eigencore.engine.inference import InferenceEngine
+from eigencore.engine.inference import InferenceEngine, kv_cache_types
 from eigencore.hal.profiler import HardwareProfile, InstructionSet
 from eigencore.models.registry import ModelSpec
 
@@ -61,15 +63,33 @@ def _load_with(**kwargs):
 
 def test_defaults_are_fp16_kv_and_flash_on():
     kwargs = _load_with()
-    assert kwargs["type_kv"] == 0  # fp16
+    assert kwargs["type_k"] == 1  # GGML_TYPE_F16
+    assert kwargs["type_v"] == 1
+    assert kwargs["flash_attn"] is True
+    assert "type_kv" not in kwargs  # not a llama-cpp-python parameter
+
+
+def test_q8_0_kv_maps_to_ggml_q8_0():
+    kwargs = _load_with(kv_type="q8_0")
+    assert kwargs["type_k"] == 8  # GGML_TYPE_Q8_0
+    assert kwargs["type_v"] == 8
     assert kwargs["flash_attn"] is True
 
 
-def test_q8_0_kv_maps_to_type_1():
-    kwargs = _load_with(kv_type="q8_0")
-    assert kwargs["type_kv"] == 1
+def test_q8_0_without_flash_keeps_v_f16():
+    with pytest.warns(UserWarning, match="flash attention"):
+        kwargs = _load_with(kv_type="q8_0", flash_attn=False)
+    assert kwargs["type_k"] == 8
+    assert kwargs["type_v"] == 1  # quantized V needs flash_attn
+    assert kwargs["flash_attn"] is False
 
 
 def test_no_flash():
     kwargs = _load_with(flash_attn=False)
     assert kwargs["flash_attn"] is False
+    assert kwargs["type_k"] == kwargs["type_v"] == 1
+
+
+def test_kv_cache_types_helper():
+    assert kv_cache_types("fp16", True) == (1, 1)
+    assert kv_cache_types("q8_0", True) == (8, 8)
