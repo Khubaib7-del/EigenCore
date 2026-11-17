@@ -33,8 +33,8 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 from eigencore.engine.inference import GenerationConfig
-from eigencore.forge import open_engine
 from eigencore.fit import FitVerdict, estimate_fit, read_gguf_model_info
+from eigencore.forge import open_engine
 from eigencore.hal.profiler import HardwareProfile, profile_hardware
 from eigencore.models.registry import ModelRegistry, ModelSpec
 
