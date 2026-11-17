@@ -12,14 +12,24 @@
       "size_bytes": 668788096,
       "size_gb": 0.67,
       "task": "general",
+      "tags": [
+        "chat"
+      ],
+      "ram_class": 8,
+      "priority": 10,
       "context_length": 2048,
       "arch": "llama",
       "license": "apache-2.0",
       "noncommercial": false,
-      "tags": [
-        "chat"
-      ],
       "min_runtime": "0.3.0",
+      "geometry": {
+        "block_count": 22,
+        "embedding_length": 2048,
+        "head_count": 32,
+        "head_count_kv": 4,
+        "active_bytes": 667078656
+      },
+      "verified_at": "2026-11-17",
       "description": "Tiny general-purpose model. Fast on any CPU."
     },
     {
@@ -31,15 +41,25 @@
       "size_bytes": 2393231360,
       "size_gb": 2.39,
       "task": "general",
+      "tags": [
+        "chat"
+      ],
+      "ram_class": 8,
+      "priority": 30,
       "context_length": 4096,
       "arch": "phi3",
       "license": "mit",
       "license_url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/resolve/main/LICENSE",
       "noncommercial": false,
-      "tags": [
-        "chat"
-      ],
       "min_runtime": "0.3.0",
+      "geometry": {
+        "block_count": 32,
+        "embedding_length": 3072,
+        "head_count": 32,
+        "head_count_kv": 32,
+        "active_bytes": 2392493568
+      },
+      "verified_at": "2026-11-17",
       "description": "Strong 3.8B model. Good reasoning for its size."
     },
     {
@@ -51,15 +71,25 @@
       "size_bytes": 1117320736,
       "size_gb": 1.12,
       "task": "general",
+      "tags": [
+        "chat"
+      ],
+      "ram_class": 8,
+      "priority": 20,
       "context_length": 32768,
       "arch": "qwen2",
       "license": "apache-2.0",
       "license_url": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/blob/main/LICENSE",
       "noncommercial": false,
-      "tags": [
-        "chat"
-      ],
       "min_runtime": "0.3.0",
+      "geometry": {
+        "block_count": 28,
+        "embedding_length": 1536,
+        "head_count": 12,
+        "head_count_kv": 2,
+        "active_bytes": 1111370240
+      },
+      "verified_at": "2026-11-17",
       "description": "Efficient 1.5B model with strong multilingual support."
     },
     {
@@ -71,16 +101,26 @@
       "size_bytes": 2104932768,
       "size_gb": 2.1,
       "task": "general",
+      "tags": [
+        "chat"
+      ],
+      "ram_class": 8,
+      "priority": 25,
       "context_length": 32768,
       "arch": "qwen2",
       "license": "other",
       "license_name": "qwen-research",
       "license_url": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/blob/main/LICENSE",
       "noncommercial": true,
-      "tags": [
-        "chat"
-      ],
       "min_runtime": "0.3.0",
+      "geometry": {
+        "block_count": 36,
+        "embedding_length": 2048,
+        "head_count": 16,
+        "head_count_kv": 2,
+        "active_bytes": 2098976768
+      },
+      "verified_at": "2026-11-17",
       "description": "Balanced 3B model. Good general reasoning. Qwen Research licence: non-commercial use only."
     },
     {
@@ -92,15 +132,25 @@
       "size_bytes": 1117320768,
       "size_gb": 1.12,
       "task": "code",
+      "tags": [
+        "code"
+      ],
+      "ram_class": 8,
+      "priority": 20,
       "context_length": 32768,
       "arch": "qwen2",
       "license": "apache-2.0",
       "license_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/blob/main/LICENSE",
       "noncommercial": false,
-      "tags": [
-        "code"
-      ],
       "min_runtime": "0.3.0",
+      "geometry": {
+        "block_count": 28,
+        "embedding_length": 1536,
+        "head_count": 12,
+        "head_count_kv": 2,
+        "active_bytes": 1111370240
+      },
+      "verified_at": "2026-11-17",
       "description": "Code-specialized 1.5B model."
     },
     {
@@ -112,15 +162,24 @@
       "size_bytes": 4683073632,
       "size_gb": 4.68,
       "task": "general",
+      "tags": [
+        "chat"
+      ],
+      "ram_class": 16,
+      "priority": 40,
       "context_length": 131072,
       "arch": "qwen2",
       "license": "apache-2.0",
       "license_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/blob/main/LICENSE",
       "noncommercial": false,
-      "tags": [
-        "chat"
-      ],
       "min_runtime": "0.3.0",
+      "geometry": {
+        "block_count": 28,
+        "embedding_length": 3584,
+        "head_count": 28,
+        "head_count_kv": 4
+      },
+      "verified_at": "2026-11-17",
       "description": "Large 7B model. Best quality but needs 8GB+ free RAM."
     },
     {
@@ -132,20 +191,34 @@
       "size_bytes": 18556685824,
       "size_gb": 18.56,
       "task": "general",
-      "context_length": 40960,
-      "arch": "qwen3moe",
-      "license": "apache-2.0",
-      "license_url": "https://huggingface.co/Qwen/Qwen3-30B-A3B-GGUF/blob/main/LICENSE",
-      "noncommercial": false,
       "tags": [
         "chat",
         "reasoning",
         "moe"
       ],
+      "ram_class": 32,
+      "priority": 60,
+      "context_length": 40960,
+      "arch": "qwen3moe",
+      "license": "apache-2.0",
+      "license_url": "https://huggingface.co/Qwen/Qwen3-30B-A3B-GGUF/blob/main/LICENSE",
+      "noncommercial": false,
       "min_runtime": "0.3.9",
-      "description": "MoE 30B (3.3B active/token). Decode is bandwidth-bound on ACTIVE weights; full file must be resident or mmap-paged.",
       "experts_total": 128,
-      "experts_active": 8
+      "experts_active": 8,
+      "geometry": {
+        "block_count": 48,
+        "embedding_length": 2048,
+        "head_count": 32,
+        "head_count_kv": 4,
+        "key_length": 128,
+        "value_length": 128,
+        "expert_count": 128,
+        "expert_used_count": 8,
+        "active_bytes": 2094626816
+      },
+      "verified_at": "2026-11-17",
+      "description": "MoE 30B (3.3B active/token). Decode is bandwidth-bound on ACTIVE weights; full file must be resident or mmap-paged."
     },
     {
       "name": "granite-4.2-8b",
@@ -156,16 +229,26 @@
       "size_bytes": 5347917952,
       "size_gb": 5.35,
       "task": "code",
-      "context_length": 131072,
-      "arch": "granite",
-      "license": "apache-2.0",
-      "noncommercial": false,
       "tags": [
         "code",
         "reasoning",
         "tools"
       ],
+      "ram_class": 16,
+      "priority": 80,
+      "context_length": 131072,
+      "arch": "granite",
+      "license": "apache-2.0",
+      "noncommercial": false,
       "min_runtime": "0.3.17",
+      "geometry": {
+        "block_count": 40,
+        "embedding_length": 4096,
+        "head_count": 32,
+        "head_count_kv": 8,
+        "active_bytes": 5344346112
+      },
+      "verified_at": "2026-11-17",
       "description": "IBM Granite 4.2 8B (dense). Reasoning, code generation and tool calling, with thinking and non-thinking modes. Apache-2.0."
     },
     {
@@ -177,19 +260,393 @@
       "size_bytes": 5347917568,
       "size_gb": 5.35,
       "task": "code",
+      "tags": [
+        "code",
+        "reasoning",
+        "math"
+      ],
+      "ram_class": 16,
+      "priority": 50,
       "context_length": 131072,
       "arch": "granite",
       "license": "other",
       "license_name": "webai-non-commercial-license-ver.-1.0",
       "license_url": "https://huggingface.co/webAI-Official/TwIL-8B/blob/main/LICENSE.md",
       "noncommercial": true,
+      "min_runtime": "0.3.17",
+      "geometry": {
+        "block_count": 40,
+        "embedding_length": 4096,
+        "head_count": 32,
+        "head_count_kv": 8,
+        "active_bytes": 5344346112
+      },
+      "verified_at": "2026-11-17",
+      "description": "TwIL-8B (balanced variant): Granite 4.2 8B post-trained by webAI for math, code and instruction following; thinks before answering. webAI Non-Commercial License: research and education only."
+    },
+    {
+      "name": "granite-4.2-3b",
+      "repo_id": "ibm-granite/granite-4.2-3b-GGUF",
+      "filename": "granite-4.2-3b-Q4_K_M.gguf",
+      "params_b": 3.7,
+      "quant": "Q4_K_M",
+      "size_bytes": 2244011552,
+      "size_gb": 2.24,
+      "task": "general",
+      "tags": [
+        "chat",
+        "code",
+        "tools"
+      ],
+      "ram_class": 8,
+      "priority": 70,
+      "context_length": 131072,
+      "arch": "granite",
+      "license": "apache-2.0",
+      "noncommercial": false,
+      "min_runtime": "0.3.17",
+      "geometry": {
+        "block_count": 40,
+        "embedding_length": 2560,
+        "head_count": 40,
+        "head_count_kv": 8,
+        "active_bytes": 2240440320
+      },
+      "verified_at": "2026-11-17",
+      "description": "IBM Granite 4.2 3B (dense). Small all-rounder for chat, code and tool calling; runs on 8 GB machines. Apache-2.0."
+    },
+    {
+      "name": "granite-4.0-h-tiny",
+      "repo_id": "ibm-granite/granite-4.0-h-tiny-GGUF",
+      "filename": "granite-4.0-h-tiny-Q4_K_M.gguf",
+      "params_b": 6.9,
+      "quant": "Q4_K_M",
+      "size_bytes": 4230976352,
+      "size_gb": 4.23,
+      "task": "general",
+      "tags": [
+        "chat",
+        "tools",
+        "moe",
+        "hybrid"
+      ],
+      "ram_class": 8,
+      "priority": 65,
+      "context_length": 1048576,
+      "arch": "granitehybrid",
+      "license": "apache-2.0",
+      "noncommercial": false,
+      "min_runtime": "0.3.13",
+      "experts_total": 64,
+      "experts_active": 6,
+      "geometry": {
+        "block_count": 40,
+        "attention_layers": 4,
+        "embedding_length": 1536,
+        "head_count": 12,
+        "head_count_kv": 4,
+        "expert_count": 64,
+        "expert_used_count": 6,
+        "kv_elements_per_token": 4096,
+        "active_bytes": 913314048
+      },
+      "verified_at": "2026-11-17",
+      "description": "IBM Granite 4.0 H-Tiny: MoE (about 1B active per token) with Mamba2 layers and only 4 attention layers, so the KV cache stays small at long context. Apache-2.0."
+    },
+    {
+      "name": "qwen3.5-4b",
+      "repo_id": "unsloth/Qwen3.5-4B-GGUF",
+      "filename": "Qwen3.5-4B-Q4_K_M.gguf",
+      "params_b": 4.2,
+      "quant": "Q4_K_M",
+      "size_bytes": 2740937888,
+      "size_gb": 2.74,
+      "task": "general",
+      "tags": [
+        "chat",
+        "reasoning",
+        "hybrid"
+      ],
+      "ram_class": 8,
+      "priority": 75,
+      "context_length": 262144,
+      "arch": "qwen35",
+      "license": "apache-2.0",
+      "license_url": "https://huggingface.co/Qwen/Qwen3.5-4B/blob/main/LICENSE",
+      "noncommercial": false,
+      "min_runtime": "0.3.17",
+      "geometry": {
+        "block_count": 32,
+        "attention_layers": 8,
+        "embedding_length": 2560,
+        "head_count": 16,
+        "head_count_kv": 4,
+        "key_length": 256,
+        "value_length": 256,
+        "active_bytes": 2729969664
+      },
+      "verified_at": "2026-11-17",
+      "description": "Qwen3.5 4B (dense, linear attention in 3 of 4 layers). Thinking and non-thinking modes; fits 8 GB machines. Apache-2.0."
+    },
+    {
+      "name": "qwen3.5-9b",
+      "repo_id": "unsloth/Qwen3.5-9B-GGUF",
+      "filename": "Qwen3.5-9B-Q4_K_M.gguf",
+      "params_b": 9.0,
+      "quant": "Q4_K_M",
+      "size_bytes": 5680522464,
+      "size_gb": 5.68,
+      "task": "general",
+      "tags": [
+        "chat",
+        "reasoning",
+        "hybrid"
+      ],
+      "ram_class": 16,
+      "priority": 80,
+      "context_length": 262144,
+      "arch": "qwen35",
+      "license": "apache-2.0",
+      "license_url": "https://huggingface.co/Qwen/Qwen3.5-9B/blob/main/LICENSE",
+      "noncommercial": false,
+      "min_runtime": "0.3.17",
+      "geometry": {
+        "block_count": 32,
+        "attention_layers": 8,
+        "embedding_length": 4096,
+        "head_count": 16,
+        "head_count_kv": 4,
+        "key_length": 256,
+        "value_length": 256,
+        "active_bytes": 5669554176
+      },
+      "verified_at": "2026-11-17",
+      "description": "Qwen3.5 9B (dense, linear attention in 3 of 4 layers). General chat with a thinking mode; the 16 GB pick. Apache-2.0."
+    },
+    {
+      "name": "deepseek-r1-0528-qwen3-8b",
+      "repo_id": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
+      "filename": "DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf",
+      "params_b": 8.2,
+      "quant": "Q4_K_M",
+      "size_bytes": 5027785216,
+      "size_gb": 5.03,
+      "task": "general",
+      "tags": [
+        "reasoning"
+      ],
+      "ram_class": 16,
+      "priority": 60,
+      "context_length": 131072,
+      "arch": "qwen3",
+      "license": "mit",
+      "noncommercial": false,
+      "min_runtime": "0.3.9",
+      "geometry": {
+        "block_count": 36,
+        "embedding_length": 4096,
+        "head_count": 32,
+        "head_count_kv": 8,
+        "key_length": 128,
+        "value_length": 128,
+        "active_bytes": 5021827072
+      },
+      "verified_at": "2026-11-17",
+      "description": "DeepSeek-R1-0528 distilled into Qwen3 8B (dense). Always thinks step by step before answering; long replies. MIT."
+    },
+    {
+      "name": "gpt-oss-20b",
+      "repo_id": "ggml-org/gpt-oss-20b-GGUF",
+      "filename": "gpt-oss-20b-MXFP4.gguf",
+      "params_b": 20.9,
+      "quant": "MXFP4",
+      "size_bytes": 12109566624,
+      "size_gb": 12.11,
+      "task": "general",
+      "tags": [
+        "reasoning",
+        "tools",
+        "moe"
+      ],
+      "ram_class": 32,
+      "priority": 70,
+      "context_length": 131072,
+      "arch": "gpt-oss",
+      "license": "apache-2.0",
+      "noncommercial": false,
+      "min_runtime": "0.3.15",
+      "experts_total": 32,
+      "experts_active": 4,
+      "geometry": {
+        "block_count": 24,
+        "embedding_length": 2880,
+        "head_count": 64,
+        "head_count_kv": 8,
+        "key_length": 64,
+        "value_length": 64,
+        "expert_count": 32,
+        "expert_used_count": 4,
+        "active_bytes": 3190031616
+      },
+      "verified_at": "2026-11-17",
+      "description": "OpenAI gpt-oss-20b: MoE (about 3.6B active per token) in its native MXFP4 format. Reasoning with low/medium/high effort and tool calling. Apache-2.0."
+    },
+    {
+      "name": "qwen3-coder-30b-a3b",
+      "repo_id": "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
+      "filename": "Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
+      "params_b": 30.5,
+      "quant": "Q4_K_M",
+      "size_bytes": 18556689568,
+      "size_gb": 18.56,
+      "task": "code",
       "tags": [
         "code",
-        "reasoning",
-        "math"
+        "tools",
+        "moe"
       ],
+      "ram_class": 32,
+      "priority": 85,
+      "context_length": 262144,
+      "arch": "qwen3moe",
+      "license": "apache-2.0",
+      "license_url": "https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct/blob/main/LICENSE",
+      "noncommercial": false,
+      "min_runtime": "0.3.9",
+      "experts_total": 128,
+      "experts_active": 8,
+      "geometry": {
+        "block_count": 48,
+        "embedding_length": 2048,
+        "head_count": 32,
+        "head_count_kv": 4,
+        "key_length": 128,
+        "value_length": 128,
+        "expert_count": 128,
+        "expert_used_count": 8,
+        "active_bytes": 2094626816
+      },
+      "verified_at": "2026-11-17",
+      "description": "Qwen3-Coder 30B-A3B: MoE coder (about 3.3B active per token) for agentic coding and tool calls. The 32 GB coding pick. Apache-2.0."
+    },
+    {
+      "name": "qwen3.6-35b-a3b",
+      "repo_id": "unsloth/Qwen3.6-35B-A3B-GGUF",
+      "filename": "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",
+      "params_b": 34.7,
+      "quant": "UD-Q4_K_M",
+      "size_bytes": 22134528992,
+      "size_gb": 22.13,
+      "task": "general",
+      "tags": [
+        "chat",
+        "reasoning",
+        "moe",
+        "hybrid"
+      ],
+      "ram_class": 32,
+      "priority": 85,
+      "context_length": 262144,
+      "arch": "qwen35moe",
+      "license": "apache-2.0",
+      "license_url": "https://huggingface.co/Qwen/Qwen3.6-35B-A3B/blob/main/LICENSE",
+      "noncommercial": false,
       "min_runtime": "0.3.17",
-      "description": "TwIL-8B (balanced variant): Granite 4.2 8B post-trained by webAI for math, code and instruction following; thinks before answering. webAI Non-Commercial License: research and education only."
+      "experts_total": 256,
+      "experts_active": 8,
+      "geometry": {
+        "block_count": 40,
+        "attention_layers": 10,
+        "embedding_length": 2048,
+        "head_count": 16,
+        "head_count_kv": 2,
+        "key_length": 256,
+        "value_length": 256,
+        "expert_count": 256,
+        "expert_used_count": 8,
+        "active_bytes": 3166530048
+      },
+      "verified_at": "2026-11-17",
+      "description": "Qwen3.6 35B-A3B: MoE (about 3B active per token) with linear attention in most layers. The 32 GB general pick; thinking mode. Apache-2.0."
+    },
+    {
+      "name": "qwen3-next-80b-a3b",
+      "repo_id": "Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF",
+      "filename": "Qwen3-Next-80B-A3B-Instruct-Q4_K_M.gguf",
+      "params_b": 79.7,
+      "quant": "Q4_K_M",
+      "size_bytes": 48410988384,
+      "size_gb": 48.41,
+      "task": "general",
+      "tags": [
+        "chat",
+        "moe",
+        "hybrid"
+      ],
+      "ram_class": 64,
+      "priority": 90,
+      "context_length": 262144,
+      "arch": "qwen3next",
+      "license": "apache-2.0",
+      "license_url": "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct/blob/main/LICENSE",
+      "noncommercial": false,
+      "min_runtime": "0.3.17",
+      "experts_total": 512,
+      "experts_active": 10,
+      "geometry": {
+        "block_count": 48,
+        "attention_layers": 12,
+        "embedding_length": 2048,
+        "head_count": 16,
+        "head_count_kv": 2,
+        "key_length": 256,
+        "value_length": 256,
+        "expert_count": 512,
+        "expert_used_count": 10,
+        "active_bytes": 2510799872
+      },
+      "verified_at": "2026-11-17",
+      "description": "Qwen3-Next 80B-A3B Instruct: 512-expert MoE (about 3B active per token) with linear attention in 3 of 4 layers. Needs a 64 GB machine. Apache-2.0."
+    },
+    {
+      "name": "qwen3-coder-next-80b-a3b",
+      "repo_id": "unsloth/Qwen3-Coder-Next-GGUF",
+      "filename": "Qwen3-Coder-Next-Q4_K_M.gguf",
+      "params_b": 79.7,
+      "quant": "Q4_K_M",
+      "size_bytes": 48528320544,
+      "size_gb": 48.53,
+      "task": "code",
+      "tags": [
+        "code",
+        "tools",
+        "moe",
+        "hybrid"
+      ],
+      "ram_class": 64,
+      "priority": 90,
+      "context_length": 262144,
+      "arch": "qwen3next",
+      "license": "apache-2.0",
+      "license_url": "https://huggingface.co/Qwen/Qwen3-Coder-Next/blob/main/LICENSE",
+      "noncommercial": false,
+      "min_runtime": "0.3.17",
+      "experts_total": 512,
+      "experts_active": 10,
+      "geometry": {
+        "block_count": 48,
+        "attention_layers": 12,
+        "embedding_length": 2048,
+        "head_count": 16,
+        "head_count_kv": 2,
+        "key_length": 256,
+        "value_length": 256,
+        "expert_count": 512,
+        "expert_used_count": 10,
+        "active_bytes": 2628125696
+      },
+      "verified_at": "2026-11-17",
+      "description": "Qwen3-Coder-Next 80B-A3B: the Qwen3-Next MoE (about 3B active per token) trained for agentic coding. Needs a 64 GB machine. Apache-2.0."
     }
   ]
 }
