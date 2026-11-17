@@ -42,6 +42,10 @@ export interface ModelRow {
   is_active: boolean;
   repo_id: string;
   provider: Provider;
+  /** Licence id from models.json (license_name when the id is "other"); null if unknown. */
+  license: string | null;
+  /** The licence forbids commercial use (shown as an "NC" chip). */
+  noncommercial: boolean;
 }
 
 export type EngineBackendState = "loading" | "ready" | "error";
